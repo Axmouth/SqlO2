@@ -1,4 +1,5 @@
 use super::lexer::*;
+use std::iter::*;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Ast {
@@ -63,11 +64,38 @@ fn token_from_symbol(s: Symbol) -> Token {
     };
 }
 
-fn expect_token(tokens: &Vec<Token>, cursor: u32, token: Token) -> bool {
-    if cursor >= tokens.len() as u32 {
+fn expect_token<'a>(
+    tokens: &mut impl Iterator<Item = &'a Token>,
+    cursor: u32,
+    token: Token,
+) -> bool {
+    let current_token = tokens.next();
+    if current_token.is_none() {
         return false;
     }
-    return token.value == (tokens[cursor as usize].value);
+
+    token.value == (current_token.unwrap().value)
+}
+
+fn parse_token<'a>(
+    tokens: &mut impl Iterator<Item = &'a Token>,
+    initial_cursor: u32,
+    kind: TokenKind,
+) -> Option<(Token, u32)> {
+    let cursor = initial_cursor;
+
+    let current_token = tokens.next();
+    if current_token.is_none() {
+        return None;
+    }
+
+    let current_token = current_token.unwrap();
+    println!("{:?} {}", current_token.kind, current_token.value);
+    if current_token.kind == kind {
+        return Some((current_token.clone(), cursor + 1));
+    }
+
+    None
 }
 
 fn help_message(tokens: &Vec<Token>, cursor: u32, msg: String) {
@@ -85,7 +113,7 @@ fn help_message(tokens: &Vec<Token>, cursor: u32, msg: String) {
 }
 
 pub fn parse(source: &str) -> Result<Ast, String> {
-    let tokens;
+    let mut tokens;
     match lex(source) {
         Ok(result) => {
             tokens = result;
@@ -103,7 +131,7 @@ pub fn parse(source: &str) -> Result<Ast, String> {
     let mut cursor: u32 = 0;
     while cursor < tokens.len() as u32 {
         let (statement, new_cursor) =
-            parse_statement(&tokens, cursor, token_from_symbol(SEMICOLON_SYMBOL));
+            parse_statement(&mut tokens, cursor, token_from_symbol(SEMICOLON_SYMBOL));
         match statement {
             Some(statement) => {
                 cursor = new_cursor;
@@ -111,7 +139,11 @@ pub fn parse(source: &str) -> Result<Ast, String> {
                 a.statements.push(statement);
 
                 let mut at_least_one_semicolon = false;
-                while expect_token(&tokens, cursor, token_from_symbol(SEMICOLON_SYMBOL)) {
+                while expect_token(
+                    &mut tokens[cursor as usize..].into_iter(),
+                    cursor,
+                    token_from_symbol(SEMICOLON_SYMBOL),
+                ) {
                     cursor += 1;
                     at_least_one_semicolon = true;
                 }
@@ -136,7 +168,7 @@ pub fn parse(source: &str) -> Result<Ast, String> {
 }
 
 fn parse_statement(
-    tokens: &Vec<Token>,
+    mut tokens: &mut Vec<Token>,
     initial_cursor: u32,
     _delimiter: Token,
 ) -> (Option<Statement>, u32) {
@@ -144,7 +176,7 @@ fn parse_statement(
 
     // Look for a SELECT statement
     let semicolon_token = token_from_symbol(SEMICOLON_SYMBOL);
-    let (select, new_cursor) = parse_select_statement(tokens, cursor, semicolon_token.clone());
+    let (select, new_cursor) = parse_select_statement(&mut tokens, cursor, semicolon_token.clone());
 
     match select {
         Some(select) => {
@@ -177,23 +209,8 @@ fn parse_statement(
     return (None, initial_cursor);
 }
 
-fn parse_token(tokens: &Vec<Token>, initial_cursor: u32, kind: TokenKind) -> Option<(Token, u32)> {
-    let cursor = initial_cursor;
-
-    if cursor >= tokens.len() as u32 {
-        return None;
-    }
-
-    let current_token = &tokens[cursor as usize];
-    if current_token.kind == kind {
-        return Some((current_token.clone(), cursor + 1));
-    }
-
-    return None;
-}
-
 fn parse_column_definitions(
-    tokens: &Vec<Token>,
+    tokens: &mut Vec<Token>,
     initial_cursor: u32,
     delimiter: Token,
 ) -> Option<(Vec<ColumnDefinition>, u32)> {
@@ -209,22 +226,35 @@ fn parse_column_definitions(
         // Look for a delimiter
         // let current = tokens[cursor as usize].clone();
         // if delimiter.value == current.value {
-        if expect_token(tokens, cursor, delimiter.clone()) {
+        if expect_token(
+            &mut tokens[cursor as usize..].into_iter(),
+            cursor,
+            delimiter.clone(),
+        ) {
             break;
         }
 
         // Look for a comma
         if column_definitions.len() > 0 {
-            if !expect_token(tokens, cursor, token_from_symbol(COMMA_SYMBOL)) {
+            if !expect_token(
+                &mut tokens[cursor as usize..].into_iter(),
+                cursor,
+                token_from_symbol(COMMA_SYMBOL),
+            ) {
                 help_message(tokens, cursor, "Expected Comma".to_owned());
                 return None;
             }
 
             cursor += 1;
         }
+        let t = tokens[cursor as usize..].into_iter();
 
         // Look for a column name
-        let col_name_result = parse_token(tokens, cursor, TokenKind::IdentifierKind);
+        let col_name_result = parse_token(
+            &mut tokens[cursor as usize..].into_iter(),
+            cursor,
+            TokenKind::IdentifierKind,
+        );
 
         if col_name_result.is_none() {
             help_message(tokens, cursor, "Expected Column Name".to_owned());
@@ -235,7 +265,11 @@ fn parse_column_definitions(
         cursor = new_cursor;
 
         // Look for a column type
-        let col_type_result = parse_token(tokens, cursor, TokenKind::KeywordKind);
+        let col_type_result = parse_token(
+            &mut tokens[cursor as usize..].into_iter(),
+            cursor,
+            TokenKind::KeywordKind,
+        );
 
         if col_type_result.is_none() {
             help_message(tokens, cursor, "Expected Column Type".to_owned());
@@ -255,23 +289,35 @@ fn parse_column_definitions(
 }
 
 fn parse_create_table_statement(
-    tokens: &Vec<Token>,
+    mut tokens: &mut Vec<Token>,
     initial_cursor: u32,
     _delimiter: Token,
 ) -> (Option<CreateTableStatement>, u32) {
     let mut cursor = initial_cursor;
 
-    if !expect_token(tokens, cursor, token_from_keyword(CREATE_KEYWORD)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_keyword(CREATE_KEYWORD),
+    ) {
         return (None, initial_cursor);
     }
     cursor += 1;
 
-    if !expect_token(tokens, cursor, token_from_keyword(TABLE_KEYWORD)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_keyword(TABLE_KEYWORD),
+    ) {
         return (None, initial_cursor);
     }
     cursor += 1;
 
-    let name_result = parse_token(tokens, cursor, TokenKind::IdentifierKind);
+    let name_result = parse_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        TokenKind::IdentifierKind,
+    );
 
     if name_result.is_none() {
         help_message(tokens, cursor, "Expected Table Name".to_owned());
@@ -280,14 +326,21 @@ fn parse_create_table_statement(
 
     let (name, new_cursor) = name_result.unwrap();
     cursor = new_cursor;
-    if !expect_token(tokens, cursor, token_from_symbol(LEFT_PARENTHESIS_SYMBOL)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_symbol(LEFT_PARENTHESIS_SYMBOL),
+    ) {
         help_message(tokens, cursor, "Expected Left Parenthesis".to_owned());
         return (None, initial_cursor);
     }
     cursor += 1;
 
-    let cols_result =
-        parse_column_definitions(tokens, cursor, token_from_symbol(RIGHT_PARENTHESIS_SYMBOL));
+    let cols_result = parse_column_definitions(
+        &mut tokens,
+        cursor,
+        token_from_symbol(RIGHT_PARENTHESIS_SYMBOL),
+    );
 
     if cols_result.is_none() {
         return (None, initial_cursor);
@@ -296,7 +349,11 @@ fn parse_create_table_statement(
     let (cols, new_cursor) = cols_result.unwrap();
     cursor = new_cursor;
 
-    if !expect_token(tokens, cursor, token_from_symbol(RIGHT_PARENTHESIS_SYMBOL)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_symbol(RIGHT_PARENTHESIS_SYMBOL),
+    ) {
         help_message(tokens, cursor, "Expected Right Parenthesis".to_owned());
         return (None, initial_cursor);
     }
@@ -306,7 +363,7 @@ fn parse_create_table_statement(
 }
 
 fn parse_expressions(
-    tokens: &Vec<Token>,
+    tokens: &mut Vec<Token>,
     initial_cursor: u32,
     delimiters: &Vec<Token>,
 ) -> Option<(Vec<Expression>, u32)> {
@@ -314,7 +371,10 @@ fn parse_expressions(
 
     let mut expressions: Vec<Expression> = vec![];
 
+    let mut token_iter = tokens[initial_cursor as usize..].into_iter();
+
     loop {
+        //break;
         if cursor >= tokens.len() as u32 {
             return None;
         }
@@ -329,7 +389,11 @@ fn parse_expressions(
 
         // Look for comma
         if expressions.len() > 0 {
-            if !expect_token(tokens, cursor, token_from_symbol(COMMA_SYMBOL)) {
+            if !expect_token(
+                &mut tokens[cursor as usize..].into_iter(),
+                cursor,
+                token_from_symbol(COMMA_SYMBOL),
+            ) {
                 help_message(tokens, cursor, "Expected Comma".to_owned());
                 return None;
             }
@@ -352,7 +416,7 @@ fn parse_expressions(
 }
 
 fn parse_expression(
-    tokens: &Vec<Token>,
+    tokens: &mut Vec<Token>,
     initial_cursor: u32,
     _: Token,
 ) -> Option<(Expression, u32)> {
@@ -365,7 +429,7 @@ fn parse_expression(
     ];
 
     for kind in kinds {
-        let token_result = parse_token(tokens, cursor, kind);
+        let token_result = parse_token(&mut tokens[cursor as usize..].into_iter(), cursor, kind);
 
         if token_result.is_some() {
             let (token, new_cursor) = token_result.unwrap();
@@ -383,26 +447,38 @@ fn parse_expression(
 }
 
 fn parse_insert_statement(
-    tokens: &Vec<Token>,
+    tokens: &mut Vec<Token>,
     initial_cursor: u32,
     _: Token,
 ) -> (Option<InsertStatement>, u32) {
     let mut cursor = initial_cursor;
 
     // Look for INSERT
-    if !expect_token(tokens, cursor, token_from_keyword(INSERT_KEYWORD)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_keyword(INSERT_KEYWORD),
+    ) {
         return (None, initial_cursor);
     }
     cursor += 1;
 
     // Look for INTO
-    if !expect_token(tokens, cursor, token_from_keyword(INTO_KEYWORD)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_keyword(INTO_KEYWORD),
+    ) {
         help_message(tokens, cursor, "Expected INTO".to_owned());
         return (None, initial_cursor);
     }
     cursor += 1;
 
-    let table_result = parse_token(tokens, cursor, TokenKind::IdentifierKind);
+    let table_result = parse_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        TokenKind::IdentifierKind,
+    );
 
     if table_result.is_none() {
         help_message(tokens, cursor, "Expected Table Name".to_owned());
@@ -413,14 +489,22 @@ fn parse_insert_statement(
     cursor = new_cursor;
 
     // Look for VALUES
-    if !expect_token(tokens, cursor, token_from_keyword(VALUES_KEYWORD)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_keyword(VALUES_KEYWORD),
+    ) {
         help_message(tokens, cursor, "Expected VALUES".to_owned());
         return (None, initial_cursor);
     }
     cursor += 1;
 
     // Look for left parenthesis
-    if !expect_token(tokens, cursor, token_from_symbol(LEFT_PARENTHESIS_SYMBOL)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_symbol(LEFT_PARENTHESIS_SYMBOL),
+    ) {
         help_message(tokens, cursor, "Expected Left Parenthesis".to_owned());
         return (None, initial_cursor);
     }
@@ -439,7 +523,11 @@ fn parse_insert_statement(
     cursor = new_cursor;
 
     // Look for right parenthesis
-    if !expect_token(tokens, cursor, token_from_symbol(RIGHT_PARENTHESIS_SYMBOL)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_symbol(RIGHT_PARENTHESIS_SYMBOL),
+    ) {
         help_message(tokens, cursor, "Expected Right Parenthesis".to_owned());
         return (None, initial_cursor);
     }
@@ -449,13 +537,17 @@ fn parse_insert_statement(
 }
 
 fn parse_select_statement(
-    tokens: &Vec<Token>,
+    tokens: &mut Vec<Token>,
     initial_cursor: u32,
     delimiter: Token,
 ) -> (Option<SelectStatement>, u32) {
     let mut cursor = initial_cursor;
 
-    if !expect_token(tokens, cursor, token_from_keyword(SELECT_KEYWORD)) {
+    if !expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_keyword(SELECT_KEYWORD),
+    ) {
         return (None, initial_cursor);
     }
     cursor += 1;
@@ -479,10 +571,18 @@ fn parse_select_statement(
     select.item = expressions;
     cursor = new_cursor;
 
-    if expect_token(tokens, cursor, token_from_keyword(FROM_KEYWORD)) {
+    if expect_token(
+        &mut tokens[cursor as usize..].into_iter(),
+        cursor,
+        token_from_keyword(FROM_KEYWORD),
+    ) {
         cursor += 1;
 
-        let from_result = parse_token(tokens, cursor, TokenKind::IdentifierKind);
+        let from_result = parse_token(
+            &mut tokens[cursor as usize..].into_iter(),
+            cursor,
+            TokenKind::IdentifierKind,
+        );
 
         if from_result.is_none() {
             help_message(tokens, cursor, "Expected FROM".to_owned());
@@ -495,4 +595,113 @@ fn parse_select_statement(
     }
 
     (Some(select), cursor)
+}
+
+#[cfg(test)]
+mod lexer_tests {
+    use super::super::super::lib::lexer::*;
+    use super::super::super::lib::parser::*;
+
+    struct ParseTest {
+        ast: Ast,
+        input: &'static str,
+    }
+
+    #[test]
+    fn test_parse() {
+        let parse_tests = vec![
+            ParseTest {
+                input: "INSERT INTO users VALUES (105, 'George');",
+                ast: Ast {
+                    statements: vec![Statement::InsertStatement(InsertStatement {
+                        table: Token {
+                            loc: Location { col: 12, line: 0 },
+                            kind: TokenKind::IdentifierKind,
+                            value: "users".to_owned(),
+                        },
+                        values: vec![
+                            Expression {
+                                kind: ExpressionKind::LiteralKind,
+                                literal: Token {
+                                    loc: Location { col: 26, line: 0 },
+                                    kind: TokenKind::NumericKind,
+                                    value: "105".to_owned(),
+                                },
+                            },
+                            Expression {
+                                kind: ExpressionKind::LiteralKind,
+                                literal: Token {
+                                    loc: Location { col: 32, line: 0 },
+                                    kind: TokenKind::StringKind,
+                                    value: "George".to_owned(),
+                                },
+                            },
+                        ],
+                    })],
+                },
+            },
+            ParseTest {
+                input: "CREATE TABLE users (id INT, name TEXT);",
+                ast: Ast {
+                    statements: vec![Statement::CreateTableStatement(CreateTableStatement {
+                        name: Token {
+                            loc: Location { col: 13, line: 0 },
+                            kind: TokenKind::IdentifierKind,
+                            value: "users".to_owned(),
+                        },
+                        cols: vec![
+                            ColumnDefinition {
+                                name: Token {
+                                    loc: Location { col: 20, line: 0 },
+                                    kind: TokenKind::IdentifierKind,
+                                    value: "id".to_owned(),
+                                },
+                                data_type: Token {
+                                    loc: Location { col: 23, line: 0 },
+                                    kind: TokenKind::KeywordKind,
+                                    value: INT_KEYWORD.to_owned(),
+                                },
+                            },
+                            ColumnDefinition {
+                                name: Token {
+                                    loc: Location { col: 28, line: 0 },
+                                    kind: TokenKind::IdentifierKind,
+                                    value: "name".to_owned(),
+                                },
+                                data_type: Token {
+                                    loc: Location { col: 33, line: 0 },
+                                    kind: TokenKind::KeywordKind,
+                                    value: TEXT_KEYWORD.to_owned(),
+                                },
+                            },
+                        ],
+                    })],
+                },
+            },
+        ];
+
+        let mut found_faults = false;
+        let mut err_msg = "\n".to_owned();
+
+        for test in parse_tests {
+            print!("(Parser) Testing: {}", test.input);
+
+            let ast_result = parse(test.input);
+
+            if ast_result.is_err() {
+                found_faults = true;
+                err_msg.push_str(ast_result.err().unwrap().as_str());
+                continue;
+            }
+
+            let ast = ast_result.ok().unwrap();
+
+            assert_eq!(ast, test.ast);
+            println!("  Passed!");
+        }
+
+        if found_faults {
+            panic!(err_msg);
+        }
+    }
 }
