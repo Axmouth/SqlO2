@@ -1,17 +1,17 @@
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Location {
     pub line: u32,
     pub col: u32,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Token {
     pub value: String,
     pub kind: TokenKind,
     pub loc: Location,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Cursor {
     pub pointer: u32,
     pub loc: Location,

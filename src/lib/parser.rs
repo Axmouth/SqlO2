@@ -1,48 +1,48 @@
 use super::lexer::*;
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Ast {
     pub statements: Vec<Statement>,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Statement {
     SelectStatement(SelectStatement),
     CreateTableStatement(CreateTableStatement),
     InsertStatement(InsertStatement),
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct InsertStatement {
     pub table: Token,
     pub values: Vec<Expression>,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct CreateTableStatement {
     pub name: Token,
     pub cols: Vec<ColumnDefinition>,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ColumnDefinition {
     pub name: Token,
     pub data_type: Token,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct SelectStatement {
     pub item: Vec<Expression>,
     pub from: Token,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Expression {
     pub literal: Token,
     pub kind: ExpressionKind,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum ExpressionKind {
     LiteralKind,
 }

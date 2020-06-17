@@ -21,7 +21,7 @@ mod lexer_tests {
             );
             let produced_result;
             if lex_result.is_some() {
-                let (res, cur) = lex_result.unwrap();
+                let (res, _cur) = lex_result.unwrap();
                 produced_result = true;
                 if res.value != test.expected_value {
                     found_faults = true;
