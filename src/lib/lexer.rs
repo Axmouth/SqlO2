@@ -5,9 +5,9 @@ pub struct Location {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct Token {
+pub struct LexToken {
     pub value: String,
-    pub kind: TokenKind,
+    pub kind: LexTokenKind,
     pub loc: Location,
 }
 
@@ -21,14 +21,14 @@ pub type Keyword = &'static str;
 pub type Symbol = &'static str;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub enum TokenKind {
+pub enum LexTokenKind {
     KeywordKind,
     SymbolKind,
     IdentifierKind,
     StringKind,
     NumericKind,
     BoolKind,
-    None,
+    Empty,
 }
 
 pub const WHERE_KEYWORD: Keyword = "where";
@@ -51,9 +51,9 @@ pub const RIGHT_PARENTHESIS_SYMBOL: Symbol = ")";
 pub const CONCAT_SYMBOL: Symbol = "||";
 pub const EQUALS_SYMBOL: Symbol = "=";
 
-pub type Lexer = fn(&str, Cursor) -> Option<(Token, Cursor)>;
+pub type LexerFn = fn(&str, Cursor) -> Option<(LexToken, Cursor)>;
 
-pub fn lex(source: &str) -> Result<Vec<Token>, String> {
+pub fn lex(source: &str) -> Result<Vec<LexToken>, String> {
     let mut tokens = vec![];
     let mut cur: Cursor = Cursor {
         pointer: 0,
@@ -61,7 +61,7 @@ pub fn lex(source: &str) -> Result<Vec<Token>, String> {
     };
 
     'lex: while cur.pointer < source.len() as u32 {
-        let lexers: &[Lexer] = &[
+        let lexers: &[LexerFn] = &[
             lex_keyword,
             lex_symbol,
             lex_string,
@@ -74,7 +74,7 @@ pub fn lex(source: &str) -> Result<Vec<Token>, String> {
             if token_result.is_some() {
                 let (token, new_cursor) = token_result.unwrap();
                 cur = new_cursor.clone();
-                if token.kind != TokenKind::None {
+                if token.kind != LexTokenKind::Empty {
                     tokens.push(token);
                 }
                 continue 'lex;
@@ -98,7 +98,7 @@ pub fn lex(source: &str) -> Result<Vec<Token>, String> {
     Ok(tokens)
 }
 
-pub fn lex_numeric(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
+pub fn lex_numeric(source: &str, ic: Cursor) -> Option<(LexToken, Cursor)> {
     let mut cur = ic.clone();
 
     let mut period_found = false;
@@ -170,10 +170,10 @@ pub fn lex_numeric(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
         return None;
     }
     Some((
-        Token {
+        LexToken {
             value: source[ic.pointer as usize..cur.pointer as usize].to_owned(),
             loc: ic.loc,
-            kind: TokenKind::NumericKind,
+            kind: LexTokenKind::NumericKind,
         },
         cur,
     ))
@@ -183,7 +183,7 @@ pub fn lex_character_delimited(
     source: &str,
     ic: Cursor,
     delimiter: char,
-) -> Option<(Token, Cursor)> {
+) -> Option<(LexToken, Cursor)> {
     let mut cur = ic.clone();
 
     if source[cur.pointer as usize..].len() == 0 {
@@ -208,10 +208,10 @@ pub fn lex_character_delimited(
             // SQL escapes are via double characters, not backslash.
             if char_iter.peek().is_none() || *char_iter.peek().unwrap() != delimiter {
                 return Some((
-                    Token {
+                    LexToken {
                         value,
                         loc: ic.loc,
-                        kind: TokenKind::StringKind,
+                        kind: LexTokenKind::StringKind,
                     },
                     cur.clone(),
                 ));
@@ -230,7 +230,7 @@ pub fn lex_character_delimited(
     None
 }
 
-pub fn lex_string(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
+pub fn lex_string(source: &str, ic: Cursor) -> Option<(LexToken, Cursor)> {
     return lex_character_delimited(source, ic, '\'');
 }
 
@@ -280,7 +280,7 @@ pub fn longest_match(source: &str, ic: Cursor, options: &Vec<String>) -> String 
     text_match
 }
 
-pub fn lex_symbol(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
+pub fn lex_symbol(source: &str, ic: Cursor) -> Option<(LexToken, Cursor)> {
     let c = get_chat_at(source, ic.pointer as usize);
     let mut cur = ic.clone();
 
@@ -296,8 +296,8 @@ pub fn lex_symbol(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
         '\t' => {}
         ' ' => {
             return Some((
-                Token {
-                    kind: TokenKind::None,
+                LexToken {
+                    kind: LexTokenKind::Empty,
                     loc: Location { line: 0, col: 0 },
                     value: "".to_owned(),
                 },
@@ -326,16 +326,16 @@ pub fn lex_symbol(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
     cur.loc.col = ic.loc.col + string_match.len() as u32;
 
     Some((
-        Token {
+        LexToken {
             value: string_match,
             loc: ic.loc,
-            kind: TokenKind::SymbolKind,
+            kind: LexTokenKind::SymbolKind,
         },
         cur,
     ))
 }
 
-pub fn lex_keyword(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
+pub fn lex_keyword(source: &str, ic: Cursor) -> Option<(LexToken, Cursor)> {
     let mut cur = ic.clone();
     let keywords = &vec![
         SELECT_KEYWORD.to_owned(),
@@ -359,16 +359,16 @@ pub fn lex_keyword(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
     cur.loc.col = ic.loc.col + keyword_match.len() as u32;
 
     Some((
-        Token {
+        LexToken {
             value: keyword_match,
             loc: ic.loc,
-            kind: TokenKind::KeywordKind,
+            kind: LexTokenKind::KeywordKind,
         },
         cur,
     ))
 }
 
-pub fn lex_identifier(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
+pub fn lex_identifier(source: &str, ic: Cursor) -> Option<(LexToken, Cursor)> {
     // Handle separately if is a double-quoted identifier
     let token_result = lex_character_delimited(source, ic.clone(), '"');
     if token_result.is_some() {
@@ -405,10 +405,10 @@ pub fn lex_identifier(source: &str, ic: Cursor) -> Option<(Token, Cursor)> {
     }
 
     Some((
-        Token {
+        LexToken {
             value: value.to_lowercase(),
             loc: ic.loc,
-            kind: TokenKind::IdentifierKind,
+            kind: LexTokenKind::IdentifierKind,
         },
         cur,
     ))
@@ -440,7 +440,7 @@ mod lexer_tests {
         value: &'static str,
     }
 
-    fn run_lexer_tests(lexer: Lexer, tests: Vec<LexerTest>, lexer_name: &str) {
+    fn run_lexer_tests(lexer: LexerFn, tests: Vec<LexerTest>, lexer_name: &str) {
         let mut found_faults = false;
         let mut error_msg: String = "\n".to_owned();
         for test in tests {
@@ -459,8 +459,8 @@ mod lexer_tests {
                     found_faults = true;
                     error_msg.push_str(
                         format!(
-                            "({}): Expected to find value:\n`{}`\n\
-for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
+                            "({}): Expected to find value `{}`\
+for following value `{}` but got `{}` instead\n\n",
                             lexer_name, test.expected_value, test.value, res.value
                         )
                         .as_str(),
@@ -476,7 +476,7 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                     error_msg.push_str(
                         format!(
                             "({}): Expected to find a result for following value,\
- but it didn't:\n`{}`\n\n",
+ but it didn't `{}`\n\n",
                             lexer_name, test.value
                         )
                         .as_str(),
@@ -485,7 +485,7 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                     error_msg.push_str(
                         format!(
                             "({}): Expected to fail finding a result for following value,\
- but it returned one:\n`{}`\n\n",
+ but it returned one `{}`\n\n",
                             lexer_name, test.value
                         )
                         .as_str(),
@@ -592,6 +592,7 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
     #[test]
     fn test_token_lex_string() {
         let string_tests = vec![
+            // true
             LexerTest {
                 expected_result: true,
                 value: "'abc'",
@@ -604,9 +605,25 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
             },
             LexerTest {
                 expected_result: true,
+                value: "'a b'",
+                expected_value: "a b",
+            },
+            LexerTest {
+                expected_result: true,
+                value: "'a b  c '",
+                expected_value: "a b  c ",
+            },
+            LexerTest {
+                expected_result: true,
+                value: "'a b '''' c'",
+                expected_value: "a b '' c",
+            },
+            LexerTest {
+                expected_result: true,
                 value: "'a''b'",
                 expected_value: "a'b",
             },
+            // false
             LexerTest {
                 expected_result: false,
                 value: "a",
@@ -775,7 +792,7 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
     struct LexTest {
         valid: bool,
         input: &'static str,
-        tokens: Vec<Token>,
+        tokens: Vec<LexToken>,
     }
 
     #[test]
@@ -785,14 +802,14 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                 valid: true,
                 input: "select a",
                 tokens: vec![
-                    Token {
+                    LexToken {
                         loc: Location { col: 0, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: SELECT_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 7, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "a".to_owned(),
                     },
                 ],
@@ -817,14 +834,14 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                 valid: true,
                 input: "select 1",
                 tokens: vec![
-                    Token {
+                    LexToken {
                         loc: Location { col: 0, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: SELECT_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 7, line: 0 },
-                        kind: TokenKind::NumericKind,
+                        kind: LexTokenKind::NumericKind,
                         value: "1".to_owned(),
                     },
                 ],
@@ -833,29 +850,29 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                 valid: true,
                 input: "select 'foo' || 'bar';",
                 tokens: vec![
-                    Token {
+                    LexToken {
                         loc: Location { col: 0, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: SELECT_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 7, line: 0 },
-                        kind: TokenKind::StringKind,
+                        kind: LexTokenKind::StringKind,
                         value: "foo".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 13, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: CONCAT_SYMBOL.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 16, line: 0 },
-                        kind: TokenKind::StringKind,
+                        kind: LexTokenKind::StringKind,
                         value: "bar".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 21, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: SEMICOLON_SYMBOL.to_owned(),
                     },
                 ],
@@ -864,54 +881,54 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                 valid: true,
                 input: "CREATE TABLE u (id INT, name TEXT)",
                 tokens: vec![
-                    Token {
+                    LexToken {
                         loc: Location { col: 0, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: CREATE_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 7, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: TABLE_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 13, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "u".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 15, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: LEFT_PARENTHESIS_SYMBOL.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 16, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "id".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 19, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: INT_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 22, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: COMMA_SYMBOL.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 24, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "name".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 29, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: TEXT_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 33, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: RIGHT_PARENTHESIS_SYMBOL.to_owned(),
                     },
                 ],
@@ -920,49 +937,49 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                 valid: true,
                 input: "insert into users values (545, 232)",
                 tokens: vec![
-                    Token {
+                    LexToken {
                         loc: Location { col: 0, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: INSERT_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 7, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: INTO_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 12, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "users".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 18, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: VALUES_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 25, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: LEFT_PARENTHESIS_SYMBOL.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 26, line: 0 },
-                        kind: TokenKind::NumericKind,
+                        kind: LexTokenKind::NumericKind,
                         value: "545".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 30, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: COMMA_SYMBOL.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 32, line: 0 },
-                        kind: TokenKind::NumericKind,
+                        kind: LexTokenKind::NumericKind,
                         value: "232".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 36, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: RIGHT_PARENTHESIS_SYMBOL.to_owned(),
                     },
                 ],
@@ -971,29 +988,29 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                 valid: true,
                 input: "SELECT id FROM users;",
                 tokens: vec![
-                    Token {
+                    LexToken {
                         loc: Location { col: 0, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: SELECT_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 7, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "id".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 10, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: FROM_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 15, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "users".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 20, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: SEMICOLON_SYMBOL.to_owned(),
                     },
                 ],
@@ -1002,39 +1019,39 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                 valid: true,
                 input: "SELECT id, name FROM users;",
                 tokens: vec![
-                    Token {
+                    LexToken {
                         loc: Location { col: 0, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: SELECT_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 7, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "id".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 9, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: COMMA_SYMBOL.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 11, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "name".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 16, line: 0 },
-                        kind: TokenKind::KeywordKind,
+                        kind: LexTokenKind::KeywordKind,
                         value: FROM_KEYWORD.to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 21, line: 0 },
-                        kind: TokenKind::IdentifierKind,
+                        kind: LexTokenKind::IdentifierKind,
                         value: "users".to_owned(),
                     },
-                    Token {
+                    LexToken {
                         loc: Location { col: 26, line: 0 },
-                        kind: TokenKind::SymbolKind,
+                        kind: LexTokenKind::SymbolKind,
                         value: SEMICOLON_SYMBOL.to_owned(),
                     },
                 ],
@@ -1053,7 +1070,7 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                         found_faults = true;
                         err_msg.push_str(
                             &format!(
-                                "For Query:\n`{}`\n a failure was expected, but it passed\n",
+                                "For Input `{}` a failure was expected, but it passed\n\n",
                                 test.input
                             )
                             .to_owned(),
@@ -1063,8 +1080,7 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                         found_faults = true;
                         err_msg.push_str(
                             &format!(
-                                "For Query `{}` a result with `{}`\
-                            tokens was expected, but one with `{}` was received\n",
+                                "For Input `{}` a result with `{}` tokens was expected, but one with `{}` was received\n\n",
                                 test.input,
                                 test.tokens.len(),
                                 result.len(),
@@ -1080,8 +1096,8 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                                 found_faults = true;
                                 err_msg.push_str(
                                 &format!(
-                                    "For Query `{}` the token at position {} was expected to have a kind of `{:?}`\
-, but one with kind `{:?}` was received\n",
+                                    "For Input `{}` the token at position {} was expected to have a kind of `{:?}`\
+, but one with kind `{:?}` was received\n\n",
                                     test.input,
                                     i,
                                     expected_token.kind,
@@ -1095,8 +1111,8 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                                 found_faults = true;
                                 err_msg.push_str(
                                 &format!(
-                                    "For Query `{}` the token at position {} was expected to have a value of `{}`\
-, but one with value `{}` was received\n",
+                                    "For Input `{}` the token at position {} was expected to have a value of `{}`\
+, but one with value `{}` was received\n\n",
                                     test.input,
                                     i,
                                     expected_token.value,
@@ -1110,8 +1126,8 @@ for following value:\n`{}`\nbut got:\n`{}`\n instead\n\n",
                                 found_faults = true;
                                 err_msg.push_str(
                                 &format!(
-                                    "For Query `{}` the token at position {} was expected to have a location of `{}:{}`\
-, but one with location `{}:{}` was received\n",
+                                    "For Input `{}` the token at position {} was expected to have a location of `{}:{}`\
+, but one with location `{}:{}` was received\n\n",
                                     test.input,
                                     i,
                                     expected_token.loc.col,

@@ -136,9 +136,9 @@ impl MemoryBackend {
         }
     }
 
-    pub fn token_to_cell(token: Token) -> MemoryCell {
+    pub fn token_to_cell(token: LexToken) -> MemoryCell {
         match token.kind {
-            TokenKind::NumericKind => {
+            LexTokenKind::NumericKind => {
                 let i = token.value.parse::<i32>();
                 match i {
                     Ok(i) => {
@@ -152,7 +152,7 @@ impl MemoryBackend {
                     }
                 }
             }
-            TokenKind::StringKind => {
+            LexTokenKind::StringKind => {
                 return MemoryCell {
                     bytes: token.value.as_bytes().into(),
                 };
@@ -189,7 +189,7 @@ impl MemoryBackend {
                         }
 
                         let literal = expression.literal;
-                        if literal.kind == TokenKind::IdentifierKind {
+                        if literal.kind == LexTokenKind::IdentifierKind {
                             let mut found = false;
                             for i in 0..table.columns.len() {
                                 let table_column = table.columns[i].clone();

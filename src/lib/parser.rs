@@ -15,31 +15,31 @@ pub enum Statement {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct InsertStatement {
-    pub table: Token,
+    pub table: LexToken,
     pub values: Vec<Expression>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct CreateTableStatement {
-    pub name: Token,
+    pub name: LexToken,
     pub cols: Vec<ColumnDefinition>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ColumnDefinition {
-    pub name: Token,
-    pub data_type: Token,
+    pub name: LexToken,
+    pub data_type: LexToken,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct SelectStatement {
     pub item: Vec<Expression>,
-    pub from: Token,
+    pub from: LexToken,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Expression {
-    pub literal: Token,
+    pub literal: LexToken,
     pub kind: ExpressionKind,
 }
 
@@ -48,26 +48,26 @@ pub enum ExpressionKind {
     LiteralKind,
 }
 
-fn token_from_keyword(k: Keyword) -> Token {
-    return Token {
-        kind: TokenKind::KeywordKind,
+fn token_from_keyword(k: Keyword) -> LexToken {
+    return LexToken {
+        kind: LexTokenKind::KeywordKind,
         value: k.to_owned(),
         loc: Location { line: 0, col: 0 },
     };
 }
 
-fn token_from_symbol(s: Symbol) -> Token {
-    return Token {
-        kind: TokenKind::KeywordKind,
+fn token_from_symbol(s: Symbol) -> LexToken {
+    return LexToken {
+        kind: LexTokenKind::KeywordKind,
         value: s.to_owned(),
         loc: Location { line: 0, col: 0 },
     };
 }
 
 fn expect_token<'a>(
-    tokens: &mut impl Iterator<Item = &'a Token>,
+    tokens: &mut impl Iterator<Item = &'a LexToken>,
     cursor: u32,
-    token: Token,
+    token: LexToken,
 ) -> bool {
     let current_token = tokens.next();
     if current_token.is_none() {
@@ -78,10 +78,10 @@ fn expect_token<'a>(
 }
 
 fn parse_token<'a>(
-    tokens: &mut impl Iterator<Item = &'a Token>,
+    tokens: &mut impl Iterator<Item = &'a LexToken>,
     initial_cursor: u32,
-    kind: TokenKind,
-) -> Option<(Token, u32)> {
+    kind: LexTokenKind,
+) -> Option<(LexToken, u32)> {
     let cursor = initial_cursor;
 
     let current_token = tokens.next();
@@ -98,8 +98,8 @@ fn parse_token<'a>(
     None
 }
 
-fn help_message(tokens: &Vec<Token>, cursor: u32, msg: String) {
-    let token: Token;
+fn help_message(tokens: &Vec<LexToken>, cursor: u32, msg: String) {
+    let token: LexToken;
     if cursor < tokens.len() as u32 {
         token = tokens[cursor as usize].clone();
     } else {
@@ -168,9 +168,9 @@ pub fn parse(source: &str) -> Result<Ast, String> {
 }
 
 fn parse_statement(
-    mut tokens: &mut Vec<Token>,
+    mut tokens: &mut Vec<LexToken>,
     initial_cursor: u32,
-    _delimiter: Token,
+    _delimiter: LexToken,
 ) -> (Option<Statement>, u32) {
     let cursor = initial_cursor;
 
@@ -206,13 +206,13 @@ fn parse_statement(
         _ => {}
     }
 
-    return (None, initial_cursor);
+    (None, initial_cursor)
 }
 
 fn parse_column_definitions(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<LexToken>,
     initial_cursor: u32,
-    delimiter: Token,
+    delimiter: LexToken,
 ) -> Option<(Vec<ColumnDefinition>, u32)> {
     let mut cursor = initial_cursor;
 
@@ -253,7 +253,7 @@ fn parse_column_definitions(
         let col_name_result = parse_token(
             &mut tokens[cursor as usize..].into_iter(),
             cursor,
-            TokenKind::IdentifierKind,
+            LexTokenKind::IdentifierKind,
         );
 
         if col_name_result.is_none() {
@@ -268,7 +268,7 @@ fn parse_column_definitions(
         let col_type_result = parse_token(
             &mut tokens[cursor as usize..].into_iter(),
             cursor,
-            TokenKind::KeywordKind,
+            LexTokenKind::KeywordKind,
         );
 
         if col_type_result.is_none() {
@@ -285,13 +285,13 @@ fn parse_column_definitions(
         });
     }
 
-    return Some((column_definitions, cursor));
+    Some((column_definitions, cursor))
 }
 
 fn parse_create_table_statement(
-    mut tokens: &mut Vec<Token>,
+    mut tokens: &mut Vec<LexToken>,
     initial_cursor: u32,
-    _delimiter: Token,
+    _delimiter: LexToken,
 ) -> (Option<CreateTableStatement>, u32) {
     let mut cursor = initial_cursor;
 
@@ -316,7 +316,7 @@ fn parse_create_table_statement(
     let name_result = parse_token(
         &mut tokens[cursor as usize..].into_iter(),
         cursor,
-        TokenKind::IdentifierKind,
+        LexTokenKind::IdentifierKind,
     );
 
     if name_result.is_none() {
@@ -363,9 +363,9 @@ fn parse_create_table_statement(
 }
 
 fn parse_expressions(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<LexToken>,
     initial_cursor: u32,
-    delimiters: &Vec<Token>,
+    delimiters: &Vec<LexToken>,
 ) -> Option<(Vec<Expression>, u32)> {
     let mut cursor = initial_cursor;
 
@@ -416,16 +416,16 @@ fn parse_expressions(
 }
 
 fn parse_expression(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<LexToken>,
     initial_cursor: u32,
-    _: Token,
+    _: LexToken,
 ) -> Option<(Expression, u32)> {
     let cursor = initial_cursor;
 
     let kinds = vec![
-        TokenKind::IdentifierKind,
-        TokenKind::NumericKind,
-        TokenKind::StringKind,
+        LexTokenKind::IdentifierKind,
+        LexTokenKind::NumericKind,
+        LexTokenKind::StringKind,
     ];
 
     for kind in kinds {
@@ -447,9 +447,9 @@ fn parse_expression(
 }
 
 fn parse_insert_statement(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<LexToken>,
     initial_cursor: u32,
-    _: Token,
+    _: LexToken,
 ) -> (Option<InsertStatement>, u32) {
     let mut cursor = initial_cursor;
 
@@ -477,7 +477,7 @@ fn parse_insert_statement(
     let table_result = parse_token(
         &mut tokens[cursor as usize..].into_iter(),
         cursor,
-        TokenKind::IdentifierKind,
+        LexTokenKind::IdentifierKind,
     );
 
     if table_result.is_none() {
@@ -537,9 +537,9 @@ fn parse_insert_statement(
 }
 
 fn parse_select_statement(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<LexToken>,
     initial_cursor: u32,
-    delimiter: Token,
+    delimiter: LexToken,
 ) -> (Option<SelectStatement>, u32) {
     let mut cursor = initial_cursor;
 
@@ -581,7 +581,7 @@ fn parse_select_statement(
         let from_result = parse_token(
             &mut tokens[cursor as usize..].into_iter(),
             cursor,
-            TokenKind::IdentifierKind,
+            LexTokenKind::IdentifierKind,
         );
 
         if from_result.is_none() {
@@ -614,25 +614,25 @@ mod lexer_tests {
                 input: "INSERT INTO users VALUES (105, 'George');",
                 ast: Ast {
                     statements: vec![Statement::InsertStatement(InsertStatement {
-                        table: Token {
+                        table: LexToken {
                             loc: Location { col: 12, line: 0 },
-                            kind: TokenKind::IdentifierKind,
+                            kind: LexTokenKind::IdentifierKind,
                             value: "users".to_owned(),
                         },
                         values: vec![
                             Expression {
                                 kind: ExpressionKind::LiteralKind,
-                                literal: Token {
+                                literal: LexToken {
                                     loc: Location { col: 26, line: 0 },
-                                    kind: TokenKind::NumericKind,
+                                    kind: LexTokenKind::NumericKind,
                                     value: "105".to_owned(),
                                 },
                             },
                             Expression {
                                 kind: ExpressionKind::LiteralKind,
-                                literal: Token {
+                                literal: LexToken {
                                     loc: Location { col: 32, line: 0 },
-                                    kind: TokenKind::StringKind,
+                                    kind: LexTokenKind::StringKind,
                                     value: "George".to_owned(),
                                 },
                             },
@@ -644,33 +644,33 @@ mod lexer_tests {
                 input: "CREATE TABLE users (id INT, name TEXT);",
                 ast: Ast {
                     statements: vec![Statement::CreateTableStatement(CreateTableStatement {
-                        name: Token {
+                        name: LexToken {
                             loc: Location { col: 13, line: 0 },
-                            kind: TokenKind::IdentifierKind,
+                            kind: LexTokenKind::IdentifierKind,
                             value: "users".to_owned(),
                         },
                         cols: vec![
                             ColumnDefinition {
-                                name: Token {
+                                name: LexToken {
                                     loc: Location { col: 20, line: 0 },
-                                    kind: TokenKind::IdentifierKind,
+                                    kind: LexTokenKind::IdentifierKind,
                                     value: "id".to_owned(),
                                 },
-                                data_type: Token {
+                                data_type: LexToken {
                                     loc: Location { col: 23, line: 0 },
-                                    kind: TokenKind::KeywordKind,
+                                    kind: LexTokenKind::KeywordKind,
                                     value: INT_KEYWORD.to_owned(),
                                 },
                             },
                             ColumnDefinition {
-                                name: Token {
+                                name: LexToken {
                                     loc: Location { col: 28, line: 0 },
-                                    kind: TokenKind::IdentifierKind,
+                                    kind: LexTokenKind::IdentifierKind,
                                     value: "name".to_owned(),
                                 },
-                                data_type: Token {
+                                data_type: LexToken {
                                     loc: Location { col: 33, line: 0 },
-                                    kind: TokenKind::KeywordKind,
+                                    kind: LexTokenKind::KeywordKind,
                                     value: TEXT_KEYWORD.to_owned(),
                                 },
                             },
