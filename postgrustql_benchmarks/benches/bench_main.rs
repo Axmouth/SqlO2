@@ -1,0 +1,257 @@
+use criterion::{black_box, criterion_group, criterion_main, Benchmark, Criterion};
+
+use postgrustql::*;
+use std::time::Instant;
+
+fn lex_benchmark(c: &mut Criterion) {
+    let lexer = lexer::Lexer::new();
+    c.bench_function("lex", |b| b.iter(|| lexer.lex(black_box("
+        CREATE TABLE people (id INT, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
+        SELECT id, name FROM people;
+        SELECT id, name FROM people where id != 3;
+        SELECT id, name FROM people where name = 'Rachel';".to_owned().as_str()))));
+}
+
+fn parse_benchmark(c: &mut Criterion) {
+    c.bench_function("parse", |b| b.iter(|| parser::parse(black_box("
+    CREATE TABLE people (id INT, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
+    SELECT id, name FROM people;
+    SELECT id, name FROM people where id != 3;
+    SELECT id, name FROM people where name = 'Rachel';".to_owned().as_str()))));
+}
+
+fn create_benchmark(c: &mut Criterion) {
+    // Bench here
+    &c.bench(
+        "create",
+        Benchmark::new("create in", move |b| {
+            b.iter(|| {
+                for _ in 0..1 {
+                    let mut db = backend_memory::MemoryBackend::new();
+                    db.eval_query(
+                        "CREATE TABLE people (id INT, name TEXT);"
+                            .to_owned()
+                            .as_str(),
+                    )
+                    .unwrap();
+                }
+            })
+        }),
+    );
+}
+
+fn insert_benchmark(c: &mut Criterion) {
+    let mut db = backend_memory::MemoryBackend::new();
+    db.eval_query(
+        "CREATE TABLE people (id INT, name TEXT);"
+            .to_owned()
+            .as_str(),
+    )
+    .unwrap();
+
+    // Bench here
+    &c.bench(
+        "insert",
+        Benchmark::new("insert in", move |b| {
+            b.iter(|| {
+                for _ in 0..10 {
+                    db.eval_query(black_box(
+                        "INSERT INTO people VALUES (1, 'Baam');".to_owned().as_str(),
+                    ))
+                    .unwrap();
+                }
+            })
+        }),
+    );
+}
+
+fn single_insert_benchmark(c: &mut Criterion) {
+    let mut db = backend_memory::MemoryBackend::new();
+    db.eval_query(
+        "CREATE TABLE people (id INT, name TEXT);"
+            .to_owned()
+            .as_str(),
+    )
+    .unwrap();
+
+    // Bench here
+    &c.bench(
+        "single_insert",
+        Benchmark::new("insert in", move |b| {
+            b.iter(|| {
+                for _ in 0..1 {
+                    db.eval_query(black_box(
+                        "INSERT INTO people VALUES (1, 'Baam');".to_owned().as_str(),
+                    ))
+                    .unwrap();
+                }
+            })
+        }),
+    );
+}
+
+fn select_benchmark(c: &mut Criterion) {
+    let mut db = backend_memory::MemoryBackend::new();
+    db.eval_query(
+        "CREATE TABLE people (id INT, name TEXT);"
+            .to_owned()
+            .as_str(),
+    )
+    .unwrap();
+    for i in 0..10000 {
+        let parsed =
+            parser::parse(&format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i)).unwrap();
+        let statement;
+        match &parsed.statements[0] {
+            ast::Statement::InsertStatement(insert_statement) => {
+                statement = insert_statement;
+            }
+            _ => {
+                eprintln!("Derp..");
+                return;
+            }
+        }
+        db.insert(statement.clone()).unwrap();
+    }
+    let temp = db
+        .eval_query("SELECT * FROM people;".to_owned().as_str())
+        .unwrap();
+    match &temp[0] {
+        backend::EvalResult::Select {
+            results: _select_results,
+            time: _time,
+        } => {}
+        _ => {
+            eprintln!("Derp..");
+            return;
+        }
+    }
+
+    // Bench here
+    c.bench(
+        "select",
+        Benchmark::new("select_from_10000", move |b| {
+            b.iter(|| {
+                let parsed = parser::parse(black_box("SELECT * FROM people;")).unwrap();
+                let statement;
+                match &parsed.statements[0] {
+                    ast::Statement::SelectStatement(select_statement) => {
+                        statement = select_statement;
+                    }
+                    _ => {
+                        eprintln!("Derp..");
+                        return;
+                    }
+                }
+                db.select(black_box(statement.clone())).unwrap();
+            })
+        }),
+    );
+}
+
+pub fn million_row_benchmark(_c: &mut Criterion) {
+    println!("Million Row Benchmark");
+
+    // Insert benchmark
+    let before = Instant::now();
+    let mut db = backend_memory::MemoryBackend::new();
+    db.eval_query(
+        "CREATE TABLE people (id INT, name TEXT);"
+            .to_owned()
+            .as_str(),
+    )
+    .unwrap();
+    for i in 0..1000000 {
+        db.eval_query(
+            black_box(format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i)).as_str(),
+        )
+        .unwrap();
+    }
+    println!(
+        "Elapsed time to insert 1000000 rows: {:.2?}",
+        before.elapsed()
+    );
+
+    // Select benchmark 1
+    let before = Instant::now();
+    for i in 0..100 {
+        let result = db.eval_query(black_box(
+            format!("SELECT * FROM people WHERE id = {};", i * 10000)
+                .to_owned()
+                .as_str(),
+        ));
+        if result.is_err() {
+            println!("{}", result.err().unwrap());
+        } else {
+            result.unwrap();
+        }
+    }
+    println!(
+        "Elapsed time to select single rows, 100 times: {:.2?}",
+        before.elapsed()
+    );
+
+    // Select benchmark 2
+    let before = Instant::now();
+    for _ in 0..100 {
+        db.eval_query(black_box(
+            format!("SELECT * FROM people WHERE id = 999999;")
+                .to_owned()
+                .as_str(),
+        ))
+        .unwrap();
+    }
+    println!(
+        "Elapsed time to select single last row, 100 times: {:.2?}",
+        before.elapsed()
+    );
+
+    // Select benchmark 3
+    let before = Instant::now();
+    for _ in 0..1 {
+        db.eval_query(black_box(
+            format!("SELECT * FROM people WHERE id = 999999;")
+                .to_owned()
+                .as_str(),
+        ))
+        .unwrap();
+    }
+    println!(
+        "Elapsed time to select single last row, 1 time: {:.2?}",
+        before.elapsed()
+    );
+
+    // Select benchmark 4
+    let before = Instant::now();
+    for _ in 0..1 {
+        db.eval_query(black_box("SELECT * FROM people;".to_owned().as_str()))
+            .unwrap();
+    }
+    println!(
+        "Elapsed time to select 1000000 rows, 1 time: {:.2?}",
+        before.elapsed()
+    );
+
+    // Select benchmark 4
+    let before = Instant::now();
+    for _ in 0..100 {
+        db.eval_query(black_box("SELECT * FROM people;".to_owned().as_str()))
+            .unwrap();
+    }
+    println!(
+        "Elapsed time to select 1000000 rows, 100 times: {:.2?}",
+        before.elapsed()
+    );
+}
+
+criterion_group!(
+    benches,
+    lex_benchmark,
+    parse_benchmark,
+    create_benchmark,
+    single_insert_benchmark,
+    insert_benchmark,
+    select_benchmark,
+    million_row_benchmark,
+);
+criterion_main!(benches);
