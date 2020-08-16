@@ -3,37 +3,22 @@ use super::lexer::*;
 
 use std::iter::*;
 
-fn token_from_keyword(k: Keyword) -> Token {
-    return Token {
-        kind: TokenKind::KeywordKind,
-        value: k.to_owned(),
-        loc: TokenLocation { line: 0, col: 0 },
-    };
-}
-
-fn token_from_symbol(s: Symbol) -> Token {
-    return Token {
-        kind: TokenKind::SymbolKind,
-        value: s.to_owned(),
-        loc: TokenLocation { line: 0, col: 0 },
-    };
-}
-
 fn expect_token<'a>(
-    tokens: &mut impl Iterator<Item = &'a Token>,
+    tokens: &mut impl Iterator<Item = &'a TokenContainer>,
     _cursor: u32,
     token: Token,
 ) -> bool {
-    let current_token = tokens.next();
-    if current_token.is_none() {
-        return false;
-    }
-
-    token.equals(current_token.unwrap())
+    let current_token = match tokens.next() {
+        Some(value) => value,
+        None => {
+            return false;
+        }
+    };
+    return token == current_token.token;
 }
 
-fn help_message(tokens: &Vec<Token>, cursor: u32, msg: String) -> String {
-    let token: Token;
+fn help_message(tokens: &Vec<TokenContainer>, cursor: u32, msg: String) -> String {
+    let token: TokenContainer;
     if cursor == 0 {
         token = tokens[0].clone();
     } else if cursor + 1 < tokens.len() as u32 {
@@ -43,40 +28,30 @@ fn help_message(tokens: &Vec<Token>, cursor: u32, msg: String) -> String {
     }
 
     format!(
-        "[{}, {}]: {}, got {}",
-        token.loc.line, token.loc.col, msg, token.value
+        "[{}, {}]: {}, got {:?}",
+        token.loc.line, token.loc.col, msg, token.token,
     )
 }
 
 pub fn parse(source: &str) -> Result<Ast, String> {
-    let mut tokens;
     let lexer = Lexer::new();
-    match lexer.lex(source) {
-        Ok(result) => {
-            tokens = result;
-        }
-        Err(err) => {
-            return Err(err);
-        }
-    }
+    let mut tokens = lexer.lex(source)?;
 
-    let mut a = Ast { statements: vec![] };
+    let mut ast = Ast { statements: vec![] };
 
     let mut cursor: u32 = 0;
     while cursor < tokens.len() as u32 {
-        let (statement, new_cursor) =
-            parse_statement(&mut tokens, cursor, token_from_symbol(SEMICOLON_SYMBOL));
-        match statement {
-            Some(statement) => {
+        match parse_statement(&mut tokens, cursor, Token::Semicolon) {
+            Ok((statement, new_cursor)) => {
                 cursor = new_cursor;
 
-                a.statements.push(statement);
+                ast.statements.push(statement);
 
                 let mut at_least_one_semicolon = false;
                 while expect_token(
                     &mut tokens[cursor as usize..].into_iter(),
                     cursor,
-                    token_from_symbol(SEMICOLON_SYMBOL),
+                    Token::Semicolon,
                 ) {
                     cursor += 1;
                     at_least_one_semicolon = true;
@@ -91,62 +66,58 @@ pub fn parse(source: &str) -> Result<Ast, String> {
                 }
             }
 
-            None => {
-                return Err(help_message(
-                    &tokens,
-                    cursor,
-                    "Expected Statement".to_owned(),
-                ));
+            Err(err) => {
+                return Err(help_message(&tokens, cursor, err));
             }
         }
     }
 
-    return Ok(a);
+    return Ok(ast);
 }
 
 fn parse_statement(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<TokenContainer>,
     initial_cursor: u32,
     _delimiter: Token,
-) -> (Option<Statement>, u32) {
+) -> Result<(Statement, u32), String> {
     let cursor = initial_cursor;
-    let semicolon_token = token_from_symbol(SEMICOLON_SYMBOL);
 
     // Look for a SELECT statement
-    let (select, new_cursor) = parse_select_statement(tokens, cursor, &semicolon_token);
 
-    match select {
-        Some(select) => {
-            return (Some(Statement::SelectStatement(select)), new_cursor);
+    match parse_select_statement(tokens, cursor, Token::Semicolon) {
+        Ok((select, new_cursor)) => {
+            return Ok((Statement::SelectStatement(select), new_cursor));
         }
-        _ => {}
+        Err(_) => (),
     }
 
     // Look for an INSERT statement
-    let (insert, new_cursor) = parse_insert_statement(tokens, cursor, &semicolon_token);
 
-    match insert {
-        Some(insert) => {
-            return (Some(Statement::InsertStatement(insert)), new_cursor);
+    match parse_insert_statement(tokens, cursor, Token::Semicolon) {
+        Ok((insert, new_cursor)) => {
+            return Ok((Statement::InsertStatement(insert), new_cursor));
         }
-        _ => {}
+        Err(_) => (),
     }
 
     // Look for a CREATE statement
-    let create = parse_create_table_statement(tokens, cursor, &semicolon_token);
 
-    match create {
+    match parse_create_table_statement(tokens, cursor, Token::Semicolon) {
         Ok((create, new_cursor)) => {
-            return (Some(Statement::CreateTableStatement(create)), new_cursor);
+            return Ok((Statement::CreateTableStatement(create), new_cursor));
         }
-        _ => {}
+        Err(_) => (),
     }
 
-    (None, initial_cursor)
+    Err(help_message(
+        tokens,
+        cursor,
+        "Expected a valid statemt".to_string(),
+    ))
 }
 
 fn parse_column_definitions(
-    tokens: &Vec<Token>,
+    tokens: &Vec<TokenContainer>,
     initial_cursor: u32,
     delimiter: Token,
 ) -> Result<(Vec<ColumnDefinition>, u32), String> {
@@ -161,15 +132,13 @@ fn parse_column_definitions(
 
         // Look for a delimiter
         let current_token = &tokens[cursor as usize];
-        if delimiter.equals(&current_token) {
+        if delimiter == current_token.token {
             break;
         }
 
         // Look for a comma
         if column_definitions.len() > 0 {
-            if tokens[cursor as usize].kind != TokenKind::SymbolKind
-                || tokens[cursor as usize].value != COMMA_SYMBOL
-            {
+            if tokens[cursor as usize].token != Token::Comma {
                 return Err(help_message(tokens, cursor, "Expected Comma".to_owned()));
             }
 
@@ -177,19 +146,21 @@ fn parse_column_definitions(
         }
 
         // Look for a column name
-        if tokens[cursor as usize].kind != TokenKind::IdentifierKind {
-            return Err(help_message(
-                tokens,
-                cursor,
-                "Expected Column Name".to_owned(),
-            ));
-        }
+        let col_name = match &tokens[cursor as usize].token {
+            Token::IdentifierValue { value } => value,
+            _ => {
+                return Err(help_message(
+                    tokens,
+                    cursor,
+                    "Expected Column Name".to_owned(),
+                ));
+            }
+        };
 
-        let col_name = &tokens[cursor as usize];
         cursor += 1;
 
         // Look for a column type
-        if tokens[cursor as usize].kind != TokenKind::KeywordKind {
+        if !token_is_datatype(&tokens[cursor as usize].token) {
             return Err(help_message(
                 tokens,
                 cursor,
@@ -210,16 +181,16 @@ fn parse_column_definitions(
 }
 
 fn parse_create_table_statement(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<TokenContainer>,
     initial_cursor: u32,
-    _delimiter: &Token,
+    _delimiter: Token,
 ) -> Result<(CreateTableStatement, u32), String> {
     let mut cursor = initial_cursor;
 
     if !expect_token(
         &mut tokens[cursor as usize..].into_iter(),
         cursor,
-        token_from_keyword(CREATE_KEYWORD),
+        Token::Create,
     ) {
         return Err("Not a create table statement".to_string());
     }
@@ -228,25 +199,25 @@ fn parse_create_table_statement(
     if !expect_token(
         &mut tokens[cursor as usize..].into_iter(),
         cursor,
-        token_from_keyword(TABLE_KEYWORD),
+        Token::Table,
     ) {
         return Err("Expected table keyword".to_string());
     }
     cursor += 1;
 
-    if &tokens[cursor as usize].kind != &TokenKind::IdentifierKind {
-        return Err(help_message(
-            tokens,
-            cursor,
-            "Expected Table Name".to_owned(),
-        ));
-    }
-
-    let name = &tokens[cursor as usize];
+    let curr_token = tokens[cursor as usize].token.clone();
+    let name = match curr_token {
+        Token::IdentifierValue { value } => value,
+        _ => {
+            return Err(help_message(
+                tokens,
+                cursor,
+                "Expected Table Name".to_owned(),
+            ));
+        }
+    };
     cursor += 1;
-    if tokens[cursor as usize].kind != TokenKind::SymbolKind
-        || tokens[cursor as usize].value != LEFT_PARENTHESIS_SYMBOL
-    {
+    if tokens[cursor as usize].token != Token::LeftParenthesis {
         return Err(help_message(
             tokens,
             cursor,
@@ -255,13 +226,10 @@ fn parse_create_table_statement(
     }
     cursor += 1;
 
-    let (cols, new_cursor) =
-        parse_column_definitions(&tokens, cursor, token_from_symbol(RIGHT_PARENTHESIS_SYMBOL))?;
+    let (cols, new_cursor) = parse_column_definitions(&tokens, cursor, Token::RightParenthesis)?;
     cursor = new_cursor;
 
-    if tokens[cursor as usize].kind != TokenKind::SymbolKind
-        || tokens[cursor as usize].value != RIGHT_PARENTHESIS_SYMBOL
-    {
+    if tokens[cursor as usize].token != Token::RightParenthesis {
         return Err(help_message(
             tokens,
             cursor,
@@ -270,17 +238,11 @@ fn parse_create_table_statement(
     }
     cursor += 1;
 
-    Ok((
-        CreateTableStatement {
-            name: name.clone(),
-            cols,
-        },
-        cursor,
-    ))
+    Ok((CreateTableStatement { name, cols }, cursor))
 }
 
 fn parse_expressions(
-    tokens: &Vec<Token>,
+    tokens: &Vec<TokenContainer>,
     initial_cursor: u32,
     delimiters: &Vec<Token>,
 ) -> Option<(Vec<Expression>, u32)> {
@@ -288,10 +250,7 @@ fn parse_expressions(
 
     let mut expressions: Vec<Expression> = vec![];
 
-    // let mut token_iter = tokens[initial_cursor as usize..].into_iter();
-
     loop {
-        //break;
         if cursor >= tokens.len() as u32 {
             return None;
         }
@@ -299,7 +258,7 @@ fn parse_expressions(
         // Look for delimiter
         let current_token = &tokens[cursor as usize];
         for delimiter in delimiters {
-            if delimiter.equals(&current_token) {
+            if delimiter == &current_token.token {
                 return Some((expressions, cursor));
             }
         }
@@ -307,7 +266,7 @@ fn parse_expressions(
         // Look for comma
         if expressions.len() > 0 {
             let mut tokens_iter = tokens[cursor as usize..].into_iter();
-            if !expect_token(&mut tokens_iter, cursor, token_from_symbol(COMMA_SYMBOL)) {
+            if !expect_token(&mut tokens_iter, cursor, Token::Comma) {
                 help_message(tokens, cursor, "Expected Comma".to_owned());
                 return None;
             }
@@ -316,44 +275,39 @@ fn parse_expressions(
         }
 
         // Look for expression
-        let expression_parse_result = parse_expression(
+        let (expression, new_cursor) = match parse_expression(
             tokens,
             cursor,
-            &vec![
-                &token_from_symbol(COMMA_SYMBOL),
-                &token_from_symbol(RIGHT_PARENTHESIS_SYMBOL),
-            ],
+            &vec![Token::Comma, Token::RightParenthesis],
             tokens[cursor as usize].binding_power(),
-        );
-        if expression_parse_result.is_none() {
-            help_message(tokens, cursor, "Expected expression".to_owned());
-            return None;
-        }
+        ) {
+            None => {
+                help_message(tokens, cursor, "Expected expression".to_owned());
+                return None;
+            }
+            Some(value) => value,
+        };
 
-        let (expression, new_cursor) = expression_parse_result.unwrap();
         cursor = new_cursor;
         expressions.push(expression);
     }
 }
 
 fn parse_expression(
-    tokens: &Vec<Token>,
+    tokens: &Vec<TokenContainer>,
     initial_cursor: u32,
-    delimiters: &Vec<&Token>,
+    delimiters: &Vec<Token>,
     min_binding_power: u32,
 ) -> Option<(Expression, u32)> {
     let mut cursor = initial_cursor;
 
     let mut expression = Expression::new();
 
-    if tokens[cursor as usize].kind == TokenKind::SymbolKind
-        && tokens[cursor as usize].value == LEFT_PARENTHESIS_SYMBOL
-    {
+    if tokens[cursor as usize].token == Token::LeftParenthesis {
         cursor += 1;
 
-        let right_parenthesis_token = token_from_symbol(RIGHT_PARENTHESIS_SYMBOL);
         let mut delimiters_plus = delimiters.clone();
-        delimiters_plus.push(&right_parenthesis_token);
+        delimiters_plus.push(Token::RightParenthesis);
         let expression_result =
             parse_expression(tokens, cursor, &delimiters_plus, min_binding_power);
         if expression_result.is_none() {
@@ -365,20 +319,17 @@ fn parse_expression(
             return None;
         }
 
-        if tokens[cursor as usize].kind != TokenKind::SymbolKind
-            || tokens[cursor as usize].value != RIGHT_PARENTHESIS_SYMBOL
-        {
+        if tokens[cursor as usize].token != Token::RightParenthesis {
             help_message(tokens, cursor, "Expected closing parenthesis".to_owned());
             return None;
         }
     } else {
-        let literal_expression_result = parse_literal_expression(tokens, cursor);
-
-        if literal_expression_result.is_none() {
-            return None;
-        }
-
-        let (first_expression, new_cursor) = literal_expression_result.unwrap();
+        let (first_expression, new_cursor) = match parse_literal_expression(tokens, cursor) {
+            None => {
+                return None;
+            }
+            Some(value) => value,
+        };
         expression = first_expression;
         cursor = new_cursor;
     }
@@ -387,32 +338,28 @@ fn parse_expression(
 
     'outer: while cursor < tokens.len() as u32 {
         for delimiter in delimiters {
-            if tokens[cursor as usize].kind == delimiter.kind
-                && tokens[cursor as usize].value == delimiter.value
-            {
+            if tokens[cursor as usize].token == *delimiter {
                 break 'outer;
             }
         }
 
         let binary_operators = vec![
-            token_from_keyword(AND_KEYWORD),
-            token_from_keyword(OR_KEYWORD),
-            token_from_symbol(EQUAL_SYMBOL),
-            token_from_symbol(NOT_EQUAL_SYMBOL),
-            token_from_symbol(CONCAT_SYMBOL),
-            token_from_symbol(PLUS_SYMBOL),
-            token_from_symbol(MINUS_SYMBOL),
-            token_from_symbol(LESS_THAN_SYMBOL),
-            token_from_symbol(LESS_THAN_OR_EQUAL_SYMBOL),
-            token_from_symbol(GREATER_THAN_SYMBOL),
-            token_from_symbol(GREATER_THAN_OR_EQUAL_SYMBOL),
+            Token::And,
+            Token::Or,
+            Token::Equal,
+            Token::NotEqual,
+            Token::Concat,
+            Token::Plus,
+            Token::Minus,
+            Token::LessThan,
+            Token::LessThanOrEqual,
+            Token::GreaterThan,
+            Token::GreaterThanOrEqual,
         ];
 
-        let mut operand = Token::new();
+        let mut operand = TokenContainer::new();
         for binary_operator in binary_operators {
-            if tokens[cursor as usize].kind == binary_operator.kind
-                && tokens[cursor as usize].value == binary_operator.value
-            {
+            if tokens[cursor as usize].token == binary_operator {
                 let token = &tokens[cursor as usize];
                 operand = token.clone();
                 cursor += 1;
@@ -420,7 +367,7 @@ fn parse_expression(
             }
         }
 
-        if operand.kind == TokenKind::Empty {
+        if operand.token == Token::Empty {
             help_message(tokens, cursor, "Expected binary operator".to_owned());
             return None;
         }
@@ -431,12 +378,14 @@ fn parse_expression(
             break;
         }
 
-        let second_expression_result = parse_expression(tokens, cursor, delimiters, binding_power);
-        if second_expression_result.is_none() {
-            help_message(tokens, cursor, "Expected right operand".to_owned());
-            return None;
-        }
-        let (second_expression, new_cursor) = second_expression_result.unwrap();
+        let (second_expression, new_cursor) =
+            match parse_expression(tokens, cursor, delimiters, binding_power) {
+                None => {
+                    help_message(tokens, cursor, "Expected right operand".to_owned());
+                    return None;
+                }
+                Some(value) => value,
+            };
         expression = Expression::Binary(BinaryExpression {
             first: Box::from(expression),
             second: Box::from(second_expression),
@@ -449,17 +398,16 @@ fn parse_expression(
     return Some((expression, cursor));
 }
 
-fn parse_literal_expression(tokens: &Vec<Token>, initial_cursor: u32) -> Option<(Expression, u32)> {
+fn parse_literal_expression(
+    tokens: &Vec<TokenContainer>,
+    initial_cursor: u32,
+) -> Option<(Expression, u32)> {
     let cursor = initial_cursor;
 
-    let kinds = vec![
-        TokenKind::IdentifierKind,
-        TokenKind::NumericKind,
-        TokenKind::StringKind,
-    ];
-
-    for kind in kinds {
-        if tokens[cursor as usize].kind == kind {
+    match tokens[cursor as usize].token {
+        Token::IdentifierValue { value: _ }
+        | Token::NumericValue { value: _ }
+        | Token::StringValue { value: _ } => {
             let token = &tokens[cursor as usize];
             return Some((
                 Expression::Literal(LiteralExpression {
@@ -468,25 +416,26 @@ fn parse_literal_expression(tokens: &Vec<Token>, initial_cursor: u32) -> Option<
                 cursor + 1,
             ));
         }
+        _ => (),
     }
 
     None
 }
 
 fn parse_insert_statement(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<TokenContainer>,
     initial_cursor: u32,
-    _: &Token,
-) -> (Option<InsertStatement>, u32) {
+    _: Token,
+) -> Result<(InsertStatement, u32), String> {
     let mut cursor = initial_cursor;
 
     // Look for INSERT
     if !expect_token(
         &mut tokens[cursor as usize..].into_iter(),
         cursor,
-        token_from_keyword(INSERT_KEYWORD),
+        Token::Insert,
     ) {
-        return (None, initial_cursor);
+        return Err("Not an insert statement".to_string());
     }
     cursor += 1;
 
@@ -494,73 +443,80 @@ fn parse_insert_statement(
     if !expect_token(
         &mut tokens[cursor as usize..].into_iter(),
         cursor,
-        token_from_keyword(INTO_KEYWORD),
+        Token::Into,
     ) {
-        help_message(tokens, cursor, "Expected INTO".to_owned());
-        return (None, initial_cursor);
+        return Err(help_message(tokens, cursor, "Expected INTO".to_owned()));
     }
     cursor += 1;
 
-    if tokens[cursor as usize].kind != TokenKind::IdentifierKind {
-        help_message(tokens, cursor, "Expected Table Name".to_owned());
-        return (None, initial_cursor);
-    }
+    let table_name = match &tokens[cursor as usize].token {
+        Token::IdentifierValue { value } => value,
+        _ => {
+            return Err(help_message(
+                tokens,
+                cursor,
+                "Expected Table Name".to_owned(),
+            ));
+        }
+    };
 
-    let table = &tokens[cursor as usize];
     cursor += 1;
 
     // Look for VALUES
-    if tokens[cursor as usize].kind != TokenKind::KeywordKind
-        || tokens[cursor as usize].value != VALUES_KEYWORD
-    {
+    if tokens[cursor as usize].token != Token::Values {
         help_message(tokens, cursor, "Expected VALUES".to_owned());
-        return (None, initial_cursor);
+        return Err(help_message(tokens, cursor, "Expected VALUES".to_owned()));
     }
     cursor += 1;
 
     // Look for left parenthesis
-    if tokens[cursor as usize].kind != TokenKind::SymbolKind
-        || tokens[cursor as usize].value != LEFT_PARENTHESIS_SYMBOL
-    {
-        help_message(tokens, cursor, "Expected Left Parenthesis".to_owned());
-        return (None, initial_cursor);
+    if tokens[cursor as usize].token != Token::LeftParenthesis {
+        return Err(help_message(
+            tokens,
+            cursor,
+            "Expected Left Parenthesis".to_owned(),
+        ));
     }
     cursor += 1;
 
     // Look for expression list
-    let values_result = parse_expressions(
-        tokens,
-        cursor,
-        &vec![token_from_symbol(RIGHT_PARENTHESIS_SYMBOL)],
-    );
-    if values_result.is_none() {
-        return (None, initial_cursor);
-    }
-    let (values, new_cursor) = values_result.unwrap();
+    let (values, new_cursor) =
+        match parse_expressions(tokens, cursor, &vec![Token::RightParenthesis]) {
+            None => {
+                return Err(help_message(
+                    tokens,
+                    cursor,
+                    "Expected value expressions".to_owned(),
+                ));
+            }
+            Some(value) => value,
+        };
+
     cursor = new_cursor;
 
     // Look for right parenthesis
-    if tokens[cursor as usize].kind != TokenKind::SymbolKind
-        || tokens[cursor as usize].value != RIGHT_PARENTHESIS_SYMBOL
-    {
-        help_message(tokens, cursor, "Expected Right Parenthesis".to_owned());
-        return (None, initial_cursor);
+    if tokens[cursor as usize].token != Token::RightParenthesis {
+        return Err(help_message(
+            tokens,
+            cursor,
+            "Expected Right Parenthesis".to_owned(),
+        ));
     }
     cursor += 1;
 
-    (
-        Some(InsertStatement {
-            table: table.clone(),
+    Ok((
+        InsertStatement {
+            table: table_name.clone(),
             values,
-        }),
+        },
         cursor,
-    )
+    ))
 }
 
 fn parse_select_items(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<TokenContainer>,
     initial_cursor: u32,
-    delimiters: &Vec<&Token>,
+    delimiters: &Vec<Token>,
 ) -> Option<(Vec<SelectItem>, u32)> {
     let mut cursor = initial_cursor;
 
@@ -573,15 +529,13 @@ fn parse_select_items(
 
         let current_token = &tokens[cursor as usize];
         for delimiter in delimiters {
-            if delimiter.equals(&current_token) {
+            if delimiter == &current_token.token {
                 break 'outer;
             }
         }
 
         if select_items.len() > 0 {
-            if tokens[cursor as usize].kind != TokenKind::SymbolKind
-                || tokens[cursor as usize].value != COMMA_SYMBOL
-            {
+            if tokens[cursor as usize].token != Token::Comma {
                 help_message(tokens, cursor, "Expected comma".to_owned());
                 return None;
             }
@@ -591,46 +545,42 @@ fn parse_select_items(
 
         let mut select_item = SelectItem {
             expression: Expression::new(),
-            as_clause: Token::new(),
+            as_clause: None,
             asterisk: false,
         };
 
-        if tokens[cursor as usize].kind == TokenKind::SymbolKind
-            && tokens[cursor as usize].value == ASTERISK_SYMBOL
-        {
+        if tokens[cursor as usize].token == Token::Asterisk {
             cursor += 1;
             select_item.asterisk = true;
         } else {
-            let as_token = &token_from_keyword(AS_KEYWORD);
-
             let mut delimiters_plus = delimiters.to_vec();
-            let comma_token = token_from_symbol(COMMA_SYMBOL);
-            delimiters_plus.push(&comma_token);
-            delimiters_plus.push(&as_token);
+            delimiters_plus.push(Token::Comma);
+            delimiters_plus.push(Token::As);
 
-            let expression_result = parse_expression(tokens, cursor, &delimiters_plus, 0);
-            if expression_result.is_none() {
-                help_message(tokens, cursor, "Expected expression".to_owned());
-                return None;
-            }
-
-            let (expression, new_cursor) = expression_result.unwrap();
+            let (expression, new_cursor) =
+                match parse_expression(tokens, cursor, &delimiters_plus, 0) {
+                    None => {
+                        help_message(tokens, cursor, "Expected expression".to_owned());
+                        return None;
+                    }
+                    Some(value) => value,
+                };
             cursor = new_cursor;
             select_item.expression = expression;
 
-            if tokens[cursor as usize].kind == TokenKind::KeywordKind
-                && tokens[cursor as usize].value == AS_KEYWORD
-            {
+            if tokens[cursor as usize].token == Token::As {
                 cursor += 1;
-                if tokens[cursor as usize].kind != TokenKind::IdentifierKind {
-                    help_message(tokens, cursor, "Expected identifier after AS".to_owned());
-                    return None;
-                }
-
-                let identifier = &tokens[cursor as usize];
+                let curr_token = tokens[cursor as usize].token.clone();
+                let as_name = match curr_token {
+                    Token::IdentifierValue { value } => value,
+                    _ => {
+                        help_message(tokens, cursor, "Expected identifier after AS".to_owned());
+                        return None;
+                    }
+                };
 
                 cursor += 1;
-                select_item.as_clause = identifier.clone();
+                select_item.as_clause = Some(as_name);
             }
         }
 
@@ -641,75 +591,78 @@ fn parse_select_items(
 }
 
 fn parse_select_statement(
-    tokens: &mut Vec<Token>,
+    tokens: &mut Vec<TokenContainer>,
     initial_cursor: u32,
-    delimiter: &Token,
-) -> (Option<SelectStatement>, u32) {
+    delimiter: Token,
+) -> Result<(SelectStatement, u32), String> {
     let mut cursor = initial_cursor;
 
-    if tokens[cursor as usize].kind != TokenKind::KeywordKind
-        || tokens[cursor as usize].value[0..1] != SELECT_KEYWORD[0..1]
-        || tokens[cursor as usize].value != SELECT_KEYWORD
-    {
-        return (None, initial_cursor);
+    if tokens[cursor as usize].token != Token::Select {
+        return Err("Not a select statement".to_string());
     }
     cursor += 1;
 
     let mut select: SelectStatement = SelectStatement {
         items: vec![],
-        from: Token::new(),
+        from: None,
         where_clause: Expression::new(),
     };
 
-    let from_token = token_from_keyword(FROM_KEYWORD);
+    let (select_items, new_cursor) =
+        match parse_select_items(tokens, cursor, &vec![Token::From, delimiter.clone()]) {
+            None => {
+                return Err("Expected select items".to_string());
+            }
+            Some(value) => value,
+        };
 
-    let parse_select_items_result =
-        parse_select_items(tokens, cursor, &vec![&from_token, &delimiter]);
-
-    if parse_select_items_result.is_none() {
-        return (None, initial_cursor);
-    }
-
-    let (select_items, new_cursor) = parse_select_items_result.unwrap();
     cursor = new_cursor;
     select.items = select_items;
 
     // let delimiters_plus = vec![delimiter, &where_token];
 
-    if tokens[cursor as usize].kind == TokenKind::KeywordKind
-        && tokens[cursor as usize].value == FROM_KEYWORD
-    {
+    if tokens[cursor as usize].token == Token::From {
         cursor += 1;
-        if tokens[cursor as usize].kind != TokenKind::IdentifierKind {
-            help_message(tokens, cursor, "Expected FROM item".to_owned());
-            return (None, initial_cursor);
-        }
+        let from_name = match &tokens[cursor as usize].token {
+            Token::IdentifierValue { value } => value,
+            _ => {
+                return Err(help_message(
+                    tokens,
+                    cursor,
+                    "Expected FROM item".to_owned(),
+                ));
+            }
+        };
 
-        let from_identifier = &tokens[cursor as usize];
+        // let from_identifier = &tokens[cursor as usize];
         cursor += 1;
-        select.from = from_identifier.clone();
+        select.from = Some(from_name.clone());
     }
 
-    if tokens[cursor as usize].kind == TokenKind::KeywordKind
-        && tokens[cursor as usize].value == WHERE_KEYWORD
-    {
+    if tokens[cursor as usize].token == Token::Where {
         cursor += 1;
-        let where_clause_result = parse_expression(tokens, cursor, &vec![&delimiter], 0);
-        if where_clause_result.is_none() {
-            help_message(tokens, cursor, "Expected WHERE conditionals".to_owned());
-            return (None, initial_cursor);
-        }
-        let (where_clause, new_cursor) = where_clause_result.unwrap();
+        let (where_clause, new_cursor) = match parse_expression(tokens, cursor, &vec![delimiter], 0)
+        {
+            None => {
+                return Err(help_message(
+                    tokens,
+                    cursor,
+                    "Expected WHERE conditionals".to_owned(),
+                ));
+            }
+            Some(value) => value,
+        };
+
         cursor = new_cursor;
         select.where_clause = where_clause;
     }
 
-    (Some(select), cursor)
+    Ok((select, cursor))
 }
 
 #[cfg(test)]
 mod parser_tests {
-    use super::super::lexer::*;
+
     use super::super::parser::*;
 
     struct ParseTest {
@@ -724,24 +677,22 @@ mod parser_tests {
                 input: "INSERT INTO users VALUES (105, 'George');",
                 ast: Ast {
                     statements: vec![Statement::InsertStatement(InsertStatement {
-                        table: Token {
-                            loc: TokenLocation { col: 12, line: 0 },
-                            kind: TokenKind::IdentifierKind,
-                            value: "users".to_owned(),
-                        },
+                        table: "users".to_owned(),
                         values: vec![
                             Expression::Literal(LiteralExpression {
-                                literal: Token {
+                                literal: TokenContainer {
                                     loc: TokenLocation { col: 26, line: 0 },
-                                    kind: TokenKind::NumericKind,
-                                    value: "105".to_owned(),
+                                    token: Token::NumericValue {
+                                        value: "105".to_owned(),
+                                    },
                                 },
                             }),
                             Expression::Literal(LiteralExpression {
-                                literal: Token {
+                                literal: TokenContainer {
                                     loc: TokenLocation { col: 32, line: 0 },
-                                    kind: TokenKind::StringKind,
-                                    value: "George".to_owned(),
+                                    token: Token::StringValue {
+                                        value: "George".to_owned(),
+                                    },
                                 },
                             }),
                         ],
@@ -752,34 +703,20 @@ mod parser_tests {
                 input: "CREATE TABLE users (id INT, name TEXT);",
                 ast: Ast {
                     statements: vec![Statement::CreateTableStatement(CreateTableStatement {
-                        name: Token {
-                            loc: TokenLocation { col: 13, line: 0 },
-                            kind: TokenKind::IdentifierKind,
-                            value: "users".to_owned(),
-                        },
+                        name: "users".to_owned(),
                         cols: vec![
                             ColumnDefinition {
-                                name: Token {
-                                    loc: TokenLocation { col: 20, line: 0 },
-                                    kind: TokenKind::IdentifierKind,
-                                    value: "id".to_owned(),
-                                },
-                                data_type: Token {
+                                name: "id".to_owned(),
+                                data_type: TokenContainer {
                                     loc: TokenLocation { col: 23, line: 0 },
-                                    kind: TokenKind::KeywordKind,
-                                    value: INT_KEYWORD.to_owned(),
+                                    token: Token::Int,
                                 },
                             },
                             ColumnDefinition {
-                                name: Token {
-                                    loc: TokenLocation { col: 28, line: 0 },
-                                    kind: TokenKind::IdentifierKind,
-                                    value: "name".to_owned(),
-                                },
-                                data_type: Token {
+                                name: "name".to_owned(),
+                                data_type: TokenContainer {
                                     loc: TokenLocation { col: 33, line: 0 },
-                                    kind: TokenKind::KeywordKind,
-                                    value: TEXT_KEYWORD.to_owned(),
+                                    token: Token::Text,
                                 },
                             },
                         ],
@@ -793,10 +730,12 @@ mod parser_tests {
                         items: vec![
                             SelectItem {
                                 asterisk: false,
-                                as_clause: Token::new(),
+                                as_clause: None,
                                 expression: Expression::Literal(LiteralExpression {
-                                    literal: Token::new_with_all(
-                                        TokenKind::IdentifierKind,
+                                    literal: TokenContainer::new_with_all(
+                                        Token::IdentifierValue {
+                                            value: "id".to_owned(),
+                                        },
                                         "id".to_owned(),
                                         7,
                                         0,
@@ -805,15 +744,12 @@ mod parser_tests {
                             },
                             SelectItem {
                                 asterisk: false,
-                                as_clause: Token::new_with_all(
-                                    TokenKind::IdentifierKind,
-                                    "fullname".to_owned(),
-                                    19,
-                                    0,
-                                ),
+                                as_clause: Some("fullname".to_owned()),
                                 expression: Expression::Literal(LiteralExpression {
-                                    literal: Token::new_with_all(
-                                        TokenKind::IdentifierKind,
+                                    literal: TokenContainer::new_with_all(
+                                        Token::IdentifierValue {
+                                            value: "name".to_owned(),
+                                        },
                                         "name".to_owned(),
                                         11,
                                         0,
@@ -821,12 +757,7 @@ mod parser_tests {
                                 }),
                             },
                         ],
-                        from: Token::new_with_all(
-                            TokenKind::IdentifierKind,
-                            "users".to_string(),
-                            33,
-                            0,
-                        ),
+                        from: Some("users".to_string()),
                         where_clause: Expression::Empty,
                     })],
                 },
@@ -839,15 +770,14 @@ mod parser_tests {
         for test in parse_tests {
             print!("(Parser) Testing: {}", test.input);
 
-            let ast_result = parse(test.input);
-
-            if ast_result.is_err() {
-                found_faults = true;
-                err_msg.push_str(ast_result.err().unwrap().as_str());
-                continue;
-            }
-
-            let ast = ast_result.ok().unwrap();
+            let ast = match parse(test.input) {
+                Ok(value) => value,
+                Err(err) => {
+                    found_faults = true;
+                    err_msg.push_str(err.as_str());
+                    continue;
+                }
+            };
 
             assert_eq!(ast, test.ast);
             println!("  Passed!");

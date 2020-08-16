@@ -72,10 +72,10 @@ impl Table {
             Expression::Literal(literal_expression) => {
                 let literal = &literal_expression.literal;
 
-                match literal.kind {
-                    TokenKind::IdentifierKind => {
+                match &literal.token {
+                    Token::IdentifierValue { value } => {
                         for (i, table_col) in self.columns.iter().enumerate() {
-                            if table_col == literal.value.as_str() {
+                            if table_col == value.as_str() {
                                 return Ok((
                                     self.rows[row_index as usize][i as usize].clone(),
                                     table_col,
@@ -84,17 +84,13 @@ impl Table {
                             }
                         }
 
-                        return Err(
-                            format!("{}: {}", literal.value, ERR_COLUMN_DOES_NOT_EXIST).to_string()
-                        );
+                        return Err(format!("{}: {}", value, ERR_COLUMN_DOES_NOT_EXIST).to_string());
                     }
-                    TokenKind::BoolKind => {
-                        if literal.value == TRUE_KEYWORD {
+                    Token::BoolValue { value } => {
+                        if *value {
                             return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                        } else if literal.value == FALSE_KEYWORD {
-                            return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
                         } else {
-                            return Err(format!("{}", ERR_INVALID_CELL).to_string());
+                            return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
                         }
                     } /*
                     LexTokenKind::NumericKind => {
@@ -102,16 +98,21 @@ impl Table {
                     }*/
                     _ => {
                         let mut column_type = ColumnType::IntType;
-                        if literal.kind == TokenKind::StringKind {
-                            column_type = ColumnType::TextType;
-                        } else if literal.kind == TokenKind::BoolKind {
-                            column_type = ColumnType::BoolType;
+                        match literal.token {
+                            Token::StringValue { value: _ } => {
+                                column_type = ColumnType::TextType;
+                            }
+                            Token::BoolValue { value: _ } => {
+                                column_type = ColumnType::BoolType;
+                            }
+                            _ => {}
                         }
-                        let mem_cell = literal_to_memory_cell(&literal);
-                        if mem_cell.is_err() {
-                            return Err(mem_cell.err().unwrap());
-                        }
-                        let mem_cell = mem_cell.unwrap();
+                        let mem_cell = match literal_to_memory_cell(&literal) {
+                            Err(err) => {
+                                return Err(err);
+                            }
+                            Ok(value) => value,
+                        };
 
                         return Ok((mem_cell, "?column?", column_type));
                     }
@@ -134,224 +135,212 @@ impl Table {
                 let (second_mem_cell, _, second_col_type) =
                     self.evaluate_cell(row_index, &binary_expression.second)?;
 
-                match binary_expression.operand.kind {
-                    TokenKind::SymbolKind => match binary_expression.operand.value.as_str() {
-                        EQUAL_SYMBOL => {
-                            let equal = first_mem_cell.equals(second_mem_cell);
-                            if first_col_type == ColumnType::TextType
-                                && second_col_type == ColumnType::TextType
-                                && equal
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::IntType
-                                && second_col_type == ColumnType::IntType
-                                && equal
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::BoolType
-                                && second_col_type == ColumnType::BoolType
-                                && equal
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
+                match binary_expression.operand.token {
+                    Token::Equal => {
+                        let equal = first_mem_cell.equals(second_mem_cell);
+                        if first_col_type == ColumnType::TextType
+                            && second_col_type == ColumnType::TextType
+                            && equal
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
                         }
-                        NOT_EQUAL_SYMBOL => {
-                            if first_col_type != second_col_type
-                                || !&first_mem_cell.equals(second_mem_cell)
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
+                        if first_col_type == ColumnType::IntType
+                            && second_col_type == ColumnType::IntType
+                            && equal
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
                         }
-                        GREATER_THAN_SYMBOL => {
-                            let greater_than = first_mem_cell.bytes > second_mem_cell.bytes;
-                            if first_col_type == ColumnType::TextType
-                                && second_col_type == ColumnType::TextType
-                                && greater_than
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::IntType
-                                && second_col_type == ColumnType::IntType
-                                && greater_than
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::BoolType
-                                && second_col_type == ColumnType::BoolType
-                                && greater_than
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
+                        if first_col_type == ColumnType::BoolType
+                            && second_col_type == ColumnType::BoolType
+                            && equal
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
                         }
-                        GREATER_THAN_OR_EQUAL_SYMBOL => {
-                            let greater_than_or_equal =
-                                first_mem_cell.bytes >= second_mem_cell.bytes;
-                            if first_col_type == ColumnType::TextType
-                                && second_col_type == ColumnType::TextType
-                                && greater_than_or_equal
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::IntType
-                                && second_col_type == ColumnType::IntType
-                                && greater_than_or_equal
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::BoolType
-                                && second_col_type == ColumnType::BoolType
-                                && greater_than_or_equal
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
-                        }
-                        LESS_THAN_SYMBOL => {
-                            let less_than = first_mem_cell.bytes < second_mem_cell.bytes;
-                            if first_col_type == ColumnType::TextType
-                                && second_col_type == ColumnType::TextType
-                                && less_than
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::IntType
-                                && second_col_type == ColumnType::IntType
-                                && less_than
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::BoolType
-                                && second_col_type == ColumnType::BoolType
-                                && less_than
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
-                        }
-                        LESS_THAN_OR_EQUAL_SYMBOL => {
-                            let less_than_or_equal = first_mem_cell.bytes <= second_mem_cell.bytes;
-                            if first_col_type == ColumnType::TextType
-                                && second_col_type == ColumnType::TextType
-                                && less_than_or_equal
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::IntType
-                                && second_col_type == ColumnType::IntType
-                                && less_than_or_equal
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            if first_col_type == ColumnType::BoolType
-                                && second_col_type == ColumnType::BoolType
-                                && less_than_or_equal
-                            {
-                                return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
-                            }
-                            return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
-                        }
-                        CONCAT_SYMBOL => {
-                            if first_col_type != ColumnType::TextType
-                                || second_col_type != ColumnType::TextType
-                            {
-                                return Err(ERR_INVALID_OPERANDS.to_string());
-                            }
-                            let mut token = Token::new();
-                            token.kind = TokenKind::StringKind;
-                            let mut first_value = first_mem_cell.as_text()?;
-                            let second_value = second_mem_cell.as_text()?;
-
-                            first_value.push_str(&second_value);
-                            token.value = first_value;
-
-                            return Ok((
-                                literal_to_memory_cell(&token)?,
-                                "?column?",
-                                ColumnType::TextType,
-                            ));
-                        }
-                        PLUS_SYMBOL => {
-                            if first_col_type != ColumnType::IntType
-                                || second_col_type != ColumnType::IntType
-                            {
-                                return Err(ERR_INVALID_OPERANDS.to_string());
-                            }
-
-                            let int_value = first_mem_cell.as_int()? + second_mem_cell.as_int()?;
-                            let mut token = Token::new();
-                            token.kind = TokenKind::NumericKind;
-                            token.value = int_value.to_string();
-                            return Ok((
-                                literal_to_memory_cell(&token)?,
-                                "?column?",
-                                ColumnType::IntType,
-                            ));
-                        }
-                        MINUS_SYMBOL => {
-                            if first_col_type != ColumnType::IntType
-                                || second_col_type != ColumnType::IntType
-                            {
-                                return Err(ERR_INVALID_OPERANDS.to_string());
-                            }
-
-                            let int_value = first_mem_cell.as_int()? - second_mem_cell.as_int()?;
-                            let mut token = Token::new();
-                            token.kind = TokenKind::NumericKind;
-                            token.value = int_value.to_string();
-                            return Ok((
-                                literal_to_memory_cell(&token)?,
-                                "?column?",
-                                ColumnType::IntType,
-                            ));
-                        }
-                        _ => {
-                            // TODO
-                        }
-                    },
-                    TokenKind::KeywordKind => {
-                        match binary_expression.operand.value.as_str() {
-                            AND_KEYWORD => {
-                                if first_col_type != ColumnType::BoolType
-                                    || second_col_type != ColumnType::BoolType
-                                {
-                                    return Err(ERR_INVALID_OPERANDS.to_string());
-                                }
-
-                                let mut result_cell = get_false_mem_cell();
-                                if first_mem_cell.as_bool()? && second_mem_cell.as_bool()? {
-                                    result_cell = get_true_mem_cell();
-                                }
-
-                                return Ok((result_cell, "?column?", ColumnType::BoolType));
-                            }
-                            OR_KEYWORD => {
-                                if first_col_type != ColumnType::BoolType
-                                    || second_col_type != ColumnType::BoolType
-                                {
-                                    return Err(ERR_INVALID_OPERANDS.to_string());
-                                }
-
-                                let mut result_cell = get_false_mem_cell();
-                                if first_mem_cell.as_bool()? || second_mem_cell.as_bool()? {
-                                    result_cell = get_true_mem_cell();
-                                }
-
-                                return Ok((result_cell, "?column?", ColumnType::BoolType));
-                            }
-                            _ => {
-                                // TODO
-                            }
-                        }
+                        return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
                     }
-                    _ => {}
-                }
+                    Token::NotEqual => {
+                        if first_col_type != second_col_type
+                            || !&first_mem_cell.equals(second_mem_cell)
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
+                    }
+                    Token::GreaterThan => {
+                        let greater_than = first_mem_cell.bytes > second_mem_cell.bytes;
+                        if first_col_type == ColumnType::TextType
+                            && second_col_type == ColumnType::TextType
+                            && greater_than
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        if first_col_type == ColumnType::IntType
+                            && second_col_type == ColumnType::IntType
+                            && greater_than
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        if first_col_type == ColumnType::BoolType
+                            && second_col_type == ColumnType::BoolType
+                            && greater_than
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
+                    }
+                    Token::GreaterThanOrEqual => {
+                        let greater_than_or_equal = first_mem_cell.bytes >= second_mem_cell.bytes;
+                        if first_col_type == ColumnType::TextType
+                            && second_col_type == ColumnType::TextType
+                            && greater_than_or_equal
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        if first_col_type == ColumnType::IntType
+                            && second_col_type == ColumnType::IntType
+                            && greater_than_or_equal
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        if first_col_type == ColumnType::BoolType
+                            && second_col_type == ColumnType::BoolType
+                            && greater_than_or_equal
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
+                    }
+                    Token::LessThan => {
+                        let less_than = first_mem_cell.bytes < second_mem_cell.bytes;
+                        if first_col_type == ColumnType::TextType
+                            && second_col_type == ColumnType::TextType
+                            && less_than
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        if first_col_type == ColumnType::IntType
+                            && second_col_type == ColumnType::IntType
+                            && less_than
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        if first_col_type == ColumnType::BoolType
+                            && second_col_type == ColumnType::BoolType
+                            && less_than
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
+                    }
+                    Token::LessThanOrEqual => {
+                        let less_than_or_equal = first_mem_cell.bytes <= second_mem_cell.bytes;
+                        if first_col_type == ColumnType::TextType
+                            && second_col_type == ColumnType::TextType
+                            && less_than_or_equal
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        if first_col_type == ColumnType::IntType
+                            && second_col_type == ColumnType::IntType
+                            && less_than_or_equal
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        if first_col_type == ColumnType::BoolType
+                            && second_col_type == ColumnType::BoolType
+                            && less_than_or_equal
+                        {
+                            return Ok((get_true_mem_cell(), "?column?", ColumnType::BoolType));
+                        }
+                        return Ok((get_false_mem_cell(), "?column?", ColumnType::BoolType));
+                    }
+                    Token::Concat => {
+                        if first_col_type != ColumnType::TextType
+                            || second_col_type != ColumnType::TextType
+                        {
+                            return Err(ERR_INVALID_OPERANDS.to_string());
+                        }
+                        let mut token = TokenContainer::new();
+                        let mut first_value = first_mem_cell.as_text()?;
+                        let second_value = second_mem_cell.as_text()?;
 
-                return Err(ERR_INVALID_CELL.to_string());
+                        first_value.push_str(&second_value);
+                        token.token = Token::StringValue { value: first_value };
+
+                        return Ok((
+                            literal_to_memory_cell(&token)?,
+                            "?column?",
+                            ColumnType::TextType,
+                        ));
+                    }
+                    Token::Plus => {
+                        if first_col_type != ColumnType::IntType
+                            || second_col_type != ColumnType::IntType
+                        {
+                            return Err(ERR_INVALID_OPERANDS.to_string());
+                        }
+
+                        let int_value = first_mem_cell.as_int()? + second_mem_cell.as_int()?;
+                        let mut token = TokenContainer::new();
+                        token.token = Token::NumericValue {
+                            value: int_value.to_string(),
+                        };
+                        return Ok((
+                            literal_to_memory_cell(&token)?,
+                            "?column?",
+                            ColumnType::IntType,
+                        ));
+                    }
+                    Token::Minus => {
+                        if first_col_type != ColumnType::IntType
+                            || second_col_type != ColumnType::IntType
+                        {
+                            return Err(ERR_INVALID_OPERANDS.to_string());
+                        }
+
+                        let int_value = first_mem_cell.as_int()? - second_mem_cell.as_int()?;
+                        let mut token = TokenContainer::new();
+                        token.token = Token::NumericValue {
+                            value: int_value.to_string(),
+                        };
+                        return Ok((
+                            literal_to_memory_cell(&token)?,
+                            "?column?",
+                            ColumnType::IntType,
+                        ));
+                    }
+                    Token::And => {
+                        if first_col_type != ColumnType::BoolType
+                            || second_col_type != ColumnType::BoolType
+                        {
+                            return Err(ERR_INVALID_OPERANDS.to_string());
+                        }
+
+                        let mut result_cell = get_false_mem_cell();
+                        if first_mem_cell.as_bool()? && second_mem_cell.as_bool()? {
+                            result_cell = get_true_mem_cell();
+                        }
+
+                        return Ok((result_cell, "?column?", ColumnType::BoolType));
+                    }
+                    Token::Or => {
+                        if first_col_type != ColumnType::BoolType
+                            || second_col_type != ColumnType::BoolType
+                        {
+                            return Err(ERR_INVALID_OPERANDS.to_string());
+                        }
+
+                        let mut result_cell = get_false_mem_cell();
+                        if first_mem_cell.as_bool()? || second_mem_cell.as_bool()? {
+                            result_cell = get_true_mem_cell();
+                        }
+
+                        return Ok((result_cell, "?column?", ColumnType::BoolType));
+                    }
+                    _ => {
+                        return Err(ERR_INVALID_CELL.to_string());
+                    }
+                }
             }
             _ => return Err(ERR_INVALID_CELL.to_string()),
         }
@@ -385,17 +374,15 @@ pub fn get_true_mem_cell() -> MemoryCell {
 pub fn get_false_mem_cell() -> MemoryCell {
     MemoryCell { bytes: vec![] }
 }
-pub fn get_true_lex_token() -> Token {
-    Token {
-        value: "true".to_string(),
-        kind: TokenKind::BoolKind,
+pub fn get_true_lex_token() -> TokenContainer {
+    TokenContainer {
+        token: Token::BoolValue { value: true },
         loc: TokenLocation { line: 0, col: 0 },
     }
 }
-pub fn get_false_lex_token() -> Token {
-    Token {
-        value: "false".to_string(),
-        kind: TokenKind::BoolKind,
+pub fn get_false_lex_token() -> TokenContainer {
+    TokenContainer {
+        token: Token::BoolValue { value: false },
         loc: TokenLocation { line: 0, col: 0 },
     }
 }
@@ -418,23 +405,23 @@ impl MemoryBackend {
             return Err("No Table Columns.".to_owned());
         }
 
-        match self.tables.get(&create_statement.name.value) {
+        match self.tables.get(&create_statement.name) {
             Some(_) => {
                 return Err(format!(
                     "Table \"{}\" already exists.",
-                    create_statement.name.value
+                    create_statement.name
                 ));
             }
             _ => {}
         }
 
         for col in create_statement.cols {
-            new_table.columns.push(col.name.value);
+            new_table.columns.push(col.name);
 
             let data_type;
-            if col.data_type.value == "int".to_owned() {
+            if col.data_type.token == Token::Int {
                 data_type = ColumnType::IntType;
-            } else if col.data_type.value == "text".to_owned() {
+            } else if col.data_type.token == Token::Text {
                 data_type = ColumnType::TextType;
             } else {
                 return Err(ERR_INVALID_DATA_TYPE.to_owned());
@@ -443,18 +430,18 @@ impl MemoryBackend {
             new_table.column_types.push(data_type);
         }
 
-        self.tables.insert(create_statement.name.value, new_table);
+        self.tables.insert(create_statement.name, new_table);
 
         return Ok(true);
     }
 
     pub fn insert(&mut self, insert_statement: InsertStatement) -> Result<bool, String> {
-        let &table = &self.tables.get(&insert_statement.table.value);
-
-        if table.is_none() {
-            return Err(ERR_TABLE_DOES_NOT_EXIST.to_owned());
-        }
-        let table = table.unwrap();
+        let &table = &match self.tables.get(&insert_statement.table) {
+            Some(value) => value,
+            None => {
+                return Err(ERR_TABLE_DOES_NOT_EXIST.to_owned());
+            }
+        };
 
         if insert_statement.values.len() != table.columns.len() {
             return Err(ERR_MISSING_VALUES.to_owned());
@@ -475,15 +462,14 @@ impl MemoryBackend {
             }
         }
 
-        let table = self.tables.get_mut(&insert_statement.table.value);
+        let table = match self.tables.get_mut(&insert_statement.table) {
+            Some(value) => value,
+            None => {
+                return Err(ERR_TABLE_DOES_NOT_EXIST.to_owned());
+            }
+        };
 
-        if table.is_none() {
-            return Err(ERR_TABLE_DOES_NOT_EXIST.to_owned());
-        }
-        let table = &mut table.unwrap();
         table.rows.push(row);
-
-        // self.tables.insert(insert_statement.table.value, table);
 
         return Ok(true);
     }
@@ -492,89 +478,92 @@ impl MemoryBackend {
         &self,
         select_statement: SelectStatement,
     ) -> Result<QueryResults<MemoryCell>, String> {
-        let mut table = &Table {
-            column_types: vec![],
-            columns: vec![],
-            rows: vec![],
+        let table: Option<&Table> = match select_statement.from {
+            Some(from_name) => match self.tables.get(&from_name) {
+                None => {
+                    return Err(ERR_TABLE_DOES_NOT_EXIST.to_string());
+                }
+                Some(value) => Some(value),
+            },
+            None => None,
         };
-        if select_statement.from.kind != TokenKind::Empty {
-            let table_result = self.tables.get(&select_statement.from.value);
-            if table_result.is_none() {
-                return Err(ERR_TABLE_DOES_NOT_EXIST.to_string());
-            }
-            table = table_result.unwrap();
-        }
-
-        if select_statement.items.len() == 0 {
-            return Ok(QueryResults {
-                columns: vec![],
-                rows: vec![],
-            });
-        }
         let mut results: Vec<Vec<MemoryCell>> = vec![];
 
         let mut columns: ResultColumns = vec![];
+        if let Some(table) = table {
+            if select_statement.items.len() == 0 {
+                return Ok(QueryResults {
+                    columns: vec![],
+                    rows: vec![],
+                });
+            }
 
-        for row_index in 0..table.rows.len() {
-            let mut result: Vec<MemoryCell> = vec![];
-            let is_first_row = results.len() == 0;
+            for row_index in 0..table.rows.len() {
+                let mut result: Vec<MemoryCell> = vec![];
+                let is_first_row = results.len() == 0;
 
-            match &select_statement.where_clause {
-                Expression::Empty => {}
-                _ => {
-                    let (mem_cell, _, _) =
-                        table.evaluate_cell(row_index as u32, &select_statement.where_clause)?;
+                match &select_statement.where_clause {
+                    Expression::Empty => {}
+                    _ => {
+                        let (mem_cell, _, _) = table
+                            .evaluate_cell(row_index as u32, &select_statement.where_clause)?;
 
-                    if !mem_cell.as_bool()? {
+                        if !mem_cell.as_bool()? {
+                            continue;
+                        }
+                    }
+                }
+
+                for select_item in &select_statement.items {
+                    if select_item.asterisk {
+                        for (col_name, _) in table.columns.iter().zip(table.column_types.iter()) {
+                            let (mem_cell, col_name, col_type) = table.evaluate_cell(
+                                row_index as u32,
+                                &Expression::Literal(LiteralExpression {
+                                    literal: TokenContainer::new_with_kind_and_value(
+                                        Token::IdentifierValue {
+                                            value: col_name.clone(),
+                                        },
+                                        col_name.clone(),
+                                    ),
+                                }),
+                            )?;
+                            if is_first_row {
+                                columns.push(ResultColumn {
+                                    col_type: col_type.clone(),
+                                    name: col_name.to_string(),
+                                });
+                            }
+                            result.push(mem_cell);
+                        }
                         continue;
                     }
-                }
-            }
 
-            for select_item in &select_statement.items {
-                if select_item.asterisk {
-                    for (col_name, _) in table.columns.iter().zip(table.column_types.iter()) {
-                        let (mem_cell, col_name, col_type) = table.evaluate_cell(
-                            row_index as u32,
-                            &Expression::Literal(LiteralExpression {
-                                literal: Token::new_with_kind_and_value(
-                                    TokenKind::IdentifierKind,
-                                    col_name.clone(),
-                                ),
-                            }),
-                        )?;
-                        if is_first_row {
-                            columns.push(ResultColumn {
-                                col_type: col_type.clone(),
-                                name: col_name.to_string(),
-                            });
+                    let (mem_cell, col_name, col_type) =
+                        table.evaluate_cell(row_index as u32, &select_item.expression)?;
+
+                    if is_first_row {
+                        match &select_item.as_clause {
+                            Some(as_name) => {
+                                columns.push(ResultColumn {
+                                    col_type: col_type.clone(),
+                                    name: as_name.clone(),
+                                });
+                            }
+                            None => {
+                                columns.push(ResultColumn {
+                                    col_type: col_type.clone(),
+                                    name: col_name.to_string(),
+                                });
+                            }
                         }
-                        result.push(mem_cell);
                     }
-                    continue;
+
+                    result.push(mem_cell);
                 }
 
-                let (mem_cell, col_name, col_type) =
-                    table.evaluate_cell(row_index as u32, &select_item.expression)?;
-
-                if is_first_row {
-                    if select_item.as_clause.kind != TokenKind::Empty {
-                        columns.push(ResultColumn {
-                            col_type: col_type.clone(),
-                            name: select_item.as_clause.value.clone(),
-                        });
-                    } else {
-                        columns.push(ResultColumn {
-                            col_type: col_type.clone(),
-                            name: col_name.to_string(),
-                        });
-                    }
-                }
-
-                result.push(mem_cell);
+                results.push(result);
             }
-
-            results.push(result);
         }
 
         return Ok(QueryResults {
@@ -622,25 +611,29 @@ impl MemoryBackend {
     }
 }
 
-pub fn literal_to_memory_cell(token: &Token) -> Result<MemoryCell, String> {
-    match token.kind {
-        TokenKind::NumericKind => {
-            let num_result = token.value.parse::<i32>();
+pub fn literal_to_memory_cell(token: &TokenContainer) -> Result<MemoryCell, String> {
+    match &token.token {
+        Token::NumericValue { value } => {
+            let num_result = value.parse::<i32>();
 
             if num_result.is_err() {
                 return Err("Failed to parse number".to_string());
             }
+            let bytes = match num_result {
+                Ok(value) => value.to_be_bytes().into(),
+                Err(err) => {
+                    return Err(err.to_string());
+                }
+            };
+            return Ok(MemoryCell { bytes });
+        }
+        Token::StringValue { value } => {
             return Ok(MemoryCell {
-                bytes: num_result.unwrap().to_be_bytes().into(),
+                bytes: value.as_bytes().into(),
             });
         }
-        TokenKind::StringKind => {
-            return Ok(MemoryCell {
-                bytes: token.value.as_bytes().into(),
-            });
-        }
-        TokenKind::BoolKind => {
-            if token.value == TRUE_KEYWORD.to_lowercase() {
+        Token::BoolValue { value } => {
+            if *value {
                 return Ok(MemoryCell { bytes: vec![1] });
             }
             return Ok(MemoryCell { bytes: vec![] });

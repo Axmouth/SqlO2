@@ -14,7 +14,6 @@ pub fn run_repl() {
     let mut rl = Editor::<()>::new();
 
     loop {
-        // print!("PostgRustQL #: ");
         match stdout().flush() {
             Ok(_) => {}
             Err(err) => {

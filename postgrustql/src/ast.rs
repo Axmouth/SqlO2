@@ -14,26 +14,26 @@ pub enum Statement {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct InsertStatement {
-    pub table: Token,
+    pub table: String,
     pub values: Vec<Expression>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct CreateTableStatement {
-    pub name: Token,
+    pub name: String,
     pub cols: Vec<ColumnDefinition>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ColumnDefinition {
-    pub name: Token,
-    pub data_type: Token,
+    pub name: String,
+    pub data_type: TokenContainer,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct SelectStatement {
     pub items: Vec<SelectItem>,
-    pub from: Token,
+    pub from: Option<String>,
     pub where_clause: Expression,
 }
 
@@ -41,7 +41,7 @@ impl SelectStatement {
     pub fn new() -> Self {
         SelectStatement {
             items: vec![],
-            from: Token::new(),
+            from: None,
             where_clause: Expression::new(),
         }
     }
@@ -61,52 +61,67 @@ impl Expression {
 
     pub fn new_literal_id(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: Token::new_with_kind_and_value(TokenKind::IdentifierKind, value),
+            literal: TokenContainer::new_with_kind_and_value(
+                Token::IdentifierValue {
+                    value: value.clone(),
+                },
+                value,
+            ),
         })
     }
     pub fn new_literal_num(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: Token::new_with_kind_and_value(TokenKind::NumericKind, value),
+            literal: TokenContainer::new_with_kind_and_value(
+                Token::NumericValue {
+                    value: value.clone(),
+                },
+                value.clone(),
+            ),
         })
     }
     pub fn new_literal_string(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: Token::new_with_kind_and_value(TokenKind::StringKind, value),
-        })
-    }
-    pub fn new_literal_symbol(value: String) -> Expression {
-        Expression::Literal(LiteralExpression {
-            literal: Token::new_with_kind_and_value(TokenKind::SymbolKind, value),
+            literal: TokenContainer::new_with_kind_and_value(
+                Token::StringValue {
+                    value: value.clone(),
+                },
+                value,
+            ),
         })
     }
     pub fn new_literal_bool(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: Token::new_with_kind_and_value(TokenKind::BoolKind, value),
+            literal: TokenContainer::new_with_kind_and_value(
+                Token::BoolValue {
+                    value: if value == TRUE_KEYWORD { true } else { false },
+                },
+                value,
+            ),
         })
     }
     pub fn new_literal_null() -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: Token::new_with_kind_and_value(TokenKind::NullKind, "null".to_string()),
+            literal: TokenContainer::new_with_kind_and_value(Token::Null, "null".to_string()),
         })
     }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct LiteralExpression {
-    pub literal: Token,
+    pub literal: TokenContainer,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct BinaryExpression {
     pub first: Box<Expression>,
     pub second: Box<Expression>,
-    pub operand: Token,
+    pub operand: TokenContainer,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct SelectItem {
     pub expression: Expression,
-    pub as_clause: Token,
+    pub as_clause: Option<String>,
     pub asterisk: bool,
 }
 
@@ -114,7 +129,7 @@ impl SelectItem {
     pub fn new() -> Self {
         SelectItem {
             expression: Expression::new(),
-            as_clause: Token::new(),
+            as_clause: None,
             asterisk: false,
         }
     }
@@ -137,24 +152,22 @@ mod ast_tests {
                 input: "INSERT INTO users VALUES (105, 'George');",
                 ast: Ast {
                     statements: vec![Statement::InsertStatement(InsertStatement {
-                        table: Token {
-                            loc: TokenLocation { col: 12, line: 0 },
-                            kind: TokenKind::IdentifierKind,
-                            value: "users".to_owned(),
-                        },
+                        table: "users".to_owned(),
                         values: vec![
                             Expression::Literal(LiteralExpression {
-                                literal: Token {
+                                literal: TokenContainer {
                                     loc: TokenLocation { col: 26, line: 0 },
-                                    kind: TokenKind::NumericKind,
-                                    value: "105".to_owned(),
+                                    token: Token::NumericValue {
+                                        value: "105".to_owned(),
+                                    },
                                 },
                             }),
                             Expression::Literal(LiteralExpression {
-                                literal: Token {
+                                literal: TokenContainer {
                                     loc: TokenLocation { col: 32, line: 0 },
-                                    kind: TokenKind::StringKind,
-                                    value: "George".to_owned(),
+                                    token: Token::StringValue {
+                                        value: "George".to_owned(),
+                                    },
                                 },
                             }),
                         ],
@@ -165,34 +178,20 @@ mod ast_tests {
                 input: "CREATE TABLE users (id INT, name TEXT);",
                 ast: Ast {
                     statements: vec![Statement::CreateTableStatement(CreateTableStatement {
-                        name: Token {
-                            loc: TokenLocation { col: 13, line: 0 },
-                            kind: TokenKind::IdentifierKind,
-                            value: "users".to_owned(),
-                        },
+                        name: "users".to_owned(),
                         cols: vec![
                             ColumnDefinition {
-                                name: Token {
-                                    loc: TokenLocation { col: 20, line: 0 },
-                                    kind: TokenKind::IdentifierKind,
-                                    value: "id".to_owned(),
-                                },
-                                data_type: Token {
+                                name: "id".to_owned(),
+                                data_type: TokenContainer {
                                     loc: TokenLocation { col: 23, line: 0 },
-                                    kind: TokenKind::KeywordKind,
-                                    value: INT_KEYWORD.to_owned(),
+                                    token: Token::Int,
                                 },
                             },
                             ColumnDefinition {
-                                name: Token {
-                                    loc: TokenLocation { col: 28, line: 0 },
-                                    kind: TokenKind::IdentifierKind,
-                                    value: "name".to_owned(),
-                                },
-                                data_type: Token {
+                                name: "name".to_owned(),
+                                data_type: TokenContainer {
                                     loc: TokenLocation { col: 33, line: 0 },
-                                    kind: TokenKind::KeywordKind,
-                                    value: TEXT_KEYWORD.to_owned(),
+                                    token: Token::Text,
                                 },
                             },
                         ],
@@ -206,10 +205,12 @@ mod ast_tests {
                         items: vec![
                             SelectItem {
                                 asterisk: false,
-                                as_clause: Token::new(),
+                                as_clause: None,
                                 expression: Expression::Literal(LiteralExpression {
-                                    literal: Token::new_with_all(
-                                        TokenKind::IdentifierKind,
+                                    literal: TokenContainer::new_with_all(
+                                        Token::IdentifierValue {
+                                            value: "id".to_owned(),
+                                        },
                                         "id".to_owned(),
                                         7,
                                         0,
@@ -218,15 +219,12 @@ mod ast_tests {
                             },
                             SelectItem {
                                 asterisk: false,
-                                as_clause: Token::new_with_all(
-                                    TokenKind::IdentifierKind,
-                                    "fullname".to_owned(),
-                                    19,
-                                    0,
-                                ),
+                                as_clause: Some("fullname".to_owned()),
                                 expression: Expression::Literal(LiteralExpression {
-                                    literal: Token::new_with_all(
-                                        TokenKind::IdentifierKind,
+                                    literal: TokenContainer::new_with_all(
+                                        Token::IdentifierValue {
+                                            value: "name".to_owned(),
+                                        },
                                         "name".to_owned(),
                                         11,
                                         0,
@@ -234,12 +232,7 @@ mod ast_tests {
                                 }),
                             },
                         ],
-                        from: Token::new_with_all(
-                            TokenKind::IdentifierKind,
-                            "users".to_string(),
-                            33,
-                            0,
-                        ),
+                        from: Some("users".to_string()),
                         where_clause: Expression::Empty,
                     })],
                 },
@@ -252,15 +245,14 @@ mod ast_tests {
         for test in parse_tests {
             print!("(Parser) Testing: {}", test.input);
 
-            let ast_result = parse(test.input);
-
-            if ast_result.is_err() {
-                found_faults = true;
-                err_msg.push_str(ast_result.err().unwrap().as_str());
-                continue;
-            }
-
-            let ast = ast_result.ok().unwrap();
+            let ast = match parse(test.input) {
+                Ok(value) => value,
+                Err(err) => {
+                    found_faults = true;
+                    err_msg.push_str(err.as_str());
+                    continue;
+                }
+            };
 
             assert_eq!(ast, test.ast);
             println!("  Passed!");
