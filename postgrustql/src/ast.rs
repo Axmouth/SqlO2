@@ -135,6 +135,16 @@ impl SelectItem {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct Index<S, T> {
+    name: String,
+    expression: Expression,
+    unique: bool,
+    primary_key: bool,
+    typ: String,
+    tree: std::collections::btree_map::BTreeMap<S, T>,
+}
+
 #[cfg(test)]
 mod ast_tests {
     use super::super::ast::*;

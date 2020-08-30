@@ -3,7 +3,8 @@
 members = [
     "postgrustql",
     "postgrustql_benchmarks",
-    "postgrustql_repl"
+    "postgrustql_repl",
+    "postgrustql_wasm_client"
 ]
 
 [profile.bench]

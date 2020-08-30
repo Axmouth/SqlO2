@@ -78,13 +78,13 @@ pub fn parse(source: &str) -> Result<Ast, String> {
 fn parse_statement(
     tokens: &mut Vec<TokenContainer>,
     initial_cursor: u32,
-    _delimiter: Token,
+    delimiter: Token,
 ) -> Result<(Statement, u32), String> {
     let cursor = initial_cursor;
 
     // Look for a SELECT statement
 
-    match parse_select_statement(tokens, cursor, Token::Semicolon) {
+    match parse_select_statement(tokens, cursor, delimiter.clone()) {
         Ok((select, new_cursor)) => {
             return Ok((Statement::SelectStatement(select), new_cursor));
         }
@@ -93,7 +93,7 @@ fn parse_statement(
 
     // Look for an INSERT statement
 
-    match parse_insert_statement(tokens, cursor, Token::Semicolon) {
+    match parse_insert_statement(tokens, cursor, delimiter.clone()) {
         Ok((insert, new_cursor)) => {
             return Ok((Statement::InsertStatement(insert), new_cursor));
         }
@@ -102,17 +102,18 @@ fn parse_statement(
 
     // Look for a CREATE statement
 
-    match parse_create_table_statement(tokens, cursor, Token::Semicolon) {
+    match parse_create_table_statement(tokens, cursor, delimiter.clone()) {
         Ok((create, new_cursor)) => {
             return Ok((Statement::CreateTableStatement(create), new_cursor));
         }
         Err(_) => (),
     }
+    println!("{:?}", tokens);
 
     Err(help_message(
         tokens,
         cursor,
-        "Expected a valid statemt".to_string(),
+        "Expected a valid statement".to_string(),
     ))
 }
 
@@ -568,7 +569,11 @@ fn parse_select_items(
             cursor = new_cursor;
             select_item.expression = expression;
 
-            if tokens[cursor as usize].token == Token::As {
+            if let Some(TokenContainer {
+                loc: _,
+                token: Token::As,
+            }) = tokens.get(cursor as usize)
+            {
                 cursor += 1;
                 let curr_token = tokens[cursor as usize].token.clone();
                 let as_name = match curr_token {
