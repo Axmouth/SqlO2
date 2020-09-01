@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { PostgrustqlService } from '../../services/postgrustql.service';
 
 class ExecutedQuery {
@@ -15,6 +15,7 @@ export class ReplComponent implements OnInit {
   execHistory: ExecutedQuery[] = [];
   queryString = '';
   canType = false;
+  @ViewChild('promptInput') promptInputRef: ElementRef;
 
   constructor(private postgrustqlService: PostgrustqlService) {}
 
@@ -46,7 +47,13 @@ export class ReplComponent implements OnInit {
     const result = await this.postgrustqlService.eval(this.queryString);
     const newHistoryObject: ExecutedQuery = { queryString: this.queryString, queryResults: result };
     this.execHistory.push(newHistoryObject);
+    this.promptInputRef.nativeElement.scrollIntoView();
+    this.promptInputRef.nativeElement.focus();
     this.queryString = '';
     this.canType = true;
+  }
+
+  focusInput() {
+    this.promptInputRef.nativeElement.focus();
   }
 }

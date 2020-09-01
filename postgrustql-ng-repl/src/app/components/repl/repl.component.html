@@ -1,4 +1,4 @@
-<div *ngFor="let item of execHistory">
+<div *ngFor="let item of execHistory" (click)="focusInput()">
   <div class="prompt-wrapper">
     <div class="prompt">PostgRustQL #: &nbsp;</div>
     <div class="executed-query">{{ item?.queryString }}</div>
@@ -17,7 +17,7 @@
   </div>
 </div>
 
-<div class="prompt-wrapper">
+<div class="prompt-wrapper" (click)="focusInput()">
   <div class="prompt">PostgRustQL #: &nbsp;</div>
   <input
     type="text"
