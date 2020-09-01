@@ -15,11 +15,39 @@ pub trait Cell {
     fn equals(&self, other: Self) -> bool;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResultColumn {
     pub col_type: ColumnType,
     pub name: String,
 }
+
+impl From<ColumnType> for String {
+    fn from(col_type: ColumnType) -> Self {
+        match col_type {
+            ColumnType::TextType => "Text".to_string(),
+            ColumnType::IntType => "Int".to_string(),
+            ColumnType::BoolType => "Bool".to_string(),
+        }
+    }
+}
+
+impl From<&ColumnType> for String {
+    fn from(col_type: &ColumnType) -> Self {
+        match col_type {
+            ColumnType::TextType => "Text".to_string(),
+            ColumnType::IntType => "Int".to_string(),
+            ColumnType::BoolType => "Bool".to_string(),
+        }
+    }
+}
+
+impl std::fmt::Display for ColumnType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(String::from(self).as_str())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum EvalResult<C> {
     Select {
         results: QueryResults<C>,
@@ -37,6 +65,7 @@ pub enum EvalResult<C> {
 
 pub type ResultColumns = Vec<ResultColumn>;
 
+#[derive(Debug, Clone)]
 pub struct QueryResults<C> {
     pub columns: ResultColumns,
     pub rows: Vec<Vec<C>>,

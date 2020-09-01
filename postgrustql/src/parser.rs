@@ -644,7 +644,11 @@ fn parse_select_statement(
         select.from = Some(from_name.clone());
     }
 
-    if tokens[cursor as usize].token == Token::Where {
+    if let Some(TokenContainer {
+        loc: _,
+        token: Token::Where,
+    }) = tokens.get(cursor as usize)
+    {
         cursor += 1;
         let (where_clause, new_cursor) = match parse_expression(tokens, cursor, &vec![delimiter], 0)
         {

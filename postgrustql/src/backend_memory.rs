@@ -6,10 +6,10 @@ use super::lexer::*;
 use super::parser::parse;
 
 use byteorder::{BigEndian, ReadBytesExt};
+use instant::Instant;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::io::Read;
-use std::time::Instant;
 
 const ERR_INVALID_CELL: &str = "Invalid Cell";
 const ERR_INVALID_OPERANDS: &str = "Invalid Operands";
@@ -62,6 +62,8 @@ struct Table {
     rows: Vec<Vec<MemoryCell>>,
 }
 
+//impl From<>
+
 impl Table {
     pub fn evaluate_literal_cell(
         &self,
@@ -77,9 +79,17 @@ impl Table {
                         for (i, table_col) in self.columns.iter().enumerate() {
                             if table_col == value.as_str() {
                                 return Ok((
-                                    self.rows[row_index as usize][i as usize].clone(),
+                                    self.rows
+                                        .get(row_index as usize)
+                                        .ok_or("Error accesing row")?
+                                        .get(i as usize)
+                                        .ok_or("Error accesing row's column")?
+                                        .clone(),
                                     table_col,
-                                    self.column_types[i].clone(),
+                                    self.column_types
+                                        .get(i)
+                                        .ok_or("Error accesing column")?
+                                        .clone(),
                                 ));
                             }
                         }

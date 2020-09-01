@@ -43,6 +43,7 @@ fn main() {
         println!("{}", repl_eval(&mut mb, text));
     }
 }
+
 pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
     let mut output_text = String::from("");
 

@@ -1,0 +1,8 @@
+<table>
+  <tr>
+    <th *ngFor="let column of results?.columns">{{ column }}</th>
+  </tr>
+  <tr *ngFor="let row of results?.rows">
+    <td *ngFor="let field of row">{{ field }}</td>
+  </tr>
+</table>

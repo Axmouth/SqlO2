@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Benchmark, Criterion};
 
+use instant::Instant;
 use postgrustql::*;
-use std::time::Instant;
 
 fn lex_benchmark(c: &mut Criterion) {
     let lexer = lexer::Lexer::new();
@@ -28,12 +28,8 @@ fn create_benchmark(c: &mut Criterion) {
             b.iter(|| {
                 for _ in 0..1 {
                     let mut db = backend_memory::MemoryBackend::new();
-                    db.eval_query(
-                        "CREATE TABLE people (id INT, name TEXT);"
-                            .to_owned()
-                            .as_str(),
-                    )
-                    .unwrap();
+                    db.eval_query("CREATE TABLE people (id INT, name TEXT);")
+                        .unwrap();
                 }
             })
         }),
@@ -42,12 +38,8 @@ fn create_benchmark(c: &mut Criterion) {
 
 fn insert_benchmark(c: &mut Criterion) {
     let mut db = backend_memory::MemoryBackend::new();
-    db.eval_query(
-        "CREATE TABLE people (id INT, name TEXT);"
-            .to_owned()
-            .as_str(),
-    )
-    .unwrap();
+    db.eval_query("CREATE TABLE people (id INT, name TEXT);")
+        .unwrap();
 
     // Bench here
     &c.bench(
@@ -55,10 +47,8 @@ fn insert_benchmark(c: &mut Criterion) {
         Benchmark::new("insert in", move |b| {
             b.iter(|| {
                 for _ in 0..10 {
-                    db.eval_query(black_box(
-                        "INSERT INTO people VALUES (1, 'Baam');".to_owned().as_str(),
-                    ))
-                    .unwrap();
+                    db.eval_query(black_box("INSERT INTO people VALUES (1, 'Baam');"))
+                        .unwrap();
                 }
             })
         }),
@@ -67,12 +57,8 @@ fn insert_benchmark(c: &mut Criterion) {
 
 fn single_insert_benchmark(c: &mut Criterion) {
     let mut db = backend_memory::MemoryBackend::new();
-    db.eval_query(
-        "CREATE TABLE people (id INT, name TEXT);"
-            .to_owned()
-            .as_str(),
-    )
-    .unwrap();
+    db.eval_query("CREATE TABLE people (id INT, name TEXT);")
+        .unwrap();
 
     // Bench here
     &c.bench(
@@ -80,10 +66,8 @@ fn single_insert_benchmark(c: &mut Criterion) {
         Benchmark::new("insert in", move |b| {
             b.iter(|| {
                 for _ in 0..1 {
-                    db.eval_query(black_box(
-                        "INSERT INTO people VALUES (1, 'Baam');".to_owned().as_str(),
-                    ))
-                    .unwrap();
+                    db.eval_query(black_box("INSERT INTO people VALUES (1, 'Baam');"))
+                        .unwrap();
                 }
             })
         }),
@@ -113,9 +97,7 @@ fn select_benchmark(c: &mut Criterion) {
         }
         db.insert(statement.clone()).unwrap();
     }
-    let temp = db
-        .eval_query("SELECT * FROM people;".to_owned().as_str())
-        .unwrap();
+    let temp = db.eval_query("SELECT * FROM people;").unwrap();
     match &temp[0] {
         backend::EvalResult::Select {
             results: _select_results,
@@ -155,12 +137,8 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     // Insert benchmark
     let before = Instant::now();
     let mut db = backend_memory::MemoryBackend::new();
-    db.eval_query(
-        "CREATE TABLE people (id INT, name TEXT);"
-            .to_owned()
-            .as_str(),
-    )
-    .unwrap();
+    db.eval_query("CREATE TABLE people (id INT, name TEXT);")
+        .unwrap();
     for i in 0..1000000 {
         db.eval_query(
             black_box(format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i)).as_str(),
@@ -176,9 +154,7 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     let before = Instant::now();
     for i in 0..100 {
         let result = db.eval_query(black_box(
-            format!("SELECT * FROM people WHERE id = {};", i * 10000)
-                .to_owned()
-                .as_str(),
+            format!("SELECT * FROM people WHERE id = {};", i * 10000).as_str(),
         ));
         if result.is_err() {
             println!("{}", result.err().unwrap());
@@ -195,9 +171,7 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     let before = Instant::now();
     for _ in 0..100 {
         db.eval_query(black_box(
-            format!("SELECT * FROM people WHERE id = 999999;")
-                .to_owned()
-                .as_str(),
+            format!("SELECT * FROM people WHERE id = 999999;").as_str(),
         ))
         .unwrap();
     }
@@ -210,9 +184,7 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     let before = Instant::now();
     for _ in 0..1 {
         db.eval_query(black_box(
-            format!("SELECT * FROM people WHERE id = 999999;")
-                .to_owned()
-                .as_str(),
+            format!("SELECT * FROM people WHERE id = 999999;").as_str(),
         ))
         .unwrap();
     }
@@ -224,8 +196,7 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     // Select benchmark 4
     let before = Instant::now();
     for _ in 0..1 {
-        db.eval_query(black_box("SELECT * FROM people;".to_owned().as_str()))
-            .unwrap();
+        db.eval_query(black_box("SELECT * FROM people;")).unwrap();
     }
     println!(
         "Elapsed time to select 1000000 rows, 1 time: {:.2?}",
@@ -235,8 +206,7 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     // Select benchmark 4
     let before = Instant::now();
     for _ in 0..100 {
-        db.eval_query(black_box("SELECT * FROM people;".to_owned().as_str()))
-            .unwrap();
+        db.eval_query(black_box("SELECT * FROM people;")).unwrap();
     }
     println!(
         "Elapsed time to select 1000000 rows, 100 times: {:.2?}",

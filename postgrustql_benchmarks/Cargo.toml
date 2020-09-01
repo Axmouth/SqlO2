@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 postgrustql = { path = "../postgrustql" }
 criterion = "0.3"
+instant = { version = "0.1", features = [ "now" ] }
 
 [[bench]]
 name = "bench_main"
