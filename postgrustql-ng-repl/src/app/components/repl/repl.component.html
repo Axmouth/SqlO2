@@ -6,14 +6,12 @@
   <div *ngIf="item?.queryResults?.success === true">
     <div *ngFor="let results of item?.queryResults?.results">
       <app-results-table [results]="results" *ngIf="results?.rows"></app-results-table>
-      <div *ngIf="results?.rows && results?.rows?.length !== 1">({{ results?.rows?.length }} results)</div>
-      <div *ngIf="results?.rows && results?.rows?.length === 1">({{ results?.rows?.length }} result)</div>
     </div>
   </div>
-  <div *ngIf="item?.queryResults?.success === true">
+  <div *ngIf="item?.queryResults?.success === true" class="ok">
     <div>ok!</div>
   </div>
-  <div *ngIf="item.queryResults?.success !== true">
+  <div *ngIf="item.queryResults?.success !== true" class="failed">
     <div>fail..</div>
     <div>Error: {{ item?.queryResults?.error }}</div>
   </div>
@@ -21,5 +19,15 @@
 
 <div class="prompt-wrapper">
   <div class="prompt">PostgRustQL #: &nbsp;</div>
-  <input type="text" name="" id="" [(ngModel)]="queryString" (keyup.enter)="onQuerySubmit()" class="terminal-input" />
+  <input
+    type="text"
+    name=""
+    id=""
+    [(ngModel)]="queryString"
+    (keyup.enter)="onQuerySubmit()"
+    class="terminal-input"
+    #promptInput
+    cdkTrapFocus
+    [cdkTrapFocusAutoCapture]="true"
+  />
 </div>

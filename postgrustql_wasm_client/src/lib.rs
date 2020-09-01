@@ -31,10 +31,6 @@ pub fn eval_raw(cmd: String) -> Object {
 }
 
 pub fn eval_query(cmd: String) -> Result<Vec<EvalResult<MemoryCell>>, String> {
-    println!(" println");
-    unsafe {
-        log("1");
-    }
     let backend = &mut BACKEND.lock().unwrap();
     let result = backend.eval_query(&cmd);
     result
