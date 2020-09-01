@@ -1,11 +1,12 @@
 <div *ngFor="let item of execHistory" (click)="focusInput()">
   <div class="prompt-wrapper">
-    <div class="prompt">PostgRustQL #: &nbsp;</div>
-    <div class="executed-query">{{ item?.queryString }}</div>
+    <div class="prompt">PostgRustQL#:&nbsp;</div>
+    <pre class="executed-query">{{ item?.queryString }}</pre>
   </div>
-  <div *ngIf="item?.queryResults?.success === true">
+  <br />
+  <div *ngIf="item?.queryResults?.success === true" class="results">
     <div *ngFor="let results of item?.queryResults?.results">
-      <app-results-table [results]="results" *ngIf="results?.rows"></app-results-table>
+      <app-results-table [results]="results" *ngIf="results?.rows" class="results-table"></app-results-table>
     </div>
   </div>
   <div *ngIf="item?.queryResults?.success === true" class="ok">
@@ -18,16 +19,16 @@
 </div>
 
 <div class="prompt-wrapper" (click)="focusInput()">
-  <div class="prompt">PostgRustQL #: &nbsp;</div>
-  <input
-    type="text"
-    name=""
-    id=""
+  <div class="prompt">PostgRustQL#:&nbsp;</div>
+  <textarea
     [(ngModel)]="queryString"
     (keyup.enter)="onQuerySubmit()"
+    (keyup)="autoGrow()"
     class="terminal-input"
-    #promptInput
+    [cdkTextareaAutosize]="false"
+    #promptInput="cdkTextareaAutosize"
+    #promptInputRef
     cdkTrapFocus
     [cdkTrapFocusAutoCapture]="true"
-  />
+  ></textarea>
 </div>

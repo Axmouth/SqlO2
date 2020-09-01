@@ -1,8 +1,9 @@
-import { Component, OnInit, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, OnDestroy } from '@angular/core';
 import { PostgrustqlService } from '../../services/postgrustql.service';
 import { ActivatedRoute, Router, NavigationEnd } from '@angular/router';
 import { Subject } from 'rxjs';
 import { take, takeUntil } from 'rxjs/operators';
+import { CdkTextareaAutosize } from '@angular/cdk/text-field';
 
 class ExecutedQuery {
   queryString: string;
@@ -19,7 +20,10 @@ export class ReplComponent implements OnInit, OnDestroy {
   execHistory: ExecutedQuery[] = [];
   queryString = '';
   canType = false;
-  @ViewChild('promptInput') promptInputRef: ElementRef;
+  @ViewChild('promptInputRef')
+  promptInputRef: ElementRef;
+  @ViewChild('promptInput')
+  contentFCAutosize: CdkTextareaAutosize;
 
   constructor(private postgrustqlService: PostgrustqlService, private route: ActivatedRoute, private router: Router) {}
 
@@ -68,12 +72,14 @@ export class ReplComponent implements OnInit, OnDestroy {
 
   async onQuerySubmit() {
     this.canType = false;
-    const result = await this.postgrustqlService.eval(this.queryString);
-    const newHistoryObject: ExecutedQuery = { queryString: this.queryString, queryResults: result };
+    const queryString = this.queryString;
+    const result = await this.postgrustqlService.eval(this.queryString.trim());
+    const newHistoryObject: ExecutedQuery = { queryString, queryResults: result };
     this.execHistory.push(newHistoryObject);
     this.promptInputRef.nativeElement.scrollIntoView();
     this.promptInputRef.nativeElement.focus();
     this.queryString = '';
+    this.resetTextArea();
     this.canType = true;
   }
 
@@ -84,5 +90,16 @@ export class ReplComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.notifier.next();
     this.notifier.complete();
+  }
+
+  public resetTextArea() {
+    this.contentFCAutosize.reset();
+  }
+
+  public autoGrow() {
+    const textArea = this.promptInputRef.nativeElement;
+    textArea.style.overflow = 'hidden';
+    textArea.style.height = textArea.scrollHeight + 'px';
+    this.promptInputRef.nativeElement.scrollIntoView();
   }
 }
