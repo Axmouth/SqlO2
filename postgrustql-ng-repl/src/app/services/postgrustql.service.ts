@@ -1,4 +1,4 @@
-import { Injectable, OnInit } from '@angular/core';
+import { Injectable, OnInit, OnDestroy } from '@angular/core';
 import { Subject, Observable, combineLatest } from 'rxjs';
 import { first } from 'rxjs/operators';
 
@@ -18,7 +18,8 @@ function sleep(ms: number) {
 @Injectable({
   providedIn: 'root',
 })
-export class PostgrustqlService {
+export class PostgrustqlService implements OnDestroy {
+  notifier = new Subject();
   private wasm: typeof import('../../../../postgrustql_wasm_client/pkg/postgrustql_wasm_client.js');
   private loaded = false;
   loading: Subject<boolean> = new Subject<boolean>();
@@ -31,6 +32,10 @@ export class PostgrustqlService {
       this.loading.next(true);
       this.loading.complete();
     });
+  }
+  ngOnDestroy(): void {
+    this.notifier.next();
+    this.notifier.complete();
   }
 
   async eval(queryString: string): Promise<any> {
