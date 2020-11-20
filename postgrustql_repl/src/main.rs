@@ -1,4 +1,7 @@
-use postgrustql;
+use postgrustql::{
+    self,
+    sql_types::{SqlType, SqlValue},
+};
 
 use postgrustql::backend::{Cell, EvalResult};
 use postgrustql::backend_memory::*;
@@ -12,6 +15,11 @@ fn main() {
     let mut mb = MemoryBackend::new();
     let mut rl = Editor::<()>::new();
 
+    match rl.load_history("history.txt") {
+        Ok(_) => {}
+        Err(_) => {}
+    }
+
     loop {
         match stdout().flush() {
             Ok(_) => {}
@@ -21,27 +29,48 @@ fn main() {
         }
 
         let readline = rl.readline("PostgRustQL #: ");
-        match readline {
-            Ok(_) => {}
+        let input = match readline {
+            Ok(line) => {
+                rl.add_history_entry(line.as_str());
+                line
+            }
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL-C");
+                match rl.save_history("history.txt") {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("An error occured: {}", err);
+                    }
+                }
                 break;
             }
             Err(ReadlineError::Eof) => {
                 println!("CTRL-D");
+                match rl.save_history("history.txt") {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("An error occured: {}", err);
+                    }
+                }
                 break;
             }
             Err(err) => {
                 println!("Error: {:?}", err);
+                match rl.save_history("history.txt") {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("An error occured: {}", err);
+                    }
+                }
                 break;
             }
-        }
-        let input = readline.unwrap();
+        };
 
         let text = input.trim().replace("\n", "");
 
         println!("{}", repl_eval(&mut mb, text));
     }
+    rl.save_history("history.txt").unwrap();
 }
 
 pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
@@ -76,20 +105,8 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
                             let mut table_row = vec![];
                             for i in 0..result.len() {
                                 let cell = &result[i];
-                                let typ = results.columns[i].col_type.clone();
-                                let s;
-
-                                match typ {
-                                    postgrustql::backend::ColumnType::IntType => {
-                                        s = format!("{}", cell.as_int().unwrap());
-                                    }
-                                    postgrustql::backend::ColumnType::TextType => {
-                                        s = format!("{}", cell.as_text().unwrap());
-                                    }
-                                    postgrustql::backend::ColumnType::BoolType => {
-                                        s = format!("{}", cell.as_bool().unwrap());
-                                    }
-                                }
+                                let typ = results.columns[i].col_type;
+                                let s = cell.to_string();
                                 table_row.push(prettytable::Cell::new(&s));
                             }
                             table.add_row(prettytable::Row::new(table_row));
@@ -97,31 +114,30 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
                         table
                             .set_format(*prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
                         if results.rows.len() > 0 {
-                            // table.printstd();
-
                             output_text.push_str(table.to_string().as_str());
                         }
-                        output_text.push_str(format!("({} Results)", results.rows.len()).as_str());
+                        output_text
+                            .push_str(format!("({} Results)\n", results.rows.len()).as_str());
 
-                        output_text.push_str("Ok!");
+                        output_text.push_str("Ok!\n");
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(format!("Elapsed time : {:.2?}", time).as_str());
+                        output_text.push_str(format!("Elapsed time : {:.2?}\n", time).as_str());
                     }
                     EvalResult::CreateTable { success: _, time } => {
-                        output_text.push_str("Ok!");
+                        output_text.push_str("Ok!\n");
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(format!("Elapsed time : {:.2?}", time).as_str());
+                        output_text.push_str(format!("Elapsed time : {:.2?}\n", time).as_str());
                     }
                     EvalResult::Insert { success: _, time } => {
-                        output_text.push_str("Ok!");
+                        output_text.push_str("Ok!\n");
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(format!("Elapsed time : {:.2?}", time).as_str());
+                        output_text.push_str(format!("Elapsed time : {:.2?}\n", time).as_str());
                     }
                 }
             }

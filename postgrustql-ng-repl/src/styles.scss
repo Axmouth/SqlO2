@@ -1,35 +1,39 @@
 html,
 body {
-    padding: 0px;
-    margin: 0px;
-    width: 100%;
-    height: 100%;
+  padding: 0px;
+  margin: 0px;
+  width: 100%;
+  height: 100%;
 }
 
 body {
-    background-color: black;
-    background-image: radial-gradient(rgba(0, 150, 0, 0.75), black 120%);
-    background-attachment: fixed;
-    margin: 0;
-    color: white;
-    font: 0.8rem Inconsolata, monospace;
-    text-shadow: 0 0 5px #c8c8c8;
+  background-color: black;
+  background-image: radial-gradient(rgba(0, 150, 0, 0.75), black 120%);
+  background-attachment: fixed;
+  margin: 0;
+  color: white;
+  font: 0.8rem Inconsolata, monospace;
+  text-shadow: 0 0 5px #c8c8c8;
 
-    &::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        background: repeating-linear-gradient(0deg,
-                rgba(black, 0.15),
-                rgba(black, 0.15) 1px,
-                transparent 1px,
-                transparent 2px);
-        pointer-events: none;
-    }
+  &::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(black, 0.15),
+      rgba(black, 0.15) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+    width: 100%;
+    height: 100%;
+  }
 }
 
 ::selection {
-    background: #0080ff;
-    text-shadow: none;
+  background: #0080ff;
+  text-shadow: none;
 }

@@ -2,3 +2,4 @@ target
 *flamegraph.svg
 *.data
 *.data.old
+*history.txt

@@ -52,13 +52,18 @@ pub enum Token {
     Bool,
     And,
     Or,
+    Not,
     True,
     False,
     Unique,
     Index,
     On,
     Primary,
+    Key,
     Null,
+    Alter,
+    Delete,
+    Update,
 
     // Symbols
     Semicolon,
@@ -71,10 +76,24 @@ pub enum Token {
     Concat,
     Plus,
     Minus,
+    Slash,
     LessThan,
     LessThanOrEqual,
     GreaterThan,
     GreaterThanOrEqual,
+    Modulo,
+    Exponentiation,
+    SquareRoot,
+    CubeRoot,
+    Factorial,
+    FactorialPrefix,
+    AbsoluteValue,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    BitwiseNot,
+    BitwiseShiftLeft,
+    BitwiseShiftRight,
 
     IdentifierValue { value: String },
     StringValue { value: String },
@@ -95,10 +114,24 @@ pub fn token_is_symbol(token: Token) -> bool {
         | Token::Concat
         | Token::Plus
         | Token::Minus
+        | Token::Slash
         | Token::LessThan
         | Token::LessThanOrEqual
         | Token::GreaterThan
-        | Token::GreaterThanOrEqual => {
+        | Token::GreaterThanOrEqual
+        | Token::BitwiseAnd
+        | Token::BitwiseNot
+        | Token::BitwiseOr
+        | Token::BitwiseXor
+        | Token::AbsoluteValue
+        | Token::BitwiseShiftLeft
+        | Token::BitwiseShiftRight
+        | Token::SquareRoot
+        | Token::CubeRoot
+        | Token::Factorial
+        | Token::FactorialPrefix
+        | Token::Exponentiation
+        | Token::Modulo => {
             return true;
         }
         _ => {}
@@ -124,13 +157,18 @@ pub fn token_is_keyword(token: Token) -> bool {
         | Token::Bool
         | Token::And
         | Token::Or
+        | Token::Not
         | Token::True
         | Token::False
         | Token::Unique
         | Token::Index
         | Token::On
         | Token::Primary
-        | Token::Null => {
+        | Token::Key
+        | Token::Null
+        | Token::Alter
+        | Token::Delete
+        | Token::Update => {
             return true;
         }
         _ => {}
@@ -141,13 +179,9 @@ pub fn token_is_keyword(token: Token) -> bool {
 
 pub fn token_is_datatype(token: &Token) -> bool {
     match token {
-        Token::Int | Token::Text | Token::Bool => {
-            return true;
-        }
-        _ => {}
+        Token::Int | Token::Text | Token::Bool => true,
+        _ => false,
     }
-
-    false
 }
 
 // for storing SQL reserved keywords
@@ -168,13 +202,18 @@ pub const DROP_KEYWORD: Keyword = "drop";
 pub const BOOL_KEYWORD: Keyword = "boolean";
 pub const AND_KEYWORD: Keyword = "and";
 pub const OR_KEYWORD: Keyword = "or";
+pub const NOT_KEYWORD: Keyword = "not";
 pub const TRUE_KEYWORD: Keyword = "true";
 pub const FALSE_KEYWORD: Keyword = "false";
 pub const UNIQUE_KEYWORD: Keyword = "unique";
 pub const INDEX_KEYWORD: Keyword = "index";
 pub const ON_KEYWORD: Keyword = "on";
 pub const PRIMARY_KEYWORD: Keyword = "primary";
+pub const KEY_KEYWORD: Keyword = "key";
 pub const NULL_KEYWORD: Keyword = "null";
+pub const ALTER_KEYWORD: Keyword = "alter";
+pub const DELETE_KEYWORD: Keyword = "delete";
+pub const UPDATE_KEYWORD: Keyword = "update";
 
 // for storing SQL syntax
 pub type Symbol = &'static str;
@@ -190,10 +229,24 @@ pub const NOT_EQUAL_SYMBOL_2: Symbol = "!=";
 pub const CONCAT_SYMBOL: Symbol = "||";
 pub const PLUS_SYMBOL: Symbol = "+";
 pub const MINUS_SYMBOL: Symbol = "-";
+pub const SLASH_SYMBOL: Symbol = "/";
 pub const LESS_THAN_SYMBOL: Symbol = "<";
 pub const LESS_THAN_OR_EQUAL_SYMBOL: Symbol = "<=";
 pub const GREATER_THAN_SYMBOL: Symbol = ">";
 pub const GREATER_THAN_OR_EQUAL_SYMBOL: Symbol = ">=";
+pub const MODULO_SYMBOL: Symbol = "%";
+pub const EXPONENTIATION_SYMBOL: Symbol = "^";
+pub const SQUARE_ROOT_SYMBOL: Symbol = "|/";
+pub const CUBE_ROOT_SYMBOL: Symbol = "||/";
+pub const FACTORIAL_SYMBOL: Symbol = "!";
+pub const FACTORIAL_PREFIX_SYMBOL: Symbol = "!!";
+pub const ABS_SYMBOL: Symbol = "@";
+pub const BITWISE_AND_SYMBOL: Symbol = "&";
+pub const BITWISE_OR_SYMBOL: Symbol = "|";
+pub const BITWISE_XOR_SYMBOL: Symbol = "#";
+pub const BITWISE_NOT_SYMBOL: Symbol = "~";
+pub const BITWISE_SHIFT_LEFT_SYMBOL: Symbol = "<<";
+pub const BITWISE_SHIFT_RIGHT_SYMBOL: Symbol = ">>";
 
 impl TokenContainer {
     pub fn get_id_name(&self) -> Option<&String> {
@@ -267,14 +320,41 @@ impl TokenContainer {
                 return 4;
             }
 
-            Token::Concat => {
-                return 5;
-            }
             Token::Plus => {
                 return 5;
             }
             Token::Minus => {
                 return 5;
+            }
+
+            Token::Concat => {
+                return 6;
+            }
+            Token::Asterisk => {
+                return 6;
+            }
+            Token::Slash => {
+                return 6;
+            }
+            Token::Modulo => {
+                return 6;
+            }
+            Token::Exponentiation => {
+                return 6;
+            }
+
+            // Unary ops
+            Token::SquareRoot => {
+                return 7;
+            }
+            Token::CubeRoot => {
+                return 7;
+            }
+            Token::Factorial => {
+                return 7;
+            }
+            Token::FactorialPrefix => {
+                return 7;
             }
 
             _ => {
@@ -290,52 +370,98 @@ pub struct Lexer {
     // Syntax that should be kept
     symbols: Vec<String>,
     keywords: Vec<String>,
+    max_keyword_length: usize,
+    max_symbol_length: usize,
 }
 
 impl Lexer {
     pub fn new() -> Self {
+        let symbols = vec![
+            EQUAL_SYMBOL.to_string(),
+            NOT_EQUAL_SYMBOL.to_string(),
+            NOT_EQUAL_SYMBOL_2.to_string(),
+            LESS_THAN_SYMBOL.to_string(),
+            LESS_THAN_OR_EQUAL_SYMBOL.to_string(),
+            GREATER_THAN_SYMBOL.to_string(),
+            GREATER_THAN_OR_EQUAL_SYMBOL.to_string(),
+            CONCAT_SYMBOL.to_string(),
+            PLUS_SYMBOL.to_string(),
+            MINUS_SYMBOL.to_string(),
+            SLASH_SYMBOL.to_string(),
+            MODULO_SYMBOL.to_string(),
+            EXPONENTIATION_SYMBOL.to_string(),
+            SQUARE_ROOT_SYMBOL.to_string(),
+            CUBE_ROOT_SYMBOL.to_string(),
+            FACTORIAL_SYMBOL.to_string(),
+            FACTORIAL_PREFIX_SYMBOL.to_string(),
+            ABS_SYMBOL.to_string(),
+            BITWISE_AND_SYMBOL.to_string(),
+            BITWISE_OR_SYMBOL.to_string(),
+            BITWISE_XOR_SYMBOL.to_string(),
+            BITWISE_NOT_SYMBOL.to_string(),
+            BITWISE_SHIFT_LEFT_SYMBOL.to_string(),
+            BITWISE_SHIFT_RIGHT_SYMBOL.to_string(),
+            COMMA_SYMBOL.to_string(),
+            LEFT_PARENTHESIS_SYMBOL.to_string(),
+            RIGHT_PARENTHESIS_SYMBOL.to_string(),
+            SEMICOLON_SYMBOL.to_string(),
+            ASTERISK_SYMBOL.to_string(),
+        ];
+        let keywords = vec![
+            SELECT_KEYWORD.to_string(),
+            INSERT_KEYWORD.to_string(),
+            VALUES_KEYWORD.to_string(),
+            TABLE_KEYWORD.to_string(),
+            CREATE_KEYWORD.to_string(),
+            DROP_KEYWORD.to_string(),
+            WHERE_KEYWORD.to_string(),
+            FROM_KEYWORD.to_string(),
+            INTO_KEYWORD.to_string(),
+            TEXT_KEYWORD.to_string(),
+            BOOL_KEYWORD.to_string(),
+            INT_KEYWORD.to_string(),
+            AND_KEYWORD.to_string(),
+            OR_KEYWORD.to_string(),
+            AS_KEYWORD.to_string(),
+            TRUE_KEYWORD.to_string(),
+            FALSE_KEYWORD.to_string(),
+            UNIQUE_KEYWORD.to_string(),
+            INDEX_KEYWORD.to_string(),
+            ON_KEYWORD.to_string(),
+            PRIMARY_KEYWORD.to_string(),
+            KEY_KEYWORD.to_string(),
+            NULL_KEYWORD.to_string(),
+            ALTER_KEYWORD.to_string(),
+            DELETE_KEYWORD.to_string(),
+            UPDATE_KEYWORD.to_string(),
+        ];
+        let max_symbol_length =
+            symbols.iter().fold(
+                0,
+                |acc, item| {
+                    if item.len() > acc {
+                        item.len()
+                    } else {
+                        acc
+                    }
+                },
+            );
+        let max_keyword_length =
+            keywords.iter().fold(
+                0,
+                |acc, item| {
+                    if item.len() > acc {
+                        item.len()
+                    } else {
+                        acc
+                    }
+                },
+            );
         Lexer {
-            symbols: vec![
-                EQUAL_SYMBOL.to_owned(),
-                NOT_EQUAL_SYMBOL.to_owned(),
-                NOT_EQUAL_SYMBOL_2.to_owned(),
-                LESS_THAN_SYMBOL.to_owned(),
-                LESS_THAN_OR_EQUAL_SYMBOL.to_owned(),
-                GREATER_THAN_SYMBOL.to_owned(),
-                GREATER_THAN_OR_EQUAL_SYMBOL.to_owned(),
-                CONCAT_SYMBOL.to_owned(),
-                PLUS_SYMBOL.to_owned(),
-                MINUS_SYMBOL.to_owned(),
-                COMMA_SYMBOL.to_owned(),
-                LEFT_PARENTHESIS_SYMBOL.to_owned(),
-                RIGHT_PARENTHESIS_SYMBOL.to_owned(),
-                SEMICOLON_SYMBOL.to_owned(),
-                ASTERISK_SYMBOL.to_owned(),
-            ],
-            keywords: vec![
-                SELECT_KEYWORD.to_owned(),
-                INSERT_KEYWORD.to_owned(),
-                VALUES_KEYWORD.to_owned(),
-                TABLE_KEYWORD.to_owned(),
-                CREATE_KEYWORD.to_owned(),
-                DROP_KEYWORD.to_owned(),
-                WHERE_KEYWORD.to_owned(),
-                FROM_KEYWORD.to_owned(),
-                INTO_KEYWORD.to_owned(),
-                TEXT_KEYWORD.to_owned(),
-                BOOL_KEYWORD.to_owned(),
-                INT_KEYWORD.to_owned(),
-                AND_KEYWORD.to_owned(),
-                OR_KEYWORD.to_owned(),
-                AS_KEYWORD.to_owned(),
-                TRUE_KEYWORD.to_owned(),
-                FALSE_KEYWORD.to_owned(),
-                UNIQUE_KEYWORD.to_owned(),
-                INDEX_KEYWORD.to_owned(),
-                ON_KEYWORD.to_owned(),
-                PRIMARY_KEYWORD.to_owned(),
-                NULL_KEYWORD.to_owned(),
-            ],
+            symbols,
+            keywords,
+            max_symbol_length,
+            max_keyword_length,
         }
     }
 
@@ -356,29 +482,47 @@ impl Lexer {
         };
 
         'lex: while cur.pointer < source.len() as u32 {
-            let lexers: &[LexerFn] = &[
-                Lexer::lex_keyword,
-                Lexer::lex_symbol,
-                Lexer::lex_numeric,
-                Lexer::lex_identifier,
-                Lexer::lex_string,
-            ];
+            if let Some((token, new_cursor)) = self.lex_keyword(source, cur.clone()) {
+                cur = new_cursor;
 
-            for lex_fn in lexers {
-                match lex_fn(self, source, cur.clone()) {
-                    Some((token, new_cursor)) => {
-                        cur = new_cursor;
+                // Omit empty tokens for valid, but empty syntax like newlines
+                if token.token != Token::Empty {
+                    tokens.push(token);
+                }
+                continue 'lex;
+            } else if let Some((token, new_cursor)) = self.lex_symbol(source, cur.clone()) {
+                cur = new_cursor;
 
-                        // Omit empty tokens for valid, but empty syntax like newlines
-                        if token.token != Token::Empty {
-                            tokens.push(token);
-                        }
-                        continue 'lex;
-                    }
-                    None => (),
-                };
+                // Omit empty tokens for valid, but empty syntax like newlines
+                if token.token != Token::Empty {
+                    tokens.push(token);
+                }
+                continue 'lex;
+            } else if let Some((token, new_cursor)) = self.lex_numeric(source, cur.clone()) {
+                cur = new_cursor;
+
+                // Omit empty tokens for valid, but empty syntax like newlines
+                if token.token != Token::Empty {
+                    tokens.push(token);
+                }
+                continue 'lex;
+            } else if let Some((token, new_cursor)) = self.lex_identifier(source, cur.clone()) {
+                cur = new_cursor;
+
+                // Omit empty tokens for valid, but empty syntax like newlines
+                if token.token != Token::Empty {
+                    tokens.push(token);
+                }
+                continue 'lex;
+            } else if let Some((token, new_cursor)) = self.lex_string(source, cur.clone()) {
+                cur = new_cursor;
+
+                // Omit empty tokens for valid, but empty syntax like newlines
+                if token.token != Token::Empty {
+                    tokens.push(token);
+                }
+                continue 'lex;
             }
-
             let mut hint = "".to_owned();
 
             if tokens.len() > 0 {
@@ -570,11 +714,25 @@ impl Lexer {
     // longestMatch iterates through a source string starting at the given
     // cursor to find the longest matching substring among the provided
     // options
-    pub fn longest_match(&self, source: &str, ic: Cursor, options: &Vec<String>) -> String {
+    pub fn longest_match(
+        &self,
+        source: &str,
+        ic: Cursor,
+        options: &Vec<String>,
+        max_length: Option<usize>,
+    ) -> String {
         let mut text_match: String = "".to_owned();
         let cur = ic.clone();
 
-        let rest_of_text = source[cur.pointer as usize..].to_lowercase();
+        let rest_of_text = if let Some(mut max_length) = max_length {
+            if cur.pointer as usize + max_length > source.len() {
+                max_length = source.len() - cur.pointer as usize;
+            }
+            source[cur.pointer as usize..(cur.pointer as usize + max_length)].to_lowercase()
+        } else {
+            source[cur.pointer as usize..].to_lowercase()
+        };
+
         for option in options {
             if option.len() > text_match.len() && rest_of_text.starts_with(option) {
                 text_match = option.to_string();
@@ -616,32 +774,50 @@ impl Lexer {
         }
 
         // Use `ic`, not `cur`
-        let symbol_match = self.longest_match(source, ic.clone(), &self.symbols);
+        let symbol_match = self.longest_match(
+            source,
+            ic.clone(),
+            &self.symbols,
+            Some(self.max_symbol_length),
+        );
         // Unknown character
         if symbol_match == "" {
             return None;
         }
-        let kind;
         // != is rewritten as <>: https://www.postgresql.org/docs/9.5/functions-comparison.html
-        match symbol_match.as_str() {
-            COMMA_SYMBOL => kind = Token::Comma,
-            EQUAL_SYMBOL => kind = Token::Equal,
-            NOT_EQUAL_SYMBOL | NOT_EQUAL_SYMBOL_2 => kind = Token::NotEqual,
-            ASTERISK_SYMBOL => kind = Token::Asterisk,
-            LEFT_PARENTHESIS_SYMBOL => kind = Token::LeftParenthesis,
-            RIGHT_PARENTHESIS_SYMBOL => kind = Token::RightParenthesis,
-            LESS_THAN_SYMBOL => kind = Token::LessThan,
-            LESS_THAN_OR_EQUAL_SYMBOL => kind = Token::LessThanOrEqual,
-            GREATER_THAN_SYMBOL => kind = Token::GreaterThan,
-            GREATER_THAN_OR_EQUAL_SYMBOL => kind = Token::GreaterThanOrEqual,
-            PLUS_SYMBOL => kind = Token::Plus,
-            MINUS_SYMBOL => kind = Token::Minus,
-            SEMICOLON_SYMBOL => kind = Token::Semicolon,
-            CONCAT_SYMBOL => kind = Token::Concat,
+        let kind = match symbol_match.as_str() {
+            COMMA_SYMBOL => Token::Comma,
+            EQUAL_SYMBOL => Token::Equal,
+            NOT_EQUAL_SYMBOL | NOT_EQUAL_SYMBOL_2 => Token::NotEqual,
+            ASTERISK_SYMBOL => Token::Asterisk,
+            LEFT_PARENTHESIS_SYMBOL => Token::LeftParenthesis,
+            RIGHT_PARENTHESIS_SYMBOL => Token::RightParenthesis,
+            LESS_THAN_SYMBOL => Token::LessThan,
+            LESS_THAN_OR_EQUAL_SYMBOL => Token::LessThanOrEqual,
+            GREATER_THAN_SYMBOL => Token::GreaterThan,
+            GREATER_THAN_OR_EQUAL_SYMBOL => Token::GreaterThanOrEqual,
+            PLUS_SYMBOL => Token::Plus,
+            MINUS_SYMBOL => Token::Minus,
+            SLASH_SYMBOL => Token::Slash,
+            MODULO_SYMBOL => Token::Modulo,
+            EXPONENTIATION_SYMBOL => Token::Exponentiation,
+            SQUARE_ROOT_SYMBOL => Token::SquareRoot,
+            CUBE_ROOT_SYMBOL => Token::CubeRoot,
+            FACTORIAL_SYMBOL => Token::Factorial,
+            FACTORIAL_PREFIX_SYMBOL => Token::FactorialPrefix,
+            ABS_SYMBOL => Token::AbsoluteValue,
+            BITWISE_AND_SYMBOL => Token::BitwiseAnd,
+            BITWISE_OR_SYMBOL => Token::BitwiseOr,
+            BITWISE_XOR_SYMBOL => Token::BitwiseXor,
+            BITWISE_NOT_SYMBOL => Token::BitwiseNot,
+            BITWISE_SHIFT_LEFT_SYMBOL => Token::BitwiseShiftLeft,
+            BITWISE_SHIFT_RIGHT_SYMBOL => Token::BitwiseShiftRight,
+            SEMICOLON_SYMBOL => Token::Semicolon,
+            CONCAT_SYMBOL => Token::Concat,
             _ => {
                 return None;
             }
-        }
+        };
 
         cur.pointer = ic.pointer + symbol_match.len() as u32;
         cur.loc.col = ic.loc.col + symbol_match.len() as u32;
@@ -658,41 +834,50 @@ impl Lexer {
     pub fn lex_keyword(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
         let mut cur = ic.clone();
 
-        let keyword_match = self.longest_match(source, ic.clone(), &self.keywords);
+        let keyword_match = self.longest_match(
+            source,
+            ic.clone(),
+            &self.keywords,
+            Some(self.max_keyword_length),
+        );
         if keyword_match == "" {
             return None;
         }
         cur.pointer = ic.pointer + keyword_match.len() as u32;
         cur.loc.col = ic.loc.col + keyword_match.len() as u32;
 
-        let mut kind;
-        match keyword_match.as_str() {
-            SELECT_KEYWORD => kind = Token::Select,
-            FROM_KEYWORD => kind = Token::From,
-            WHERE_KEYWORD => kind = Token::Where,
-            AND_KEYWORD => kind = Token::And,
-            OR_KEYWORD => kind = Token::Or,
-            AS_KEYWORD => kind = Token::As,
-            TRUE_KEYWORD => kind = Token::True,
-            FALSE_KEYWORD => kind = Token::False,
-            NULL_KEYWORD => kind = Token::Null,
-            ON_KEYWORD => kind = Token::On,
-            TEXT_KEYWORD => kind = Token::Text,
-            INT_KEYWORD => kind = Token::Int,
-            BOOL_KEYWORD => kind = Token::Bool,
-            INSERT_KEYWORD => kind = Token::Insert,
-            VALUES_KEYWORD => kind = Token::Values,
-            PRIMARY_KEYWORD => kind = Token::Primary,
-            UNIQUE_KEYWORD => kind = Token::Unique,
-            INDEX_KEYWORD => kind = Token::Index,
-            INTO_KEYWORD => kind = Token::Into,
-            CREATE_KEYWORD => kind = Token::Create,
-            TABLE_KEYWORD => kind = Token::Table,
-            DROP_KEYWORD => kind = Token::Drop,
+        let mut kind = match keyword_match.as_str() {
+            SELECT_KEYWORD => Token::Select,
+            FROM_KEYWORD => Token::From,
+            WHERE_KEYWORD => Token::Where,
+            AND_KEYWORD => Token::And,
+            OR_KEYWORD => Token::Or,
+            NOT_KEYWORD => Token::Not,
+            AS_KEYWORD => Token::As,
+            TRUE_KEYWORD => Token::True,
+            FALSE_KEYWORD => Token::False,
+            NULL_KEYWORD => Token::Null,
+            ON_KEYWORD => Token::On,
+            TEXT_KEYWORD => Token::Text,
+            INT_KEYWORD => Token::Int,
+            BOOL_KEYWORD => Token::Bool,
+            INSERT_KEYWORD => Token::Insert,
+            VALUES_KEYWORD => Token::Values,
+            PRIMARY_KEYWORD => Token::Primary,
+            KEY_KEYWORD => Token::Key,
+            UNIQUE_KEYWORD => Token::Unique,
+            INDEX_KEYWORD => Token::Index,
+            INTO_KEYWORD => Token::Into,
+            CREATE_KEYWORD => Token::Create,
+            TABLE_KEYWORD => Token::Table,
+            DROP_KEYWORD => Token::Drop,
+            ALTER_KEYWORD => Token::Alter,
+            DELETE_KEYWORD => Token::Delete,
+            UPDATE_KEYWORD => Token::Update,
             _ => {
                 return None;
             }
-        }
+        };
 
         if keyword_match == TRUE_KEYWORD.to_owned() || keyword_match == FALSE_KEYWORD.to_owned() {
             kind = Token::BoolValue {

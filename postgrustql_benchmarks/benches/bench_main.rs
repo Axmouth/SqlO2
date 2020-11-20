@@ -6,7 +6,7 @@ use postgrustql::*;
 fn lex_benchmark(c: &mut Criterion) {
     let lexer = lexer::Lexer::new();
     c.bench_function("lex", |b| b.iter(|| lexer.lex(black_box("
-        CREATE TABLE people (id INT, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
+        CREATE TABLE people (id INT PRIMARY KEY, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
         SELECT id, name FROM people;
         SELECT id, name FROM people where id != 3;
         SELECT id, name FROM people where name = 'Rachel';".to_owned().as_str()))));
@@ -14,7 +14,7 @@ fn lex_benchmark(c: &mut Criterion) {
 
 fn parse_benchmark(c: &mut Criterion) {
     c.bench_function("parse", |b| b.iter(|| parser::parse(black_box("
-    CREATE TABLE people (id INT, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
+    CREATE TABLE people (id INT PRIMARY KEY, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
     SELECT id, name FROM people;
     SELECT id, name FROM people where id != 3;
     SELECT id, name FROM people where name = 'Rachel';".to_owned().as_str()))));
@@ -28,7 +28,7 @@ fn create_benchmark(c: &mut Criterion) {
             b.iter(|| {
                 for _ in 0..1 {
                     let mut db = backend_memory::MemoryBackend::new();
-                    db.eval_query("CREATE TABLE people (id INT, name TEXT);")
+                    db.eval_query("CREATE TABLE people (id INT PRIMARY KEY, name TEXT);")
                         .unwrap();
                 }
             })
@@ -77,7 +77,7 @@ fn single_insert_benchmark(c: &mut Criterion) {
 fn select_benchmark(c: &mut Criterion) {
     let mut db = backend_memory::MemoryBackend::new();
     db.eval_query(
-        "CREATE TABLE people (id INT, name TEXT);"
+        "CREATE TABLE people (id INT PRIMARY KEY, name TEXT);"
             .to_owned()
             .as_str(),
     )
@@ -137,7 +137,7 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     // Insert benchmark
     let before = Instant::now();
     let mut db = backend_memory::MemoryBackend::new();
-    db.eval_query("CREATE TABLE people (id INT, name TEXT);")
+    db.eval_query("CREATE TABLE people (id INT PRIMARY KEY, name TEXT);")
         .unwrap();
     for i in 0..1000000 {
         db.eval_query(

@@ -1,9 +1,12 @@
 #[macro_use]
 extern crate lazy_static;
 
-use backend_memory::{MemoryBackend, MemoryCell};
-use postgrustql::backend::{Cell, EvalResult};
+use backend_memory::MemoryBackend;
 pub use postgrustql::backend_memory;
+use postgrustql::{
+    backend::{Cell, EvalResult, MemoryCell},
+    sql_types::{SqlType, SqlValue},
+};
 use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
 
@@ -30,13 +33,13 @@ pub fn eval_raw(cmd: String) -> Object {
     query_results_to_js(result)
 }
 
-pub fn eval_query(cmd: String) -> Result<Vec<EvalResult<MemoryCell>>, String> {
+pub fn eval_query(cmd: String) -> Result<Vec<EvalResult<SqlValue>>, String> {
     let backend = &mut BACKEND.lock().unwrap();
     let result = backend.eval_query(&cmd);
     result
 }
 
-pub fn query_results_to_js(results: Result<Vec<EvalResult<MemoryCell>>, String>) -> Object {
+pub fn query_results_to_js(results: Result<Vec<EvalResult<SqlValue>>, String>) -> Object {
     let value_map: Map = Map::new();
     match results {
         Err(err) => {
@@ -64,15 +67,24 @@ pub fn query_results_to_js(results: Result<Vec<EvalResult<MemoryCell>>, String>)
                             let row_array = Array::new();
                             for (i, col) in row.into_iter().enumerate() {
                                 match col_list[i].col_type {
-                                    postgrustql::backend::ColumnType::TextType => {
-                                        row_array.push(&JsString::from(col.as_text().unwrap()));
+                                    SqlType::Text | SqlType::VarChar | SqlType::Char => {
+                                        row_array
+                                            .push(&JsString::from(col.encode().as_text().unwrap()));
                                     }
-                                    postgrustql::backend::ColumnType::IntType => {
-                                        row_array.push(&Number::from(col.as_int().unwrap()));
+                                    SqlType::Int
+                                    | SqlType::SmallInt
+                                    | SqlType::BigInt
+                                    | SqlType::Real
+                                    | SqlType::DoublePrecision => {
+                                        row_array.push(&Number::from(
+                                            col.encode().as_num(col_list[i].col_type).unwrap(),
+                                        ));
                                     }
-                                    postgrustql::backend::ColumnType::BoolType => {
-                                        row_array.push(&Boolean::from(col.as_bool().unwrap()));
+                                    SqlType::Boolean => {
+                                        row_array
+                                            .push(&Boolean::from(col.encode().as_bool().unwrap()));
                                     }
+                                    _ => {}
                                 }
                             }
                             rows_array.push(&row_array);

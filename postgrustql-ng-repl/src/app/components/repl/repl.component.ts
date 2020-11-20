@@ -47,7 +47,7 @@ export class ReplComponent implements OnInit, OnDestroy {
         } else {
           this.queryString = `CREATE TABLE regulars (id INT, name TEXT);`;
           await this.onQuerySubmit();
-          this.queryString = `INSERT INTO regulars VALUES (1, '25th Baam');`;
+          this.queryString = `INSERT INTO regulars VALUES (1, 'The 25th Bam');`;
           await this.onQuerySubmit();
           this.queryString = `INSERT INTO regulars VALUES (2, 'Rachel'); `;
           await this.onQuerySubmit();

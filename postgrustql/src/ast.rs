@@ -9,6 +9,7 @@ pub struct Ast {
 pub enum Statement {
     SelectStatement(SelectStatement),
     CreateTableStatement(CreateTableStatement),
+    CreateIndexStatement(CreateIndexStatement),
     InsertStatement(InsertStatement),
 }
 
@@ -28,6 +29,7 @@ pub struct CreateTableStatement {
 pub struct ColumnDefinition {
     pub name: String,
     pub data_type: TokenContainer,
+    pub is_primary_key: bool,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -48,9 +50,32 @@ impl SelectStatement {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
+pub struct CreateIndexStatement {
+    pub name: String,
+    pub is_unique: bool,
+    pub is_primary_key: bool,
+    pub table: String,
+    pub expression: Expression,
+}
+
+impl CreateIndexStatement {
+    pub fn generate_code(&self) -> Result<String, String> {
+        let unique = if self.is_unique { " UNIQUE" } else { "" };
+        Ok(format!(
+            "CREATE{} INDEX \"{}\" ON \"{}\" ({});",
+            unique,
+            self.name,
+            self.table,
+            self.expression.generate_code()?
+        ))
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Expression {
     Literal(LiteralExpression),
     Binary(BinaryExpression),
+    Unary(UnaryExpression),
     Empty,
 }
 
@@ -104,6 +129,46 @@ impl Expression {
             literal: TokenContainer::new_with_kind_and_value(Token::Null, "null".to_string()),
         })
     }
+
+    pub fn generate_code(&self) -> Result<String, String> {
+        match self {
+            Expression::Literal(value) => match &value.literal.token {
+                Token::IdentifierValue { value } => Ok(format!("\"{}\"", value)),
+                Token::StringValue { value } => Ok(format!("'{}'", value)),
+                _ => Err("Unknown Literal Kind".to_string()),
+            },
+            Expression::Binary(value) => value.generate_code(),
+            _ => Err("Unknown Expression Kind".to_string()),
+        }
+    }
+
+    pub fn is_unary(&self) -> bool {
+        match self {
+            Expression::Unary(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_binary(&self) -> bool {
+        match self {
+            Expression::Binary(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_literal(&self) -> bool {
+        match self {
+            Expression::Literal(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Expression::Empty => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -116,6 +181,106 @@ pub struct BinaryExpression {
     pub first: Box<Expression>,
     pub second: Box<Expression>,
     pub operand: TokenContainer,
+}
+
+impl BinaryExpression {
+    pub fn generate_code(&self) -> Result<String, String> {
+        Ok(format!(
+            "({} {} {})",
+            self.first.generate_code()?,
+            self.operand.token.generate_code(),
+            self.second.generate_code()?
+        ))
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct UnaryExpression {
+    pub first: Box<Expression>,
+    pub operand: TokenContainer,
+}
+
+impl UnaryExpression {
+    pub fn generate_code(&self) -> Result<String, String> {
+        Ok(format!(
+            "({} {})",
+            self.operand.token.generate_code(),
+            self.first.generate_code()?,
+        ))
+    }
+}
+
+impl Token {
+    pub fn generate_code(&self) -> String {
+        match self {
+            Token::And => "AND".to_string(),
+            Token::As => "AS".to_string(),
+            Token::Asterisk => "*".to_string(),
+            Token::Bool => "BOOL".to_string(),
+            Token::BoolValue { value } => {
+                if *value {
+                    "TRUE".to_string()
+                } else {
+                    "FALSE".to_string()
+                }
+            }
+            Token::Comma => COMMA_SYMBOL.to_string(),
+            Token::Concat => CONCAT_SYMBOL.to_string(),
+            Token::Create => CREATE_KEYWORD.to_string(),
+            Token::Drop => DROP_KEYWORD.to_string(),
+            Token::Empty => "".to_string(),
+            Token::Equal => EQUAL_SYMBOL.to_string(),
+            Token::False => FALSE_KEYWORD.to_string(),
+            Token::From => FROM_KEYWORD.to_string(),
+            Token::GreaterThan => GREATER_THAN_SYMBOL.to_string(),
+            Token::GreaterThanOrEqual => GREATER_THAN_OR_EQUAL_SYMBOL.to_string(),
+            Token::IdentifierValue { value } => format!("\"{}\"", value),
+            Token::Index => INDEX_KEYWORD.to_string(),
+            Token::Insert => INSERT_KEYWORD.to_string(),
+            Token::Int => INT_KEYWORD.to_string(),
+            Token::Into => INTO_KEYWORD.to_string(),
+            Token::Key => KEY_KEYWORD.to_string(),
+            Token::LeftParenthesis => LEFT_PARENTHESIS_SYMBOL.to_string(),
+            Token::LessThan => LESS_THAN_SYMBOL.to_string(),
+            Token::LessThanOrEqual => LESS_THAN_OR_EQUAL_SYMBOL.to_string(),
+            Token::Minus => MINUS_SYMBOL.to_string(),
+            Token::NotEqual => NOT_EQUAL_SYMBOL.to_string(),
+            Token::Null => NULL_KEYWORD.to_string(),
+            Token::NumericValue { value } => value.clone(),
+            Token::On => ON_KEYWORD.to_string(),
+            Token::Or => OR_KEYWORD.to_string(),
+            Token::Not => NOT_KEYWORD.to_string(),
+            Token::Plus => PLUS_SYMBOL.to_string(),
+            Token::Slash => SLASH_SYMBOL.to_string(),
+            Token::Modulo => MODULO_SYMBOL.to_string(),
+            Token::Exponentiation => EXPONENTIATION_SYMBOL.to_string(),
+            Token::SquareRoot => SQUARE_ROOT_SYMBOL.to_string(),
+            Token::CubeRoot => CUBE_ROOT_SYMBOL.to_string(),
+            Token::Factorial => FACTORIAL_SYMBOL.to_string(),
+            Token::FactorialPrefix => FACTORIAL_PREFIX_SYMBOL.to_string(),
+            Token::AbsoluteValue => ABS_SYMBOL.to_string(),
+            Token::BitwiseAnd => BITWISE_AND_SYMBOL.to_string(),
+            Token::BitwiseOr => BITWISE_OR_SYMBOL.to_string(),
+            Token::BitwiseXor => BITWISE_XOR_SYMBOL.to_string(),
+            Token::BitwiseNot => BITWISE_NOT_SYMBOL.to_string(),
+            Token::BitwiseShiftLeft => BITWISE_SHIFT_LEFT_SYMBOL.to_string(),
+            Token::BitwiseShiftRight => BITWISE_SHIFT_RIGHT_SYMBOL.to_string(),
+            Token::Primary => PRIMARY_KEYWORD.to_string(),
+            Token::RightParenthesis => RIGHT_PARENTHESIS_SYMBOL.to_string(),
+            Token::Select => SELECT_KEYWORD.to_string(),
+            Token::Semicolon => SEMICOLON_SYMBOL.to_string(),
+            Token::StringValue { value } => format!("'{}'", value),
+            Token::Table => TABLE_KEYWORD.to_string(),
+            Token::Text => TEXT_KEYWORD.to_string(),
+            Token::True => TRUE_KEYWORD.to_string(),
+            Token::Unique => UNIQUE_KEYWORD.to_string(),
+            Token::Values => VALUES_KEYWORD.to_string(),
+            Token::Where => WHERE_KEYWORD.to_string(),
+            Token::Alter => ALTER_KEYWORD.to_string(),
+            Token::Delete => DELETE_KEYWORD.to_string(),
+            Token::Update => UPDATE_KEYWORD.to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -133,16 +298,6 @@ impl SelectItem {
             asterisk: false,
         }
     }
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct Index<S, T> {
-    name: String,
-    expression: Expression,
-    unique: bool,
-    primary_key: bool,
-    typ: String,
-    tree: std::collections::btree_map::BTreeMap<S, T>,
 }
 
 #[cfg(test)]
@@ -196,6 +351,7 @@ mod ast_tests {
                                     loc: TokenLocation { col: 23, line: 0 },
                                     token: Token::Int,
                                 },
+                                is_primary_key: false,
                             },
                             ColumnDefinition {
                                 name: "name".to_owned(),
@@ -203,6 +359,7 @@ mod ast_tests {
                                     loc: TokenLocation { col: 33, line: 0 },
                                     token: Token::Text,
                                 },
+                                is_primary_key: false,
                             },
                         ],
                     })],
@@ -255,6 +412,7 @@ mod ast_tests {
         for test in parse_tests {
             print!("(Parser) Testing: {}", test.input);
 
+            parse(test.input).unwrap();
             let ast = match parse(test.input) {
                 Ok(value) => value,
                 Err(err) => {
