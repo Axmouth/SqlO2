@@ -66,9 +66,15 @@ fn main() {
             }
         };
 
-        let text = input.trim().replace("\n", "");
-
-        println!("{}", repl_eval(&mut mb, text));
+        let cmd = input.trim_end().replace("\n", "");
+        match cmd.as_str() {
+            "quit" | "exit" | "\\q" => {
+                break;
+            }
+            _ => {
+                println!("{}", repl_eval(&mut mb, cmd));
+            }
+        }
     }
     rl.save_history("history.txt").unwrap();
 }
@@ -133,6 +139,13 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
                         output_text.push_str(format!("Elapsed time : {:.2?}\n", time).as_str());
                     }
                     EvalResult::Insert { success: _, time } => {
+                        output_text.push_str("Ok!\n");
+                        if multiple_results {
+                            total_time += time;
+                        }
+                        output_text.push_str(format!("Elapsed time : {:.2?}\n", time).as_str());
+                    }
+                    EvalResult::DropTable { success: _, time } => {
                         output_text.push_str("Ok!\n");
                         if multiple_results {
                             total_time += time;

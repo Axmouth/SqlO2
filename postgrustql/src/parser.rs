@@ -145,7 +145,14 @@ fn parse_statement(
             Token::Delete => Err("Delete not implemented".to_string()),
             Token::Update => Err("Update not implemented".to_string()),
             Token::Alter => Err("Alter not implemented".to_string()),
-            Token::Drop => Err("Drop not implemented".to_string()),
+            Token::Drop => {
+                // Look for an DROP statement
+
+                match parse_drop_table_statement(tokens, cursor, delimiter.clone()) {
+                    Ok((drop, new_cursor)) => Ok((Statement::DropTableStatement(drop), new_cursor)),
+                    Err(err) => (Err(err)),
+                }
+            }
             Token::IdentifierValue { value: _ } => Err("Assignment not implemented".to_string()),
             Token::Create => {
                 if let Some(first_token) = tokens.get(cursor + 1) {
@@ -343,7 +350,6 @@ fn parse_create_index_statement(
     delimiter: Token,
 ) -> Result<(CreateIndexStatement, usize), String> {
     let mut cursor = initial_cursor;
-    println!("---1111");
     if let Some(TokenContainer {
         loc: _,
         token: Token::Create,
@@ -770,6 +776,45 @@ fn parse_insert_statement(
         },
         cursor,
     ))
+}
+
+fn parse_drop_table_statement(
+    tokens: &mut Vec<TokenContainer>,
+    initial_cursor: usize,
+    delimiter: Token,
+) -> Result<(DropTableStatement, usize), String> {
+    let mut cursor = initial_cursor;
+    if let Some(TokenContainer {
+        loc: _,
+        token: Token::Drop,
+    }) = tokens.get(cursor)
+    {
+        cursor += 1;
+    } else {
+        return Err("Not a drop table statement".to_string());
+    }
+    if let Some(TokenContainer {
+        loc: _,
+        token: Token::Table,
+    }) = tokens.get(cursor)
+    {
+        cursor += 1;
+    } else {
+        return Err("Not a drop table statement".to_string());
+    }
+    let name;
+    if let Some(TokenContainer {
+        loc: _,
+        token: Token::IdentifierValue { value },
+    }) = tokens.get(cursor)
+    {
+        cursor += 1;
+        name = value.clone();
+    } else {
+        return Err("Not a drop table statement".to_string());
+    }
+
+    Ok((DropTableStatement { name }, cursor))
 }
 
 fn parse_select_items(

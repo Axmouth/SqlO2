@@ -110,6 +110,13 @@ pub fn query_results_to_js(results: Result<Vec<EvalResult<SqlValue>>, String>) -
                             &JsString::from(format!("{:.2?}", time)),
                         );
                     }
+                    EvalResult::DropTable { success, time } => {
+                        result_map.set(&JsString::from("success"), &Boolean::from(success));
+                        result_map.set(
+                            &JsString::from("time"),
+                            &JsString::from(format!("{:.2?}", time)),
+                        );
+                    }
                 }
                 result_array.push(&Object::from_entries(&result_map.entries()).unwrap());
             }

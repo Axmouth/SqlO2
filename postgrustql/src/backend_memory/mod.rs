@@ -763,6 +763,21 @@ impl MemoryBackend {
         });
     }
 
+    pub fn drop_table(&mut self, drop_table_statement: DropTableStatement) -> Result<bool, String> {
+        match self.tables.get(&drop_table_statement.name) {
+            None => {
+                return Err(format!(
+                    "Table \"{}\" doesn't exist.",
+                    drop_table_statement.name.clone()
+                ));
+            }
+            Some(_) => {
+                self.tables.remove(&drop_table_statement.name);
+                Ok(true)
+            }
+        }
+    }
+
     pub fn eval_query(&mut self, query: &str) -> Result<Vec<EvalResult<SqlValue>>, String> {
         let mut before = Instant::now();
         let ast = parse(query)?;
@@ -799,6 +814,14 @@ impl MemoryBackend {
                     let results = self.select(select_statement)?;
                     eval_results.push(EvalResult::Select {
                         results,
+                        time: before.elapsed(),
+                    });
+                    before = Instant::now();
+                }
+                Statement::DropTableStatement(drop_table_statement) => {
+                    let result = self.drop_table(drop_table_statement)?;
+                    eval_results.push(EvalResult::DropTable {
+                        success: result,
                         time: before.elapsed(),
                     });
                     before = Instant::now();

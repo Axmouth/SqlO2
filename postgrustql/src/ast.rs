@@ -10,6 +10,7 @@ pub enum Statement {
     SelectStatement(SelectStatement),
     CreateTableStatement(CreateTableStatement),
     CreateIndexStatement(CreateIndexStatement),
+    DropTableStatement(DropTableStatement),
     InsertStatement(InsertStatement),
 }
 
@@ -69,6 +70,11 @@ impl CreateIndexStatement {
             self.expression.generate_code()?
         ))
     }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct DropTableStatement {
+    pub name: String,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]

@@ -137,7 +137,7 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     // Insert benchmark
     let before = Instant::now();
     let mut db = backend_memory::MemoryBackend::new();
-    db.eval_query("CREATE TABLE people (id INT PRIMARY KEY, name TEXT);")
+    db.eval_query("CREATE TABLE people (id INT, name TEXT);")
         .unwrap();
     for i in 0..1000000 {
         db.eval_query(

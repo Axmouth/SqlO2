@@ -73,6 +73,10 @@ pub enum EvalResult<C> {
         success: bool,
         time: Duration,
     },
+    DropTable {
+        success: bool,
+        time: Duration,
+    },
 }
 
 pub type ResultColumns = Vec<ResultColumn>;
