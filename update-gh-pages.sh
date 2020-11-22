@@ -5,4 +5,4 @@ ng build --prod=true --base-href=https://axmouth.github.io/postgrustql/ --deploy
 cd ..
 
 mkdir -p docs
-cp -r postgrustql-ng-repl/dist/postgrustql-ng-repl/* docs
+cp -r ./postgrustql-ng-repl/dist/postgrustql-ng-repl/* docs
