@@ -102,6 +102,82 @@ pub enum Token {
     Empty,
 }
 
+impl Token {
+    pub fn binding_power(&self) -> u32 {
+        match self {
+            Token::And => {
+                return 1;
+            }
+            Token::Or => {
+                return 1;
+            }
+
+            Token::Equal => {
+                return 2;
+            }
+            Token::NotEqual => {
+                return 2;
+            }
+
+            Token::LessThan => {
+                return 3;
+            }
+            Token::GreaterThan => {
+                return 3;
+            }
+
+            // For some reason these are grouped separately
+            Token::LessThanOrEqual => {
+                return 4;
+            }
+            Token::GreaterThanOrEqual => {
+                return 4;
+            }
+
+            Token::Plus => {
+                return 5;
+            }
+            Token::Minus => {
+                return 5;
+            }
+
+            Token::Concat => {
+                return 6;
+            }
+            Token::Asterisk => {
+                return 6;
+            }
+            Token::Slash => {
+                return 6;
+            }
+            Token::Modulo => {
+                return 6;
+            }
+            Token::Exponentiation => {
+                return 6;
+            }
+
+            // Unary ops
+            Token::SquareRoot => {
+                return 7;
+            }
+            Token::CubeRoot => {
+                return 7;
+            }
+            Token::Factorial => {
+                return 7;
+            }
+            Token::FactorialPrefix => {
+                return 7;
+            }
+
+            _ => {
+                return 0;
+            }
+        };
+    }
+}
+
 pub fn token_is_symbol(token: Token) -> bool {
     match token {
         Token::Semicolon
@@ -214,6 +290,15 @@ pub const NULL_KEYWORD: Keyword = "null";
 pub const ALTER_KEYWORD: Keyword = "alter";
 pub const DELETE_KEYWORD: Keyword = "delete";
 pub const UPDATE_KEYWORD: Keyword = "update";
+// new
+pub const IS_KEYWORD: Keyword = "is";
+pub const BIGINT_KEYWORD: Keyword = "bigint";
+pub const SMALLINT_KEYWORD: Keyword = "smallint";
+pub const REAL_KEYWORD: Keyword = "real";
+pub const DOUBLE_KEYWORD: Keyword = "double";
+pub const PRECISION_KEYWORD: Keyword = "precision";
+pub const DECIMAL_KEYWORD: Keyword = "decimal";
+pub const NUMERIC_KEYWORD: Keyword = "numeric";
 
 // for storing SQL syntax
 pub type Symbol = &'static str;

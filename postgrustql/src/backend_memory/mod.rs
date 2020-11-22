@@ -14,6 +14,7 @@ use std::collections::HashMap;
 
 const ERR_INVALID_CELL: &str = "Invalid Cell";
 const ERR_INVALID_OPERANDS: &str = "Invalid Operands";
+const ANONYMOUS_COL_NAME: &str = "?column?";
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Index {
@@ -35,7 +36,7 @@ impl Index {
 
         if self.unique {
             if let Some(_) = self.tree.get(&index_value.encode().bytes) {
-                return Err("Violates UNIQUE Constraint".to_string());
+                return Err("Duplicate Value violates UNIQUE Constraint".to_string());
             }
         }
 
@@ -58,8 +59,7 @@ impl Index {
             let mut column_exp = *bin_exp.first.clone();
             let mut value_exp = *bin_exp.second.clone();
             if column_exp != self.expression {
-                column_exp = *bin_exp.second.clone();
-                value_exp = *bin_exp.first.clone();
+                std::mem::swap(&mut column_exp, &mut value_exp);
             }
 
             // Neither side is applicable, return None
@@ -75,7 +75,7 @@ impl Index {
                 Token::LessThan,
                 Token::LessThanOrEqual,
             ];
-            let is_supported = supported_checks.contains(&bin_exp.operand.token);
+            let is_supported = supported_checks.contains(&bin_exp.operand);
 
             if is_supported == false {
                 return Ok(None);
@@ -121,7 +121,7 @@ impl Index {
 
         let mut row_indexes: Vec<usize> = vec![];
 
-        match bin_exp.operand.token {
+        match bin_exp.operand {
             Token::Equal => {
                 match self.tree.get(&value.encode().bytes) {
                     Some(indexes) => {
@@ -202,7 +202,7 @@ impl Table {
             Expression::Literal(literal_expression) => {
                 let literal = &literal_expression.literal;
 
-                match &literal.token {
+                match &literal {
                     Token::IdentifierValue { value } => {
                         for (i, table_col) in self.columns.iter().enumerate() {
                             if table_col == value.as_str() {
@@ -221,15 +221,15 @@ impl Table {
                         return Err(format!("{}: {}", value, ERR_COLUMN_DOES_NOT_EXIST).to_string());
                     }
                     _ => {
-                        let val = SqlValue::from_token(&literal.token)?;
+                        let val = SqlValue::from_token(&literal)?;
                         let typ = val.get_type();
-                        return Ok((val, "?column?", typ));
+                        return Ok((val, ANONYMOUS_COL_NAME, typ));
                     } /*
                       Token::BoolValue { value } => {
                           if *value {
-                              return Ok((get_true_mem_cell(), "?column?", SqlType::Boolean));
+                              return Ok((get_true_mem_cell(), ANONYMOUS_COL_NAME, SqlType::Boolean));
                           } else {
-                              return Ok((get_false_mem_cell(), "?column?", SqlType::Boolean));
+                              return Ok((get_false_mem_cell(), ANONYMOUS_COL_NAME, SqlType::Boolean));
                           }
                       }
                       LexTokenKind::NumericKind => {
@@ -253,7 +253,7 @@ impl Table {
                               Ok(value) => value,
                           };
 
-                          return Ok((mem_cell, "?column?", column_type));
+                          return Ok((mem_cell, ANONYMOUS_COL_NAME, column_type));
                       }*/
                 }
             }
@@ -268,87 +268,111 @@ impl Table {
     ) -> Result<(SqlValue, &str, SqlType), String> {
         match expression {
             Expression::Binary(binary_expression) => {
-                let (first_val, _, first_col_type) =
-                    self.evaluate_cell(row_index, &binary_expression.first)?;
+                let (first_val, _, _) = self.evaluate_cell(row_index, &binary_expression.first)?;
 
-                let (second_val, _, second_col_type) =
+                let (second_val, _, _) =
                     self.evaluate_cell(row_index, &binary_expression.second)?;
 
-                match binary_expression.operand.token {
+                match binary_expression.operand {
                     Token::Equal => {
-                        let result = SqlValue::equals(first_val, second_val)?;
+                        let result = SqlValue::equals(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::NotEqual => {
-                        let result = SqlValue::not_equal(first_val, second_val)?;
+                        let result = SqlValue::not_equal(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::GreaterThan => {
-                        let result = SqlValue::greater_than(first_val, second_val)?;
+                        let result = SqlValue::greater_than(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::GreaterThanOrEqual => {
-                        let result = SqlValue::greater_than_or_equals(first_val, second_val)?;
+                        let result = SqlValue::greater_than_or_equals(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::LessThan => {
-                        let result = SqlValue::less_than(first_val, second_val)?;
+                        let result = SqlValue::less_than(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::LessThanOrEqual => {
-                        let result = SqlValue::less_than_or_equals(first_val, second_val)?;
+                        let result = SqlValue::less_than_or_equals(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::Concat => {
-                        let result = SqlValue::concat(first_val, second_val)?;
+                        let result = SqlValue::concat(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::Plus => {
-                        let result = SqlValue::add(first_val, second_val)?;
+                        let result = SqlValue::add(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::Minus => {
-                        let result = SqlValue::subtract(first_val, second_val)?;
+                        let result = SqlValue::subtract(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::Asterisk => {
-                        let result = SqlValue::multiply(first_val, second_val)?;
+                        let result = SqlValue::multiply(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::Slash => {
-                        let result = SqlValue::divide(first_val, second_val)?;
+                        let result = SqlValue::divide(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::Modulo => {
-                        let result = SqlValue::modulo(first_val, second_val)?;
+                        let result = SqlValue::modulo(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::And => {
-                        let result = SqlValue::and(first_val, second_val)?;
+                        let result = SqlValue::and(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::Or => {
-                        let result = SqlValue::or(first_val, second_val)?;
+                        let result = SqlValue::or(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::Exponentiation => {
-                        let result = SqlValue::exponentiation(first_val, second_val)?;
+                        let result = SqlValue::exponentiation(&first_val, &second_val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::BitwiseAnd => {
+                        let result = SqlValue::bitwise_and(&first_val, &second_val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::BitwiseOr => {
+                        let result = SqlValue::bitwise_or(&first_val, &second_val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::BitwiseXor => {
+                        let result = SqlValue::bitwise_xor(&first_val, &second_val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::BitwiseShiftLeft => {
+                        let result = SqlValue::bitwise_shift_left(&first_val, &second_val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::BitwiseShiftRight => {
+                        let result = SqlValue::bitwise_shift_right(&first_val, &second_val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     _ => {
                         return Err(ERR_INVALID_CELL.to_string());
@@ -356,21 +380,42 @@ impl Table {
                 }
             }
             Expression::Unary(unary_expression) => {
-                let (val, _, first_col_type) =
-                    self.evaluate_cell(row_index, &unary_expression.first)?;
-                match unary_expression.operand.token {
+                let (val, _, _) = self.evaluate_cell(row_index, &unary_expression.first)?;
+                match unary_expression.operand {
                     Token::Minus => {
-                        let result = SqlValue::subtract(
-                            SqlValue::Numeric(SqlNumeric::SmallInt { value: 0 }),
-                            val,
-                        )?;
+                        let result = SqlValue::minus(&val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     Token::SquareRoot => {
-                        let result = SqlValue::multiply(val.clone(), val)?;
+                        let result = SqlValue::square_root(&val)?;
                         let typ = result.get_type();
-                        return Ok((result, "?column?", typ));
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::CubeRoot => {
+                        let result = SqlValue::cube_root(&val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::Factorial | Token::FactorialPrefix => {
+                        let result = SqlValue::factorial(&val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::Not => {
+                        let result = SqlValue::not(&val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::AbsoluteValue => {
+                        let result = SqlValue::abs(&val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
+                    }
+                    Token::BitwiseNot => {
+                        let result = SqlValue::bitwise_not(&val)?;
+                        let typ = result.get_type();
+                        return Ok((result, ANONYMOUS_COL_NAME, typ));
                     }
                     _ => return Err(ERR_INVALID_CELL.to_string()),
                 }
@@ -398,14 +443,14 @@ impl Table {
     pub fn get_applicable_indexes(
         &self,
         where_clause: Option<&Expression>,
-    ) -> Result<Vec<(Index, Expression)>, String> {
+    ) -> Result<Vec<(&Index, Expression)>, String> {
         let exps = linearize_expressions(where_clause.map(|v| v.clone()), vec![]);
 
         let mut indexes_and_expressions = vec![];
         for exp in &exps {
             for index in &self.indexes {
                 if let Some(_) = index.applicable_value(exp)? {
-                    let index_and_expression = (index.clone(), exp.clone());
+                    let index_and_expression = (index, exp.clone());
                     indexes_and_expressions.push(index_and_expression);
                 }
             }
@@ -567,12 +612,14 @@ impl MemoryBackend {
             let (index_value, _, _) = table.evaluate_cell(row_index, &index.expression)?;
 
             if index_value.is_null() {
+                table.rows.remove(row_index);
                 return Err("Violates NOT NULL Constraint".to_string());
             }
 
             if index.unique {
                 if let Some(_) = index.tree.get(&index_value.encode().bytes) {
-                    return Err("Violates UNIQUE Constraint".to_string());
+                    table.rows.remove(row_index);
+                    return Err("Duplicate Value violates UNIQUE Constraint".to_string());
                 }
             }
             let index = match table.indexes.get_mut(i) {
@@ -601,6 +648,17 @@ impl MemoryBackend {
         &self,
         select_statement: SelectStatement,
     ) -> Result<QueryResults<SqlValue>, String> {
+        let mut results: Vec<Vec<SqlValue>> = vec![];
+
+        let mut columns: ResultColumns = vec![];
+
+        if select_statement.items.is_empty() {
+            return Ok(QueryResults {
+                columns,
+                rows: results,
+            });
+        }
+
         let mut new_table = Table {
             column_types: vec![],
             columns: vec![],
@@ -609,34 +667,49 @@ impl MemoryBackend {
             rows: vec![],
         };
 
-        let mut table: &Table = match select_statement.from {
+        let mut table: &Table;
+        match select_statement.from {
             Some(from_name) => match self.tables.get(&from_name) {
                 None => {
                     return Err(ERR_TABLE_DOES_NOT_EXIST.to_string());
                 }
-                Some(value) => value,
+                Some(value) => {
+                    table = value;
+                    for (index, exp) in
+                        value.get_applicable_indexes(Some(&select_statement.where_clause))?
+                    {
+                        if let Expression::Binary(bin_exp) = exp {
+                            new_table = index.new_table_from_subset(table, bin_exp)?;
+                            table = &new_table;
+                        }
+                    }
+                }
             },
             None => {
                 new_table.rows.push(vec![]);
-                &new_table
+                table = &new_table;
             }
         };
-        if select_statement.items.len() == 0 {}
 
-        let mut results: Vec<Vec<SqlValue>> = vec![];
-
-        let mut columns: ResultColumns = vec![];
-        if select_statement.items.len() == 0 {
-            return Ok(QueryResults {
-                columns: vec![],
-                rows: vec![],
-            });
-        }
-
-        for (index, exp) in table.get_applicable_indexes(Some(&select_statement.where_clause))? {
-            if let Expression::Binary(bin_exp) = exp {
-                new_table = index.new_table_from_subset(table, bin_exp)?;
-                table = &new_table;
+        let mut final_select_items: Vec<SelectItem> = vec![];
+        for item in select_statement.items {
+            if item.asterisk {
+                let mut new_select_items: Vec<SelectItem> = vec![];
+                for column in table.columns.iter() {
+                    let new_select_item = SelectItem {
+                        expression: Expression::Literal(LiteralExpression {
+                            literal: Token::IdentifierValue {
+                                value: column.to_string(),
+                            },
+                        }),
+                        as_clause: None,
+                        asterisk: false,
+                    };
+                    new_select_items.push(new_select_item);
+                }
+                final_select_items.append(&mut new_select_items);
+            } else {
+                final_select_items.push(item);
             }
         }
 
@@ -657,31 +730,7 @@ impl MemoryBackend {
                 }
             }
 
-            for select_item in &select_statement.items {
-                if select_item.asterisk {
-                    for (col_name, _) in table.columns.iter().zip(table.column_types.iter()) {
-                        let (cell_val, col_name, col_type) = table.evaluate_cell(
-                            row_index,
-                            &Expression::Literal(LiteralExpression {
-                                literal: TokenContainer::new_with_kind_and_value(
-                                    Token::IdentifierValue {
-                                        value: col_name.clone(),
-                                    },
-                                    col_name.clone(),
-                                ),
-                            }),
-                        )?;
-                        if is_first_row {
-                            columns.push(ResultColumn {
-                                col_type: col_type.clone(),
-                                name: col_name.to_string(),
-                            });
-                        }
-                        result.push(cell_val);
-                    }
-                    continue;
-                }
-
+            for select_item in &final_select_items {
                 let (cell_val, col_name, col_type) =
                     table.evaluate_cell(row_index, &select_item.expression)?;
 
@@ -731,7 +780,7 @@ impl MemoryBackend {
                     });
                 }
                 Statement::CreateIndexStatement(create_index_statement) => {
-                    let result = self.create_index(create_index_statement)?;
+                    self.create_index(create_index_statement)?;
 
                     eval_results.push(EvalResult::CreateTable {
                         success: true,
@@ -798,10 +847,10 @@ pub fn linearize_expressions(
         return expressions.clone();
     }
     if let Some(Expression::Binary(ref bin_exp)) = where_clause {
-        if bin_exp.operand.token == Token::Or {
+        if bin_exp.operand == Token::Or {
             return expressions.clone();
         }
-        if (bin_exp.operand.token) == Token::And {
+        if (bin_exp.operand) == Token::And {
             let exps = linearize_expressions(Some(*bin_exp.first.clone()), expressions);
             return linearize_expressions(Some(*bin_exp.second.clone()), exps);
         }
@@ -816,8 +865,8 @@ pub fn linearize_expressions(
     }
 }
 
-pub fn literal_to_memory_cell(token: &TokenContainer) -> Result<SqlValue, String> {
-    match SqlValue::from_token(&token.token) {
+pub fn literal_to_memory_cell(token: &Token) -> Result<SqlValue, String> {
+    match SqlValue::from_token(&token) {
         Ok(value) => Ok(value),
         Err(err) => Err(err.to_string()),
     }

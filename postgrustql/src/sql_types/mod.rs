@@ -92,12 +92,54 @@ pub enum SqlText {
     },
 }
 
+fn factorial(num: i64) -> Result<i64, SqlTypeError> {
+    if num < 0 {
+        return Err(SqlTypeError::OperationError(
+            "Cannot calculate factorial of negative number".to_string(),
+        ));
+    }
+    let mut acc: i64 = 1;
+    for n in 1..=num {
+        acc = match acc.checked_mul(n) {
+            Some(val) => val,
+            None => {
+                return Err(SqlTypeError::OverflowError(
+                    "Overflow calculating factorial".to_string(),
+                ));
+            }
+        };
+    }
+    Ok(acc)
+}
+
 impl SqlValue {
     pub fn is_numeric(&self) -> bool {
         if let SqlValue::Numeric(_) = self {
             true
         } else {
             false
+        }
+    }
+
+    pub fn is_int(&self) -> bool {
+        match self {
+            SqlValue::Numeric(num) => match num {
+                SqlNumeric::SmallInt { value: _ }
+                | SqlNumeric::Int { value: _ }
+                | SqlNumeric::BigInt { value: _ } => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self {
+            SqlValue::Numeric(num) => match num {
+                SqlNumeric::Real { value: _ } | SqlNumeric::DoublePrecision { value: _ } => true,
+                _ => false,
+            },
+            _ => false,
         }
     }
 
@@ -126,10 +168,10 @@ impl SqlValue {
     }
 
     pub fn convert_to_matching_types(
-        a: SqlValue,
-        b: SqlValue,
+        &self,
+        b: &SqlValue,
     ) -> Result<(SqlValue, SqlValue), SqlTypeError> {
-        match (a, b) {
+        match (self, b) {
             (SqlValue::Numeric(num1), SqlValue::Numeric(num2)) => match (num1, num2) {
                 (SqlNumeric::Int { value: _ }, SqlNumeric::Int { value: _ })
                 | (SqlNumeric::SmallInt { value: _ }, SqlNumeric::SmallInt { value: _ })
@@ -138,94 +180,94 @@ impl SqlValue {
                 | (
                     SqlNumeric::DoublePrecision { value: _ },
                     SqlNumeric::DoublePrecision { value: _ },
-                ) => Ok((SqlValue::Numeric(num1), SqlValue::Numeric(num2))),
+                ) => Ok((SqlValue::Numeric(*num1), SqlValue::Numeric(*num2))),
                 (SqlNumeric::Real { value: v1 }, SqlNumeric::DoublePrecision { value: _ }) => Ok((
-                    SqlValue::Numeric(SqlNumeric::DoublePrecision { value: v1 as f64 }),
-                    SqlValue::Numeric(num2),
+                    SqlValue::Numeric(SqlNumeric::DoublePrecision { value: *v1 as f64 }),
+                    SqlValue::Numeric(*num2),
                 )),
                 (SqlNumeric::DoublePrecision { value: _ }, SqlNumeric::Real { value: v2 }) => Ok((
-                    SqlValue::Numeric(num1),
-                    SqlValue::Numeric(SqlNumeric::DoublePrecision { value: v2 as f64 }),
+                    SqlValue::Numeric(*num1),
+                    SqlValue::Numeric(SqlNumeric::DoublePrecision { value: *v2 as f64 }),
                 )),
                 (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::DoublePrecision { value: _ }) => {
                     Ok((
-                        SqlValue::Numeric(SqlNumeric::DoublePrecision { value: v1 as f64 }),
-                        SqlValue::Numeric(num2),
+                        SqlValue::Numeric(SqlNumeric::DoublePrecision { value: *v1 as f64 }),
+                        SqlValue::Numeric(*num2),
                     ))
                 }
                 (SqlNumeric::DoublePrecision { value: _ }, SqlNumeric::SmallInt { value: v2 }) => {
                     Ok((
-                        SqlValue::Numeric(num1),
-                        SqlValue::Numeric(SqlNumeric::DoublePrecision { value: v2 as f64 }),
+                        SqlValue::Numeric(*num1),
+                        SqlValue::Numeric(SqlNumeric::DoublePrecision { value: *v2 as f64 }),
                     ))
                 }
                 (SqlNumeric::Int { value: v1 }, SqlNumeric::DoublePrecision { value: _ }) => Ok((
-                    SqlValue::Numeric(SqlNumeric::DoublePrecision { value: v1 as f64 }),
-                    SqlValue::Numeric(num2),
+                    SqlValue::Numeric(SqlNumeric::DoublePrecision { value: *v1 as f64 }),
+                    SqlValue::Numeric(*num2),
                 )),
                 (SqlNumeric::DoublePrecision { value: _ }, SqlNumeric::Int { value: v2 }) => Ok((
-                    SqlValue::Numeric(num1),
-                    SqlValue::Numeric(SqlNumeric::DoublePrecision { value: v2 as f64 }),
+                    SqlValue::Numeric(*num1),
+                    SqlValue::Numeric(SqlNumeric::DoublePrecision { value: *v2 as f64 }),
                 )),
                 (SqlNumeric::BigInt { value: v1 }, SqlNumeric::DoublePrecision { value: _ }) => {
                     Ok((
-                        SqlValue::Numeric(SqlNumeric::DoublePrecision { value: v1 as f64 }),
-                        SqlValue::Numeric(num2),
+                        SqlValue::Numeric(SqlNumeric::DoublePrecision { value: *v1 as f64 }),
+                        SqlValue::Numeric(*num2),
                     ))
                 }
                 (SqlNumeric::DoublePrecision { value: _ }, SqlNumeric::BigInt { value: v2 }) => {
                     Ok((
-                        SqlValue::Numeric(num1),
-                        SqlValue::Numeric(SqlNumeric::DoublePrecision { value: v2 as f64 }),
+                        SqlValue::Numeric(*num1),
+                        SqlValue::Numeric(SqlNumeric::DoublePrecision { value: *v2 as f64 }),
                     ))
                 }
                 (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::Real { value: _ }) => Ok((
-                    SqlValue::Numeric(SqlNumeric::Real { value: v1 as f32 }),
-                    SqlValue::Numeric(num2),
+                    SqlValue::Numeric(SqlNumeric::Real { value: *v1 as f32 }),
+                    SqlValue::Numeric(*num2),
                 )),
                 (SqlNumeric::Real { value: _ }, SqlNumeric::SmallInt { value: v2 }) => Ok((
-                    SqlValue::Numeric(num1),
-                    SqlValue::Numeric(SqlNumeric::Real { value: v2 as f32 }),
+                    SqlValue::Numeric(*num1),
+                    SqlValue::Numeric(SqlNumeric::Real { value: *v2 as f32 }),
                 )),
                 (SqlNumeric::Int { value: v1 }, SqlNumeric::Real { value: _ }) => Ok((
-                    SqlValue::Numeric(SqlNumeric::Real { value: v1 as f32 }),
-                    SqlValue::Numeric(num2),
+                    SqlValue::Numeric(SqlNumeric::Real { value: *v1 as f32 }),
+                    SqlValue::Numeric(*num2),
                 )),
                 (SqlNumeric::Real { value: _ }, SqlNumeric::Int { value: v2 }) => Ok((
-                    SqlValue::Numeric(num1),
-                    SqlValue::Numeric(SqlNumeric::Real { value: v2 as f32 }),
+                    SqlValue::Numeric(*num1),
+                    SqlValue::Numeric(SqlNumeric::Real { value: *v2 as f32 }),
                 )),
                 (SqlNumeric::BigInt { value: v1 }, SqlNumeric::Real { value: _ }) => Ok((
-                    SqlValue::Numeric(SqlNumeric::Real { value: v1 as f32 }),
-                    SqlValue::Numeric(num2),
+                    SqlValue::Numeric(SqlNumeric::Real { value: *v1 as f32 }),
+                    SqlValue::Numeric(*num2),
                 )),
                 (SqlNumeric::Real { value: _ }, SqlNumeric::BigInt { value: v2 }) => Ok((
-                    SqlValue::Numeric(num1),
-                    SqlValue::Numeric(SqlNumeric::Real { value: v2 as f32 }),
+                    SqlValue::Numeric(*num1),
+                    SqlValue::Numeric(SqlNumeric::Real { value: *v2 as f32 }),
                 )),
                 (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::BigInt { value: _ }) => Ok((
-                    SqlValue::Numeric(SqlNumeric::BigInt { value: v1 as i64 }),
-                    SqlValue::Numeric(num2),
+                    SqlValue::Numeric(SqlNumeric::BigInt { value: *v1 as i64 }),
+                    SqlValue::Numeric(*num2),
                 )),
                 (SqlNumeric::BigInt { value: _ }, SqlNumeric::SmallInt { value: v2 }) => Ok((
-                    SqlValue::Numeric(num1),
-                    SqlValue::Numeric(SqlNumeric::BigInt { value: v2 as i64 }),
+                    SqlValue::Numeric(*num1),
+                    SqlValue::Numeric(SqlNumeric::BigInt { value: *v2 as i64 }),
                 )),
                 (SqlNumeric::Int { value: v1 }, SqlNumeric::BigInt { value: _ }) => Ok((
-                    SqlValue::Numeric(SqlNumeric::BigInt { value: v1 as i64 }),
-                    SqlValue::Numeric(num2),
+                    SqlValue::Numeric(SqlNumeric::BigInt { value: *v1 as i64 }),
+                    SqlValue::Numeric(*num2),
                 )),
                 (SqlNumeric::BigInt { value: _ }, SqlNumeric::Int { value: v2 }) => Ok((
-                    SqlValue::Numeric(num1),
-                    SqlValue::Numeric(SqlNumeric::BigInt { value: v2 as i64 }),
+                    SqlValue::Numeric(*num1),
+                    SqlValue::Numeric(SqlNumeric::BigInt { value: *v2 as i64 }),
                 )),
                 (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::Int { value: _ }) => Ok((
-                    SqlValue::Numeric(SqlNumeric::Int { value: v1 as i32 }),
-                    SqlValue::Numeric(num2),
+                    SqlValue::Numeric(SqlNumeric::Int { value: *v1 as i32 }),
+                    SqlValue::Numeric(*num2),
                 )),
                 (SqlNumeric::Int { value: _ }, SqlNumeric::SmallInt { value: v2 }) => Ok((
-                    SqlValue::Numeric(num1),
-                    SqlValue::Numeric(SqlNumeric::Int { value: v2 as i32 }),
+                    SqlValue::Numeric(*num1),
+                    SqlValue::Numeric(SqlNumeric::Int { value: *v2 as i32 }),
                 )),
                 _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
             },
@@ -244,7 +286,7 @@ impl SqlValue {
                     },
                 )
                 | (&SqlText::Char { value: _, len: _ }, &SqlText::Char { value: _, len: _ }) => {
-                    Ok((SqlValue::Text(text1), SqlValue::Text(text2)))
+                    Ok((SqlValue::Text(text1.clone()), SqlValue::Text(text2.clone())))
                 }
                 (
                     &SqlText::VarChar {
@@ -255,7 +297,7 @@ impl SqlValue {
                     &SqlText::Text { value: _ },
                 ) => Ok((
                     SqlValue::Text(SqlText::Text { value: v1.clone() }),
-                    SqlValue::Text(text2),
+                    SqlValue::Text(text2.clone()),
                 )),
                 (
                     &SqlText::Text { value: _ },
@@ -265,7 +307,7 @@ impl SqlValue {
                         len: _,
                     },
                 ) => Ok((
-                    SqlValue::Text(text1),
+                    SqlValue::Text(text1.clone()),
                     SqlValue::Text(SqlText::Text { value: v2.clone() }),
                 )),
                 _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
@@ -350,8 +392,8 @@ impl SqlValue {
         }
     }
 
-    pub fn subtract(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+    pub fn subtract(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
         match (&a, &b) {
             (SqlValue::Numeric(ref num1), SqlValue::Numeric(ref num2)) => match (num1, num2) {
                 (
@@ -368,7 +410,7 @@ impl SqlValue {
                         value: match v1.checked_sub(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::subtract(a.to_type(SqlType::Int)?, b);
+                                return SqlValue::subtract(&a.to_type(SqlType::Int)?, &b);
                             }
                         },
                     }))
@@ -378,7 +420,7 @@ impl SqlValue {
                         value: match v1.checked_sub(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::subtract(a.to_type(SqlType::BigInt)?, b);
+                                return SqlValue::subtract(&a.to_type(SqlType::BigInt)?, &b);
                             }
                         },
                     }))
@@ -388,7 +430,10 @@ impl SqlValue {
                         value: match v1.checked_sub(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::subtract(a.to_type(SqlType::DoublePrecision)?, b);
+                                return SqlValue::subtract(
+                                    &a.to_type(SqlType::DoublePrecision)?,
+                                    &b,
+                                );
                             }
                         },
                     }))
@@ -403,8 +448,8 @@ impl SqlValue {
         }
     }
 
-    pub fn add(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+    pub fn add(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
         match (&a, &b) {
             (SqlValue::Numeric(ref num1), SqlValue::Numeric(ref num2)) => match (num1, num2) {
                 (
@@ -421,7 +466,7 @@ impl SqlValue {
                         value: match v1.checked_add(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::add(a.to_type(SqlType::Int)?, b);
+                                return SqlValue::add(&a.to_type(SqlType::Int)?, &b);
                             }
                         },
                     }))
@@ -431,7 +476,7 @@ impl SqlValue {
                         value: match v1.checked_add(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::add(a.to_type(SqlType::BigInt)?, b);
+                                return SqlValue::add(&a.to_type(SqlType::BigInt)?, &b);
                             }
                         },
                     }))
@@ -441,7 +486,7 @@ impl SqlValue {
                         value: match v1.checked_add(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::add(a.to_type(SqlType::DoublePrecision)?, b);
+                                return SqlValue::add(&a.to_type(SqlType::DoublePrecision)?, &b);
                             }
                         },
                     }))
@@ -456,8 +501,8 @@ impl SqlValue {
         }
     }
 
-    pub fn multiply(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+    pub fn multiply(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
         match (&a, &b) {
             (SqlValue::Numeric(ref num1), SqlValue::Numeric(ref num2)) => match (num1, num2) {
                 (
@@ -474,7 +519,7 @@ impl SqlValue {
                         value: match v1.checked_mul(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::multiply(a.to_type(SqlType::Int)?, b);
+                                return SqlValue::multiply(&a.to_type(SqlType::Int)?, &b);
                             }
                         },
                     }))
@@ -484,7 +529,7 @@ impl SqlValue {
                         value: match v1.checked_mul(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::multiply(a.to_type(SqlType::BigInt)?, b);
+                                return SqlValue::multiply(&a.to_type(SqlType::BigInt)?, &b);
                             }
                         },
                     }))
@@ -494,7 +539,10 @@ impl SqlValue {
                         value: match v1.checked_mul(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::multiply(a.to_type(SqlType::DoublePrecision)?, b);
+                                return SqlValue::multiply(
+                                    &a.to_type(SqlType::DoublePrecision)?,
+                                    &b,
+                                );
                             }
                         },
                     }))
@@ -509,8 +557,8 @@ impl SqlValue {
         }
     }
 
-    pub fn divide(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+    pub fn divide(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
 
         if let SqlValue::Numeric(SqlNumeric::DoublePrecision { value }) =
             b.to_type(SqlType::DoublePrecision)?
@@ -535,7 +583,7 @@ impl SqlValue {
                         value: match v1.checked_div(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::divide(a.to_type(SqlType::Int)?, b);
+                                return SqlValue::divide(&a.to_type(SqlType::Int)?, &b);
                             }
                         },
                     }))
@@ -545,7 +593,7 @@ impl SqlValue {
                         value: match v1.checked_div(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::divide(a.to_type(SqlType::BigInt)?, b);
+                                return SqlValue::divide(&a.to_type(SqlType::BigInt)?, &b);
                             }
                         },
                     }))
@@ -555,7 +603,7 @@ impl SqlValue {
                         value: match v1.checked_div(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::divide(a.to_type(SqlType::DoublePrecision)?, b);
+                                return SqlValue::divide(&a.to_type(SqlType::DoublePrecision)?, &b);
                             }
                         },
                     }))
@@ -570,8 +618,8 @@ impl SqlValue {
         }
     }
 
-    pub fn modulo(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+    pub fn modulo(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
 
         if let SqlValue::Numeric(SqlNumeric::DoublePrecision { value }) =
             b.to_type(SqlType::DoublePrecision)?
@@ -596,7 +644,7 @@ impl SqlValue {
                         value: match v1.checked_rem(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::modulo(a.to_type(SqlType::Int)?, b);
+                                return SqlValue::modulo(&a.to_type(SqlType::Int)?, &b);
                             }
                         },
                     }))
@@ -606,7 +654,7 @@ impl SqlValue {
                         value: match v1.checked_rem(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::modulo(a.to_type(SqlType::BigInt)?, b);
+                                return SqlValue::modulo(&a.to_type(SqlType::BigInt)?, &b);
                             }
                         },
                     }))
@@ -616,7 +664,7 @@ impl SqlValue {
                         value: match v1.checked_rem(*v2) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::modulo(a.to_type(SqlType::DoublePrecision)?, b);
+                                return SqlValue::modulo(&a.to_type(SqlType::DoublePrecision)?, &b);
                             }
                         },
                     }))
@@ -631,8 +679,8 @@ impl SqlValue {
         }
     }
 
-    pub fn exponentiation(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+    pub fn exponentiation(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
 
         if let SqlValue::Numeric(SqlNumeric::DoublePrecision { value }) =
             b.to_type(SqlType::DoublePrecision)?
@@ -659,7 +707,7 @@ impl SqlValue {
                         value: match v1.checked_pow((*v2).try_into()?) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::exponentiation(a.to_type(SqlType::Int)?, b);
+                                return SqlValue::exponentiation(&a.to_type(SqlType::Int)?, &b);
                             }
                         },
                     }))
@@ -669,7 +717,7 @@ impl SqlValue {
                         value: match v1.checked_pow((*v2).try_into()?) {
                             Some(val) => val,
                             None => {
-                                return SqlValue::exponentiation(a.to_type(SqlType::BigInt)?, b);
+                                return SqlValue::exponentiation(&a.to_type(SqlType::BigInt)?, &b);
                             }
                         },
                     }))
@@ -680,8 +728,8 @@ impl SqlValue {
                             Some(val) => val,
                             None => {
                                 return SqlValue::exponentiation(
-                                    a.to_type(SqlType::DoublePrecision)?,
-                                    b,
+                                    &a.to_type(SqlType::DoublePrecision)?,
+                                    &b,
                                 );
                             }
                         },
@@ -697,8 +745,385 @@ impl SqlValue {
         }
     }
 
-    pub fn concat(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+    pub fn bitwise_and(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
+
+        if a.is_int() == false || b.is_int() == false {
+            return Err(SqlTypeError::TypeMismatchError(
+                "Can only apply bitwise and to integer types".to_string(),
+            ));
+        }
+        match (&a, &b) {
+            (SqlValue::Numeric(ref num1), SqlValue::Numeric(ref num2)) => match (num1, num2) {
+                (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::SmallInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::SmallInt { value: v1 & v2 }))
+                }
+                (SqlNumeric::Int { value: v1 }, SqlNumeric::Int { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Int { value: v1 & v2 }))
+                }
+                (SqlNumeric::BigInt { value: v1 }, SqlNumeric::BigInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: v1 & v2 }))
+                }
+                _ => Err(SqlTypeError::TypeMismatchError(
+                    "Type mismatch for bitwise and".to_string(),
+                )),
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for bitwise and".to_string(),
+            )),
+        }
+    }
+
+    pub fn bitwise_or(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
+
+        if a.is_int() == false || b.is_int() == false {
+            return Err(SqlTypeError::TypeMismatchError(
+                "Can only apply bitwise or to integer types".to_string(),
+            ));
+        }
+        match (&a, &b) {
+            (SqlValue::Numeric(ref num1), SqlValue::Numeric(ref num2)) => match (num1, num2) {
+                (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::SmallInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::SmallInt { value: v1 | v2 }))
+                }
+                (SqlNumeric::Int { value: v1 }, SqlNumeric::Int { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Int { value: v1 | v2 }))
+                }
+                (SqlNumeric::BigInt { value: v1 }, SqlNumeric::BigInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: v1 | v2 }))
+                }
+                _ => Err(SqlTypeError::TypeMismatchError(
+                    "Type mismatch for bitwise or".to_string(),
+                )),
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for bitwise or".to_string(),
+            )),
+        }
+    }
+
+    pub fn bitwise_xor(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
+
+        if a.is_int() == false || b.is_int() == false {
+            return Err(SqlTypeError::TypeMismatchError(
+                "Can only apply bitwise xor to integer types".to_string(),
+            ));
+        }
+        match (&a, &b) {
+            (SqlValue::Numeric(ref num1), SqlValue::Numeric(ref num2)) => match (num1, num2) {
+                (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::SmallInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::SmallInt { value: v1 ^ v2 }))
+                }
+                (SqlNumeric::Int { value: v1 }, SqlNumeric::Int { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Int { value: v1 ^ v2 }))
+                }
+                (SqlNumeric::BigInt { value: v1 }, SqlNumeric::BigInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: v1 ^ v2 }))
+                }
+                _ => Err(SqlTypeError::TypeMismatchError(
+                    "Type mismatch for bitwise xor".to_string(),
+                )),
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for bitwise xor".to_string(),
+            )),
+        }
+    }
+
+    pub fn bitwise_shift_left(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
+
+        if a.is_int() == false || b.is_int() == false {
+            return Err(SqlTypeError::TypeMismatchError(
+                "Can only apply bitwise shift left to integer types".to_string(),
+            ));
+        }
+        match (&a, &b) {
+            (SqlValue::Numeric(ref num1), SqlValue::Numeric(ref num2)) => match (num1, num2) {
+                (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::SmallInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::SmallInt { value: v1 << v2 }))
+                }
+                (SqlNumeric::Int { value: v1 }, SqlNumeric::Int { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Int { value: v1 << v2 }))
+                }
+                (SqlNumeric::BigInt { value: v1 }, SqlNumeric::BigInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: v1 << v2 }))
+                }
+                _ => Err(SqlTypeError::TypeMismatchError(
+                    "Type mismatch for modulo".to_string(),
+                )),
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for modulo".to_string(),
+            )),
+        }
+    }
+
+    pub fn bitwise_shift_right(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
+
+        if a.is_int() == false || b.is_int() == false {
+            return Err(SqlTypeError::TypeMismatchError(
+                "Can only apply bitwise shift left to integer types".to_string(),
+            ));
+        }
+        match (&a, &b) {
+            (SqlValue::Numeric(ref num1), SqlValue::Numeric(ref num2)) => match (num1, num2) {
+                (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::SmallInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::SmallInt { value: v1 >> v2 }))
+                }
+                (SqlNumeric::Int { value: v1 }, SqlNumeric::Int { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Int { value: v1 >> v2 }))
+                }
+                (SqlNumeric::BigInt { value: v1 }, SqlNumeric::BigInt { value: v2 }) => {
+                    Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: v1 >> v2 }))
+                }
+                _ => Err(SqlTypeError::TypeMismatchError(
+                    "Type mismatch for modulo".to_string(),
+                )),
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for modulo".to_string(),
+            )),
+        }
+    }
+
+    pub fn factorial(&self) -> Result<Self, SqlTypeError> {
+        match self {
+            SqlValue::Numeric(num) => match num {
+                SqlNumeric::SmallInt { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
+                    value: factorial(*value as i64)?,
+                })),
+                SqlNumeric::Int { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
+                    value: factorial(*value as i64)?,
+                })),
+                SqlNumeric::BigInt { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
+                    value: factorial(*value as i64)?,
+                })),
+                _ => Err(SqlTypeError::TypeMismatchError(
+                    "Type mismatch for factorial".to_string(),
+                )),
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for factorial".to_string(),
+            )),
+        }
+    }
+
+    pub fn square_root(&self) -> Result<Self, SqlTypeError> {
+        match self {
+            SqlValue::Numeric(num) => match num {
+                SqlNumeric::SmallInt { value } => {
+                    if value < &0 {
+                        return Err(SqlTypeError::OperationError(
+                            "Can't find square root of negative number".to_string(),
+                        ));
+                    }
+                    let value = (*value as f64).sqrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+                SqlNumeric::Int { value } => {
+                    if value < &0 {
+                        return Err(SqlTypeError::OperationError(
+                            "Can't find square root of negative number".to_string(),
+                        ));
+                    }
+                    let value = (*value as f64).sqrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+                SqlNumeric::BigInt { value } => {
+                    if value < &0 {
+                        return Err(SqlTypeError::OperationError(
+                            "Can't find square root of negative number".to_string(),
+                        ));
+                    }
+                    let value = (*value as f64).sqrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+                SqlNumeric::Real { value } => {
+                    if value < &0. {
+                        return Err(SqlTypeError::OperationError(
+                            "Can't find square root of negative number".to_string(),
+                        ));
+                    }
+                    let value = (*value as f64).sqrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+                SqlNumeric::DoublePrecision { value } => {
+                    if value < &0. {
+                        return Err(SqlTypeError::OperationError(
+                            "Can't find square root of negative number".to_string(),
+                        ));
+                    }
+                    let value = (*value as f64).sqrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for square root".to_string(),
+            )),
+        }
+    }
+
+    pub fn cube_root(&self) -> Result<Self, SqlTypeError> {
+        match self {
+            SqlValue::Numeric(num) => match num {
+                SqlNumeric::SmallInt { value } => {
+                    let value = (*value as f64).cbrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+                SqlNumeric::Int { value } => {
+                    let value = (*value as f64).cbrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+                SqlNumeric::BigInt { value } => {
+                    let value = (*value as f64).cbrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+                SqlNumeric::Real { value } => {
+                    let value = (*value as f64).cbrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+                SqlNumeric::DoublePrecision { value } => {
+                    let value = (*value as f64).cbrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
+                    }
+                }
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for cube root".to_string(),
+            )),
+        }
+    }
+
+    pub fn abs(&self) -> Result<Self, SqlTypeError> {
+        match self {
+            SqlValue::Numeric(num) => match num {
+                SqlNumeric::SmallInt { value } => Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
+                    value: value.abs(),
+                })),
+                SqlNumeric::Int { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Int { value: value.abs() }))
+                }
+                SqlNumeric::BigInt { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: value.abs() }))
+                }
+                SqlNumeric::Real { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Real { value: value.abs() }))
+                }
+                SqlNumeric::DoublePrecision { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
+                        value: value.abs(),
+                    }))
+                }
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for absolute value".to_string(),
+            )),
+        }
+    }
+
+    pub fn minus(&self) -> Result<Self, SqlTypeError> {
+        match self {
+            SqlValue::Numeric(num) => match num {
+                SqlNumeric::SmallInt { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::SmallInt { value: -value }))
+                }
+                SqlNumeric::Int { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Int { value: -value }))
+                }
+                SqlNumeric::BigInt { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: -value }))
+                }
+                SqlNumeric::Real { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Real { value: -value }))
+                }
+                SqlNumeric::DoublePrecision { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
+                        value: -value,
+                    }))
+                }
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for minus".to_string(),
+            )),
+        }
+    }
+
+    pub fn bitwise_not(&self) -> Result<Self, SqlTypeError> {
+        match self {
+            SqlValue::Numeric(num) => match num {
+                SqlNumeric::SmallInt { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::SmallInt { value: !value }))
+                }
+                SqlNumeric::Int { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Int { value: !value }))
+                }
+                SqlNumeric::BigInt { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: !value }))
+                }
+                _ => Err(SqlTypeError::TypeMismatchError(
+                    "Type mismatch for bitwise not".to_string(),
+                )),
+            },
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for bitwise not".to_string(),
+            )),
+        }
+    }
+
+    pub fn not(&self) -> Result<Self, SqlTypeError> {
+        match self {
+            SqlValue::Boolean(val) => Ok(SqlValue::Boolean(!val)),
+            _ => Err(SqlTypeError::TypeMismatchError(
+                "Type mismatch for cube root".to_string(),
+            )),
+        }
+    }
+
+    pub fn concat(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
         match (a, b) {
             (SqlValue::Text(ref text1), SqlValue::Text(ref text2)) => match (text1, text2) {
                 (SqlText::Text { value: v1 }, SqlText::Text { value: v2 }) => {
@@ -716,63 +1141,63 @@ impl SqlValue {
         }
     }
 
-    pub fn equals(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        if a.is_null() || b.is_null() {
+    pub fn equals(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
         } else {
-            let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+            let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
             Ok(SqlValue::Boolean(a == b))
         }
     }
 
-    pub fn not_equal(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        if a.is_null() || b.is_null() {
+    pub fn not_equal(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
         } else {
-            let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+            let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
             Ok(SqlValue::Boolean(a != b))
         }
     }
 
-    pub fn less_than(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        if a.is_null() || b.is_null() {
+    pub fn less_than(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
         } else {
-            let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+            let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
             Ok(SqlValue::Boolean(a < b))
         }
     }
 
-    pub fn less_than_or_equals(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        if a.is_null() || b.is_null() {
+    pub fn less_than_or_equals(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
         } else {
-            let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+            let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
             Ok(SqlValue::Boolean(a <= b))
         }
     }
 
-    pub fn greater_than(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        if a.is_null() || b.is_null() {
+    pub fn greater_than(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
         } else {
-            let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+            let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
             Ok(SqlValue::Boolean(a > b))
         }
     }
 
-    pub fn greater_than_or_equals(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        if a.is_null() || b.is_null() {
+    pub fn greater_than_or_equals(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
         } else {
-            let (a, b) = SqlValue::convert_to_matching_types(a, b)?;
+            let (a, b) = SqlValue::convert_to_matching_types(self, b)?;
             Ok(SqlValue::Boolean(a >= b))
         }
     }
 
-    pub fn and(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        if let (SqlValue::Boolean(a), SqlValue::Boolean(b)) = (a, b) {
-            Ok(SqlValue::Boolean(a && b))
+    pub fn and(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        if let (SqlValue::Boolean(a), SqlValue::Boolean(b)) = (self, b) {
+            Ok(SqlValue::Boolean(*a && *b))
         } else {
             Err(SqlTypeError::TypeMismatchError(
                 "Type mismatch for concat".to_string(),
@@ -780,9 +1205,9 @@ impl SqlValue {
         }
     }
 
-    pub fn or(a: Self, b: Self) -> Result<Self, SqlTypeError> {
-        if let (SqlValue::Boolean(a), SqlValue::Boolean(b)) = (a, b) {
-            Ok(SqlValue::Boolean(a || b))
+    pub fn or(&self, b: &Self) -> Result<Self, SqlTypeError> {
+        if let (SqlValue::Boolean(a), SqlValue::Boolean(b)) = (self, b) {
+            Ok(SqlValue::Boolean(*a || *b))
         } else {
             Err(SqlTypeError::TypeMismatchError(
                 "Type mismatch for concat".to_string(),

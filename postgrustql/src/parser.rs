@@ -160,6 +160,27 @@ fn parse_statement(
                                 Err(err) => (Err(err)),
                             }
                         }
+                        Token::Unique => match tokens.get(cursor + 2) {
+                            Some(TokenContainer {
+                                token: Token::Index,
+                                loc: _,
+                            }) => {
+                                // Look for a CREATE UNIQUE INDEX statement
+
+                                match parse_create_index_statement(
+                                    tokens,
+                                    cursor,
+                                    delimiter.clone(),
+                                ) {
+                                    Ok((create_index, new_cursor)) => Ok((
+                                        Statement::CreateIndexStatement(create_index),
+                                        new_cursor,
+                                    )),
+                                    Err(err) => (Err(err)),
+                                }
+                            }
+                            _ => Err("Invalid Create Statement".to_string()),
+                        },
                         Token::Table => {
                             // Look for a CREATE TABLE statement
                             match parse_create_table_statement(tokens, cursor, delimiter.clone()) {
@@ -322,6 +343,7 @@ fn parse_create_index_statement(
     delimiter: Token,
 ) -> Result<(CreateIndexStatement, usize), String> {
     let mut cursor = initial_cursor;
+    println!("---1111");
     if let Some(TokenContainer {
         loc: _,
         token: Token::Create,
@@ -503,13 +525,13 @@ fn parse_expression(
     } else if unary_operators.contains(&tokens[cursor].token) {
         let operand;
         let token = &tokens[cursor];
-        operand = token.clone();
+        operand = token.token.clone();
         cursor += 1;
         let mut nested_un_ops = vec![operand.clone()];
         let mut inner_exp;
         loop {
             if cursor < tokens.len() && unary_operators.contains(&tokens[cursor].token) {
-                nested_un_ops.push(tokens[cursor].clone());
+                nested_un_ops.push(tokens[cursor].token.clone());
                 cursor += 1;
             } else {
                 break;
@@ -592,10 +614,10 @@ fn parse_expression(
             }
         }
 
-        let mut operand = TokenContainer::new();
+        let mut operand = Token::Empty;
         if binary_operators.contains(&tokens[cursor].token) {
             let token = &tokens[cursor];
-            operand = token.clone();
+            operand = token.token.clone();
             cursor += 1;
         } /*else if unary_postfix_operators.contains(&tokens[cursor].token) {
               let token = &tokens[cursor];
@@ -608,19 +630,19 @@ fn parse_expression(
               return Some((expression, cursor));
           }*/
 
-        if operand.token == Token::Empty {
+        if operand == Token::Empty {
             help_message(tokens, cursor, "Expected binary operator".to_owned());
             return None;
         }
 
-        let min_binding_power = operand.binding_power();
-        if min_binding_power < min_binding_power {
+        let binding_power = operand.binding_power();
+        if binding_power < min_binding_power {
             cursor = last_cursor;
             break;
         }
 
         let (second_expression, new_cursor) =
-            match parse_expression(tokens, cursor, delimiters, min_binding_power) {
+            match parse_expression(tokens, cursor, delimiters, binding_power) {
                 None => {
                     help_message(tokens, cursor, "Expected right operand".to_owned());
                     return None;
@@ -636,149 +658,6 @@ fn parse_expression(
         last_cursor = cursor;
     }
 
-    return Some((expression, cursor));
-}
-
-fn parse_unary_expression(
-    tokens: &Vec<TokenContainer>,
-    initial_cursor: usize,
-    delimiters: &Vec<Token>,
-    min_binding_power: u32,
-) -> Option<(Expression, usize)> {
-    let mut cursor = initial_cursor;
-
-    let mut expression;
-
-    if let Some(TokenContainer {
-        loc: _,
-        token: Token::LeftParenthesis,
-    }) = tokens.get(cursor)
-    {
-        cursor += 1;
-        println!("{}", "fddddddddddd");
-
-        //let mut delimiters_plus = delimiters.clone();
-        //delimiters_plus.push(Token::RightParenthesis);
-        if let Some((expression_, cursor_)) = parse_expression(
-            tokens,
-            cursor,
-            &vec![Token::RightParenthesis],
-            min_binding_power,
-        ) {
-            expression = expression_;
-            cursor = cursor_;
-        } else if let Some((expression_, cursor_)) = parse_unary_expression(
-            tokens,
-            cursor,
-            &vec![Token::RightParenthesis],
-            min_binding_power,
-        ) {
-            expression = expression_;
-            cursor = cursor_;
-        } else {
-            let x = help_message(
-                tokens,
-                cursor,
-                "Expected expression after opening parenthesis".to_string(),
-            );
-            println!("{}", x);
-            return None;
-        }
-
-        if tokens[cursor].token != Token::RightParenthesis {
-            let x = help_message(tokens, cursor, "Expected closing parenthesis".to_owned());
-            println!("{}", x);
-            return None;
-        }
-        cursor += 1;
-    } else if unary_operators.contains(&tokens[cursor].token) {
-        let operand;
-        let token = &tokens[cursor];
-        operand = token.clone();
-        cursor += 1;
-        //let del1 = vec![Token::RightParenthesis];
-        //let mut del = delimiters.clone();
-        //let delimiters = if let Some(TokenContainer {
-        //    token: Token::LeftParenthesis,
-        //    loc: _,
-        //}) = &tokens.get(cursor + 1)
-        //{
-        //    &del1
-        //} else {
-        //    del.append(&mut binary_operators.clone());
-        //    &del
-        //};
-        let (mut expression, cursor) =
-            parse_unary_expression(tokens, cursor, &delimiters, min_binding_power)?;
-        expression = Expression::Unary(UnaryExpression {
-            first: Box::from(expression),
-            operand,
-        });
-        println!("{}", "ffffffff");
-        return Some((expression, cursor));
-    } else {
-        let (first_expression, new_cursor) = match parse_literal_expression(tokens, cursor) {
-            None => {
-                println!("dero");
-                return None;
-            }
-            Some(value) => value,
-        };
-        expression = first_expression;
-        cursor = new_cursor;
-    }
-
-    let mut last_cursor = cursor;
-
-    'outer: while cursor < tokens.len() {
-        for delimiter in delimiters {
-            if tokens[cursor].token == *delimiter {
-                break 'outer;
-            }
-        }
-
-        let mut operand = TokenContainer::new();
-        if unary_postfix_operators.contains(&tokens[cursor].token) {
-            let token = &tokens[cursor];
-            operand = token.clone();
-            cursor += 1;
-            expression = Expression::Unary(UnaryExpression {
-                first: Box::from(expression),
-                operand,
-            });
-            return Some((expression, cursor));
-        }
-
-        if operand.token == Token::Empty {
-            let x = help_message(tokens, cursor, "Expected unary operator".to_owned());
-            println!("{}", x);
-            return None;
-        }
-
-        let min_binding_power = operand.binding_power();
-        if min_binding_power < min_binding_power {
-            cursor = last_cursor;
-            break;
-        }
-
-        let (second_expression, new_cursor) =
-            match parse_expression(tokens, cursor, delimiters, min_binding_power) {
-                None => {
-                    let x = help_message(tokens, cursor, "Expected right operand".to_owned());
-                    println!("{}", x);
-                    return None;
-                }
-                Some(value) => value,
-            };
-        expression = Expression::Binary(BinaryExpression {
-            first: Box::from(expression),
-            second: Box::from(second_expression),
-            operand,
-        });
-        cursor = new_cursor;
-        last_cursor = cursor;
-    }
-    println!("{}", "dfdfdf");
     return Some((expression, cursor));
 }
 
@@ -798,7 +677,7 @@ fn parse_literal_expression(
                 let token = &tokens[cursor];
                 return Some((
                     Expression::Literal(LiteralExpression {
-                        literal: token.clone(),
+                        literal: token.token.clone(),
                     }),
                     cursor + 1,
                 ));
@@ -1070,19 +949,13 @@ mod parser_tests {
                         table: "users".to_owned(),
                         values: vec![
                             Expression::Literal(LiteralExpression {
-                                literal: TokenContainer {
-                                    loc: TokenLocation { col: 26, line: 0 },
-                                    token: Token::NumericValue {
-                                        value: "105".to_owned(),
-                                    },
+                                literal: Token::NumericValue {
+                                    value: "105".to_owned(),
                                 },
                             }),
                             Expression::Literal(LiteralExpression {
-                                literal: TokenContainer {
-                                    loc: TokenLocation { col: 32, line: 0 },
-                                    token: Token::StringValue {
-                                        value: "George".to_owned(),
-                                    },
+                                literal: Token::StringValue {
+                                    value: "George".to_owned(),
                                 },
                             }),
                         ],
@@ -1124,28 +997,18 @@ mod parser_tests {
                                 asterisk: false,
                                 as_clause: None,
                                 expression: Expression::Literal(LiteralExpression {
-                                    literal: TokenContainer::new_with_all(
-                                        Token::IdentifierValue {
-                                            value: "id".to_owned(),
-                                        },
-                                        "id".to_owned(),
-                                        7,
-                                        0,
-                                    ),
+                                    literal: Token::IdentifierValue {
+                                        value: "id".to_owned(),
+                                    },
                                 }),
                             },
                             SelectItem {
                                 asterisk: false,
                                 as_clause: Some("fullname".to_owned()),
                                 expression: Expression::Literal(LiteralExpression {
-                                    literal: TokenContainer::new_with_all(
-                                        Token::IdentifierValue {
-                                            value: "name".to_owned(),
-                                        },
-                                        "name".to_owned(),
-                                        11,
-                                        0,
-                                    ),
+                                    literal: Token::IdentifierValue {
+                                        value: "name".to_owned(),
+                                    },
                                 }),
                             },
                         ],

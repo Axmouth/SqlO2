@@ -86,53 +86,41 @@ impl Expression {
 
     pub fn new_literal_id(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: TokenContainer::new_with_kind_and_value(
-                Token::IdentifierValue {
-                    value: value.clone(),
-                },
-                value,
-            ),
+            literal: Token::IdentifierValue {
+                value: value.clone(),
+            },
         })
     }
     pub fn new_literal_num(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: TokenContainer::new_with_kind_and_value(
-                Token::NumericValue {
-                    value: value.clone(),
-                },
-                value.clone(),
-            ),
+            literal: Token::NumericValue {
+                value: value.clone(),
+            },
         })
     }
     pub fn new_literal_string(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: TokenContainer::new_with_kind_and_value(
-                Token::StringValue {
-                    value: value.clone(),
-                },
-                value,
-            ),
+            literal: Token::StringValue {
+                value: value.clone(),
+            },
         })
     }
     pub fn new_literal_bool(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: TokenContainer::new_with_kind_and_value(
-                Token::BoolValue {
-                    value: if value == TRUE_KEYWORD { true } else { false },
-                },
-                value,
-            ),
+            literal: Token::BoolValue {
+                value: if value == TRUE_KEYWORD { true } else { false },
+            },
         })
     }
     pub fn new_literal_null() -> Expression {
         Expression::Literal(LiteralExpression {
-            literal: TokenContainer::new_with_kind_and_value(Token::Null, "null".to_string()),
+            literal: Token::Null,
         })
     }
 
     pub fn generate_code(&self) -> Result<String, String> {
         match self {
-            Expression::Literal(value) => match &value.literal.token {
+            Expression::Literal(value) => match &value.literal {
                 Token::IdentifierValue { value } => Ok(format!("\"{}\"", value)),
                 Token::StringValue { value } => Ok(format!("'{}'", value)),
                 _ => Err("Unknown Literal Kind".to_string()),
@@ -173,14 +161,14 @@ impl Expression {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct LiteralExpression {
-    pub literal: TokenContainer,
+    pub literal: Token,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct BinaryExpression {
     pub first: Box<Expression>,
     pub second: Box<Expression>,
-    pub operand: TokenContainer,
+    pub operand: Token,
 }
 
 impl BinaryExpression {
@@ -188,7 +176,7 @@ impl BinaryExpression {
         Ok(format!(
             "({} {} {})",
             self.first.generate_code()?,
-            self.operand.token.generate_code(),
+            self.operand.generate_code(),
             self.second.generate_code()?
         ))
     }
@@ -197,14 +185,14 @@ impl BinaryExpression {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct UnaryExpression {
     pub first: Box<Expression>,
-    pub operand: TokenContainer,
+    pub operand: Token,
 }
 
 impl UnaryExpression {
     pub fn generate_code(&self) -> Result<String, String> {
         Ok(format!(
             "({} {})",
-            self.operand.token.generate_code(),
+            self.operand.generate_code(),
             self.first.generate_code()?,
         ))
     }
@@ -320,19 +308,13 @@ mod ast_tests {
                         table: "users".to_owned(),
                         values: vec![
                             Expression::Literal(LiteralExpression {
-                                literal: TokenContainer {
-                                    loc: TokenLocation { col: 26, line: 0 },
-                                    token: Token::NumericValue {
-                                        value: "105".to_owned(),
-                                    },
+                                literal: Token::NumericValue {
+                                    value: "105".to_owned(),
                                 },
                             }),
                             Expression::Literal(LiteralExpression {
-                                literal: TokenContainer {
-                                    loc: TokenLocation { col: 32, line: 0 },
-                                    token: Token::StringValue {
-                                        value: "George".to_owned(),
-                                    },
+                                literal: Token::StringValue {
+                                    value: "George".to_owned(),
                                 },
                             }),
                         ],
@@ -374,28 +356,18 @@ mod ast_tests {
                                 asterisk: false,
                                 as_clause: None,
                                 expression: Expression::Literal(LiteralExpression {
-                                    literal: TokenContainer::new_with_all(
-                                        Token::IdentifierValue {
-                                            value: "id".to_owned(),
-                                        },
-                                        "id".to_owned(),
-                                        7,
-                                        0,
-                                    ),
+                                    literal: Token::IdentifierValue {
+                                        value: "id".to_owned(),
+                                    },
                                 }),
                             },
                             SelectItem {
                                 asterisk: false,
                                 as_clause: Some("fullname".to_owned()),
                                 expression: Expression::Literal(LiteralExpression {
-                                    literal: TokenContainer::new_with_all(
-                                        Token::IdentifierValue {
-                                            value: "name".to_owned(),
-                                        },
-                                        "name".to_owned(),
-                                        11,
-                                        0,
-                                    ),
+                                    literal: Token::IdentifierValue {
+                                        value: "name".to_owned(),
+                                    },
                                 }),
                             },
                         ],
