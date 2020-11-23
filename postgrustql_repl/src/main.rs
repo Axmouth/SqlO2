@@ -162,8 +162,6 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
 
         Err(err) => {
             return err;
-            // output_text.push_str(err.as_str());
-            // continue;
         }
     }
 

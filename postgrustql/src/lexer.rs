@@ -39,7 +39,6 @@ pub enum Token {
     // Keywords
     As,
     From,
-    Int,
     Into,
     Values,
     Insert,
@@ -47,14 +46,28 @@ pub enum Token {
     Create,
     Where,
     Table,
-    Text,
     Drop,
-    Bool,
     And,
     Or,
     Not,
     True,
+    Join,
     False,
+    Inner,
+    Left,
+    Right,
+    Is,
+    SmallInt,
+    Int,
+    BigInt,
+    Real,
+    Double,
+    Precision,
+    DoublePrecision,
+    Varchar,
+    Char,
+    Text,
+    Bool,
     Unique,
     Index,
     On,
@@ -64,6 +77,8 @@ pub enum Token {
     Alter,
     Delete,
     Update,
+    Constraint,
+    Foreign,
 
     // Symbols
     Semicolon,
@@ -220,7 +235,6 @@ pub fn token_is_keyword(token: Token) -> bool {
     match token {
         Token::As
         | Token::From
-        | Token::Int
         | Token::Into
         | Token::Values
         | Token::Insert
@@ -228,14 +242,28 @@ pub fn token_is_keyword(token: Token) -> bool {
         | Token::Create
         | Token::Where
         | Token::Table
-        | Token::Text
         | Token::Drop
-        | Token::Bool
         | Token::And
         | Token::Or
         | Token::Not
         | Token::True
         | Token::False
+        | Token::Join
+        | Token::Left
+        | Token::Right
+        | Token::Inner
+        | Token::Is
+        | Token::Int
+        | Token::BigInt
+        | Token::SmallInt
+        | Token::Real
+        | Token::DoublePrecision
+        | Token::Double
+        | Token::Precision
+        | Token::Varchar
+        | Token::Text
+        | Token::Char
+        | Token::Bool
         | Token::Unique
         | Token::Index
         | Token::On
@@ -244,7 +272,9 @@ pub fn token_is_keyword(token: Token) -> bool {
         | Token::Null
         | Token::Alter
         | Token::Delete
-        | Token::Update => {
+        | Token::Update
+        | Token::Constraint
+        | Token::Foreign => {
             return true;
         }
         _ => {}
@@ -290,13 +320,21 @@ pub const NULL_KEYWORD: Keyword = "null";
 pub const ALTER_KEYWORD: Keyword = "alter";
 pub const DELETE_KEYWORD: Keyword = "delete";
 pub const UPDATE_KEYWORD: Keyword = "update";
-// new
+pub const JOIN_KEYWORD: Keyword = "join";
+pub const INNER_KEYWORD: Keyword = "inner";
+pub const RIGHT_KEYWORD: Keyword = "right";
+pub const LEFT_KEYWORD: Keyword = "left";
+pub const CONSTRAINT_KEYWORD: Keyword = "constraint";
+pub const FOREIGN_KEYWORD: Keyword = "foreign";
 pub const IS_KEYWORD: Keyword = "is";
 pub const BIGINT_KEYWORD: Keyword = "bigint";
 pub const SMALLINT_KEYWORD: Keyword = "smallint";
 pub const REAL_KEYWORD: Keyword = "real";
 pub const DOUBLE_KEYWORD: Keyword = "double";
 pub const PRECISION_KEYWORD: Keyword = "precision";
+pub const VARCHAR_KEYWORD: Keyword = "varchar";
+pub const CHAR_KEYWORD: Keyword = "char";
+// new
 pub const DECIMAL_KEYWORD: Keyword = "decimal";
 pub const NUMERIC_KEYWORD: Keyword = "numeric";
 
@@ -462,21 +500,28 @@ pub struct Lexer {
 impl Lexer {
     pub fn new() -> Self {
         let symbols = vec![
-            EQUAL_SYMBOL.to_string(),
+            COMMA_SYMBOL.to_string(),
             NOT_EQUAL_SYMBOL.to_string(),
             NOT_EQUAL_SYMBOL_2.to_string(),
-            LESS_THAN_SYMBOL.to_string(),
             LESS_THAN_OR_EQUAL_SYMBOL.to_string(),
-            GREATER_THAN_SYMBOL.to_string(),
             GREATER_THAN_OR_EQUAL_SYMBOL.to_string(),
-            CONCAT_SYMBOL.to_string(),
+            EQUAL_SYMBOL.to_string(),
+            LEFT_PARENTHESIS_SYMBOL.to_string(),
+            RIGHT_PARENTHESIS_SYMBOL.to_string(),
+            SEMICOLON_SYMBOL.to_string(),
             PLUS_SYMBOL.to_string(),
             MINUS_SYMBOL.to_string(),
+            ASTERISK_SYMBOL.to_string(),
             SLASH_SYMBOL.to_string(),
+            BITWISE_SHIFT_LEFT_SYMBOL.to_string(),
+            BITWISE_SHIFT_RIGHT_SYMBOL.to_string(),
+            LESS_THAN_SYMBOL.to_string(),
+            GREATER_THAN_SYMBOL.to_string(),
+            CONCAT_SYMBOL.to_string(),
             MODULO_SYMBOL.to_string(),
             EXPONENTIATION_SYMBOL.to_string(),
-            SQUARE_ROOT_SYMBOL.to_string(),
             CUBE_ROOT_SYMBOL.to_string(),
+            SQUARE_ROOT_SYMBOL.to_string(),
             FACTORIAL_SYMBOL.to_string(),
             FACTORIAL_PREFIX_SYMBOL.to_string(),
             ABS_SYMBOL.to_string(),
@@ -484,13 +529,6 @@ impl Lexer {
             BITWISE_OR_SYMBOL.to_string(),
             BITWISE_XOR_SYMBOL.to_string(),
             BITWISE_NOT_SYMBOL.to_string(),
-            BITWISE_SHIFT_LEFT_SYMBOL.to_string(),
-            BITWISE_SHIFT_RIGHT_SYMBOL.to_string(),
-            COMMA_SYMBOL.to_string(),
-            LEFT_PARENTHESIS_SYMBOL.to_string(),
-            RIGHT_PARENTHESIS_SYMBOL.to_string(),
-            SEMICOLON_SYMBOL.to_string(),
-            ASTERISK_SYMBOL.to_string(),
         ];
         let keywords = vec![
             SELECT_KEYWORD.to_string(),
@@ -501,15 +539,27 @@ impl Lexer {
             DROP_KEYWORD.to_string(),
             WHERE_KEYWORD.to_string(),
             FROM_KEYWORD.to_string(),
-            INTO_KEYWORD.to_string(),
             TEXT_KEYWORD.to_string(),
             BOOL_KEYWORD.to_string(),
-            INT_KEYWORD.to_string(),
             AND_KEYWORD.to_string(),
             OR_KEYWORD.to_string(),
             AS_KEYWORD.to_string(),
             TRUE_KEYWORD.to_string(),
             FALSE_KEYWORD.to_string(),
+            JOIN_KEYWORD.to_string(),
+            INNER_KEYWORD.to_string(),
+            LEFT_KEYWORD.to_string(),
+            RIGHT_KEYWORD.to_string(),
+            IS_KEYWORD.to_string(),
+            INTO_KEYWORD.to_string(),
+            INT_KEYWORD.to_string(),
+            BIGINT_KEYWORD.to_string(),
+            SMALLINT_KEYWORD.to_string(),
+            REAL_KEYWORD.to_string(),
+            DOUBLE_KEYWORD.to_string(),
+            PRECISION_KEYWORD.to_string(),
+            VARCHAR_KEYWORD.to_string(),
+            CHAR_KEYWORD.to_string(),
             UNIQUE_KEYWORD.to_string(),
             INDEX_KEYWORD.to_string(),
             ON_KEYWORD.to_string(),
@@ -519,6 +569,8 @@ impl Lexer {
             ALTER_KEYWORD.to_string(),
             DELETE_KEYWORD.to_string(),
             UPDATE_KEYWORD.to_string(),
+            CONSTRAINT_KEYWORD.to_string(),
+            FOREIGN_KEYWORD.to_string(),
         ];
         let max_symbol_length =
             symbols.iter().fold(
@@ -806,7 +858,7 @@ impl Lexer {
         options: &Vec<String>,
         max_length: Option<usize>,
     ) -> String {
-        let mut text_match: String = "".to_owned();
+        let mut text_match: String = "".to_string();
         let cur = ic.clone();
 
         let rest_of_text = if let Some(mut max_length) = max_length {
@@ -930,6 +982,11 @@ impl Lexer {
         }
         cur.pointer = ic.pointer + keyword_match.len() as u32;
         cur.loc.col = ic.loc.col + keyword_match.len() as u32;
+        if let Some(next_char) = source.chars().nth(cur.pointer as usize) {
+            if next_char.is_alphanumeric() {
+                return None;
+            }
+        }
 
         let mut kind = match keyword_match.as_str() {
             SELECT_KEYWORD => Token::Select,
@@ -942,16 +999,22 @@ impl Lexer {
             TRUE_KEYWORD => Token::True,
             FALSE_KEYWORD => Token::False,
             NULL_KEYWORD => Token::Null,
+            JOIN_KEYWORD => Token::Join,
+            INNER_KEYWORD => Token::Inner,
+            LEFT_KEYWORD => Token::Left,
+            RIGHT_KEYWORD => Token::Right,
+            CONSTRAINT_KEYWORD => Token::Constraint,
             ON_KEYWORD => Token::On,
-            TEXT_KEYWORD => Token::Text,
             INT_KEYWORD => Token::Int,
+            TEXT_KEYWORD => Token::Text,
+            BIGINT_KEYWORD => Token::BigInt,
+            SMALLINT_KEYWORD => Token::SmallInt,
+            REAL_KEYWORD => Token::Real,
+            DOUBLE_KEYWORD => Token::Double,
+            PRECISION_KEYWORD => Token::Precision,
             BOOL_KEYWORD => Token::Bool,
             INSERT_KEYWORD => Token::Insert,
             VALUES_KEYWORD => Token::Values,
-            PRIMARY_KEYWORD => Token::Primary,
-            KEY_KEYWORD => Token::Key,
-            UNIQUE_KEYWORD => Token::Unique,
-            INDEX_KEYWORD => Token::Index,
             INTO_KEYWORD => Token::Into,
             CREATE_KEYWORD => Token::Create,
             TABLE_KEYWORD => Token::Table,
@@ -959,6 +1022,11 @@ impl Lexer {
             ALTER_KEYWORD => Token::Alter,
             DELETE_KEYWORD => Token::Delete,
             UPDATE_KEYWORD => Token::Update,
+            PRIMARY_KEYWORD => Token::Primary,
+            KEY_KEYWORD => Token::Key,
+            UNIQUE_KEYWORD => Token::Unique,
+            INDEX_KEYWORD => Token::Index,
+            FOREIGN_KEYWORD => Token::Foreign,
             _ => {
                 return None;
             }
@@ -973,6 +1041,8 @@ impl Lexer {
                 },
             };
         }
+
+        //TODO lex double precision in one step
 
         if keyword_match == NULL_KEYWORD.to_owned() {
             kind = Token::Null;
@@ -1417,6 +1487,20 @@ mod lexer_tests {
                 value: "\"userName\"",
                 expected_value: Token::IdentifierValue {
                     value: "userName".to_owned(),
+                },
+            },
+            LexerTest {
+                expected_result: true,
+                value: "indexed_value",
+                expected_value: Token::IdentifierValue {
+                    value: "indexed_value".to_owned(),
+                },
+            },
+            LexerTest {
+                expected_result: true,
+                value: "unique_values",
+                expected_value: Token::IdentifierValue {
+                    value: "unique_values".to_owned(),
                 },
             },
             // false

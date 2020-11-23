@@ -124,7 +124,6 @@ fn parse_statement(
         match first_token.token {
             Token::Select => {
                 // Look for a SELECT statement
-
                 match parse_select_statement(tokens, cursor, delimiter.clone()) {
                     Ok((select, new_cursor)) => {
                         return Ok((Statement::SelectStatement(select), new_cursor));
@@ -134,7 +133,6 @@ fn parse_statement(
             }
             Token::Insert => {
                 // Look for an INSERT statement
-
                 match parse_insert_statement(tokens, cursor, delimiter.clone()) {
                     Ok((insert, new_cursor)) => {
                         Ok((Statement::InsertStatement(insert), new_cursor))
@@ -145,21 +143,12 @@ fn parse_statement(
             Token::Delete => Err("Delete not implemented".to_string()),
             Token::Update => Err("Update not implemented".to_string()),
             Token::Alter => Err("Alter not implemented".to_string()),
-            Token::Drop => {
-                // Look for an DROP statement
-
-                match parse_drop_table_statement(tokens, cursor, delimiter.clone()) {
-                    Ok((drop, new_cursor)) => Ok((Statement::DropTableStatement(drop), new_cursor)),
-                    Err(err) => (Err(err)),
-                }
-            }
             Token::IdentifierValue { value: _ } => Err("Assignment not implemented".to_string()),
             Token::Create => {
                 if let Some(first_token) = tokens.get(cursor + 1) {
                     match first_token.token {
                         Token::Index => {
                             // Look for a CREATE INDEX statement
-
                             match parse_create_index_statement(tokens, cursor, delimiter.clone()) {
                                 Ok((create_index, new_cursor)) => {
                                     Ok((Statement::CreateIndexStatement(create_index), new_cursor))
@@ -173,7 +162,6 @@ fn parse_statement(
                                 loc: _,
                             }) => {
                                 // Look for a CREATE UNIQUE INDEX statement
-
                                 match parse_create_index_statement(
                                     tokens,
                                     cursor,
@@ -186,8 +174,13 @@ fn parse_statement(
                                     Err(err) => (Err(err)),
                                 }
                             }
+                            Some(TokenContainer {
+                                token: Token::Constraint,
+                                loc: _,
+                            }) => Err("Create constraint not implemented".to_string()),
                             _ => Err("Invalid Create Statement".to_string()),
                         },
+                        Token::Constraint => Err("Create constraint not implemented".to_string()),
                         Token::Table => {
                             // Look for a CREATE TABLE statement
                             match parse_create_table_statement(tokens, cursor, delimiter.clone()) {
@@ -201,6 +194,13 @@ fn parse_statement(
                     }
                 } else {
                     Err("Invalid Create Statement".to_string())
+                }
+            }
+            Token::Drop => {
+                // Look for an DROP statement
+                match parse_drop_table_statement(tokens, cursor, delimiter.clone()) {
+                    Ok((drop, new_cursor)) => Ok((Statement::DropTableStatement(drop), new_cursor)),
+                    Err(err) => (Err(err)),
                 }
             }
             _ => Err(help_message(

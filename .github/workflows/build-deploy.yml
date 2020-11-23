@@ -19,7 +19,7 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
-      - name: Install cargo-audit binary crate
+      - name: Install wasm-pack
         uses: actions-rs/install@v0.1
         with:
           crate: wasm-pack

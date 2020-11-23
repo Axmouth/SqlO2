@@ -15,6 +15,26 @@ pub enum Statement {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
+pub enum JoinClause {
+    LeftInner {
+        source: RowDataSource,
+        on: Expression,
+    },
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct FromItem {
+    source: RowDataSource,
+    as_clause: Option<String>,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub enum RowDataSource {
+    Select(SelectStatement),
+    Table(String),
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct InsertStatement {
     pub table: String,
     pub values: Vec<Expression>,
@@ -68,6 +88,31 @@ impl CreateIndexStatement {
             self.name,
             self.table,
             self.expression.generate_code()?
+        ))
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct CreateConstraintStatement {
+    pub name: String,
+    pub constraint: ConstraintType,
+    pub table: String,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub enum ConstraintType {
+    Foreign { references: Vec<(String, String)> },
+    Check { expression: Expression },
+    Unique { expression: Expression },
+    Exclude { expression: Expression },
+}
+
+impl CreateConstraintStatement {
+    pub fn generate_code(&self) -> Result<String, String> {
+        let unique = if false { " UNIQUE" } else { "" };
+        Ok(format!(
+            "CREATE{} CONSTRAINT \"{}\" ON \"{}\" ();",
+            unique, self.name, self.table,
         ))
     }
 }
@@ -273,6 +318,21 @@ impl Token {
             Token::Alter => ALTER_KEYWORD.to_string(),
             Token::Delete => DELETE_KEYWORD.to_string(),
             Token::Update => UPDATE_KEYWORD.to_string(),
+            Token::Join => JOIN_KEYWORD.to_string(),
+            Token::Inner => INNER_KEYWORD.to_string(),
+            Token::Right => RIGHT_KEYWORD.to_string(),
+            Token::Left => LEFT_KEYWORD.to_string(),
+            Token::Constraint => CONSTRAINT_KEYWORD.to_string(),
+            Token::Foreign => FOREIGN_KEYWORD.to_string(),
+            Token::Double => DOUBLE_KEYWORD.to_string(),
+            Token::DoublePrecision => "DOUBLE PRECISION".to_string(),
+            Token::Precision => PRECISION_KEYWORD.to_string(),
+            Token::Real => REAL_KEYWORD.to_string(),
+            Token::SmallInt => SMALLINT_KEYWORD.to_string(),
+            Token::BigInt => BIGINT_KEYWORD.to_string(),
+            Token::Varchar => VARCHAR_KEYWORD.to_string(),
+            Token::Char => CHAR_KEYWORD.to_string(),
+            Token::Is => IS_KEYWORD.to_string(),
         }
     }
 }
