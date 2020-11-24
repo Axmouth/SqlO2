@@ -6,8 +6,8 @@ use super::lexer::*;
 use super::parser::parse;
 
 use crate::{
-    backend::{MemoryCell, MemoryCellData},
-    sql_types::{SqlNumeric, SqlType, SqlValue},
+    backend::MemoryCell,
+    sql_types::{SqlType, SqlValue},
 };
 use instant::Instant;
 use std::collections::HashMap;
@@ -420,6 +420,11 @@ impl Table {
                     _ => return Err(ERR_INVALID_CELL.to_string()),
                 }
             }
+            Expression::Cast { data, typ } => {
+                let (val, _, _) = self.evaluate_cell(row_index, &data)?;
+                let result = val.explicit_cast_to_type(*typ)?;
+                return Ok((result, ANONYMOUS_COL_NAME, *typ));
+            }
             _ => return Err(ERR_INVALID_CELL.to_string()),
         }
     }
@@ -433,7 +438,7 @@ impl Table {
             Expression::Literal(_) => {
                 return self.evaluate_literal_cell(row_index, expression);
             }
-            Expression::Binary(_) | Expression::Unary(_) => {
+            Expression::Binary(_) | Expression::Unary(_) | Expression::Cast { data: _, typ: _ } => {
                 return self.evaluate_binary_cell(row_index, expression);
             }
             _ => return Err(ERR_INVALID_CELL.to_string()),

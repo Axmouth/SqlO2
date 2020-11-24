@@ -1,3 +1,5 @@
+use crate::sql_types::SqlType;
+
 use super::ast::*;
 use super::lexer::*;
 
@@ -5,7 +7,7 @@ use lazy_static;
 use std::iter::*;
 
 lazy_static! {
-    static ref binary_operators: Vec<Token> = vec![
+    static ref BINARY_OPERATORS: Vec<Token> = vec![
         Token::And,
         Token::Or,
         Token::Equal,
@@ -26,8 +28,9 @@ lazy_static! {
         Token::BitwiseXor,
         Token::BitwiseShiftLeft,
         Token::BitwiseShiftRight,
+        Token::TypeCast,
     ];
-    static ref unary_operators: Vec<Token> = vec![
+    static ref UNARY_OPERATORS: Vec<Token> = vec![
         Token::Minus,
         Token::Not,
         Token::FactorialPrefix,
@@ -37,7 +40,7 @@ lazy_static! {
         Token::CubeRoot,
         Token::BitwiseNot,
     ];
-    static ref unary_postfix_operators: Vec<Token> = vec![Token::Factorial];
+    static ref UNARY_POSTFIX_OPERATORS: Vec<Token> = vec![Token::Factorial];
 }
 
 fn expect_token<'a>(
@@ -260,7 +263,7 @@ fn parse_column_definitions(
         cursor += 1;
 
         // Look for a column type
-        if !token_is_datatype(&tokens[cursor].token) {
+        if !tokens[cursor].token.is_datatype() {
             return Err(help_message(
                 tokens,
                 cursor,
@@ -408,7 +411,7 @@ fn parse_create_index_statement(
     } else {
         return Err("Expected table name".to_string());
     }
-    let (expression, cursor) = match parse_expression(tokens, cursor, &vec![delimiter], 0) {
+    let (expression, cursor) = match parse_expression(tokens, cursor, &vec![delimiter], 0, true) {
         Some(value) => value,
         None => {
             return Err("Expected index expressions".to_string());
@@ -467,6 +470,7 @@ fn parse_expressions(
             cursor,
             &vec![Token::Comma, Token::RightParenthesis],
             tokens[cursor].binding_power(),
+            true,
         ) {
             expression = expression_;
             new_cursor = new_cursor_;
@@ -484,6 +488,7 @@ fn parse_expression(
     initial_cursor: usize,
     delimiters: &Vec<Token>,
     min_binding_power: u32,
+    is_top_level: bool,
 ) -> Option<(Expression, usize)> {
     let mut cursor = initial_cursor;
 
@@ -496,24 +501,24 @@ fn parse_expression(
     {
         cursor += 1;
 
-        //let mut delimiters_plus = delimiters.clone();
-        //delimiters_plus.push(Token::RightParenthesis);
         match parse_expression(
             tokens,
             cursor,
             &vec![Token::RightParenthesis],
             min_binding_power,
+            true,
         ) {
             Some((expression_, cursor_)) => {
                 expression = expression_;
                 cursor = cursor_;
             }
             None => {
-                help_message(
+                let x = help_message(
                     tokens,
                     cursor,
                     "Expected expression after opening parenthesis".to_string(),
                 );
+                println!("{}", x);
                 return None;
             }
         };
@@ -525,10 +530,11 @@ fn parse_expression(
         {
             cursor += 1;
         } else {
-            help_message(tokens, cursor, "Expected closing parenthesis".to_owned());
+            let x = help_message(tokens, cursor, "Expected closing parenthesis".to_owned());
+            println!("{}", x);
             return None;
         }
-    } else if unary_operators.contains(&tokens[cursor].token) {
+    } else if cursor < tokens.len() && UNARY_OPERATORS.contains(&tokens[cursor].token) {
         let operand;
         let token = &tokens[cursor];
         operand = token.token.clone();
@@ -536,7 +542,7 @@ fn parse_expression(
         let mut nested_un_ops = vec![operand.clone()];
         let mut inner_exp;
         loop {
-            if cursor < tokens.len() && unary_operators.contains(&tokens[cursor].token) {
+            if cursor < tokens.len() && UNARY_OPERATORS.contains(&tokens[cursor].token) {
                 nested_un_ops.push(tokens[cursor].token.clone());
                 cursor += 1;
             } else {
@@ -557,6 +563,7 @@ fn parse_expression(
                 cursor,
                 &vec![Token::RightParenthesis],
                 min_binding_power,
+                true,
             ) {
                 inner_exp = expression_;
                 cursor = cursor_;
@@ -611,33 +618,53 @@ fn parse_expression(
         cursor = new_cursor;
     }
 
-    let mut last_cursor = cursor;
+    if cursor < tokens.len()
+        && UNARY_POSTFIX_OPERATORS.contains(&tokens[cursor].token)
+        && cursor + 1 < tokens.len()
+        && BINARY_OPERATORS.contains(&tokens[cursor + 1].token)
+    {
+        let token = &tokens[cursor];
+        let operand = token.token.clone();
 
+        cursor += 1;
+        expression = Expression::Unary(UnaryExpression {
+            first: Box::from(expression),
+            operand,
+        });
+    }
+
+    let mut last_cursor = cursor;
     'outer: while cursor < tokens.len() {
-        for delimiter in delimiters {
-            if tokens[cursor].token == *delimiter {
-                break 'outer;
-            }
+        if delimiters.contains(&tokens[cursor].token) {
+            break 'outer;
+        }
+        if UNARY_POSTFIX_OPERATORS.contains(&tokens[cursor].token) {
+            break 'outer;
         }
 
         let mut operand = Token::Empty;
-        if binary_operators.contains(&tokens[cursor].token) {
+        if cursor < tokens.len() && BINARY_OPERATORS.contains(&tokens[cursor].token) {
             let token = &tokens[cursor];
             operand = token.token.clone();
             cursor += 1;
-        } /*else if unary_postfix_operators.contains(&tokens[cursor].token) {
-              let token = &tokens[cursor];
-              operand = token.clone();
-              cursor += 1;
-              expression = Expression::Unary(UnaryExpression {
-                  first: Box::from(expression),
-                  operand,
-              });
-              return Some((expression, cursor));
-          }*/
-
+        }
+        if operand == Token::TypeCast {
+            if cursor < tokens.len() && tokens[cursor].token.is_datatype() {
+                expression = Expression::Cast {
+                    data: Box::new(expression),
+                    typ: SqlType::from_token(tokens[cursor].token.clone()).ok()?,
+                };
+                cursor += 1;
+                continue;
+            } else {
+                let x = help_message(tokens, cursor, "Expected type for type cast".to_owned());
+                println!("{}", x);
+                return None;
+            }
+        }
         if operand == Token::Empty {
-            help_message(tokens, cursor, "Expected binary operator".to_owned());
+            let x = help_message(tokens, cursor, "Expected binary operator".to_owned());
+            println!("{}", x);
             return None;
         }
 
@@ -648,9 +675,10 @@ fn parse_expression(
         }
 
         let (second_expression, new_cursor) =
-            match parse_expression(tokens, cursor, delimiters, binding_power) {
+            match parse_expression(tokens, cursor, delimiters, binding_power, false) {
                 None => {
-                    help_message(tokens, cursor, "Expected right operand".to_owned());
+                    let x = help_message(tokens, cursor, "Expected right operand".to_owned());
+                    println!("{}", x);
                     return None;
                 }
                 Some(value) => value,
@@ -662,6 +690,20 @@ fn parse_expression(
         });
         cursor = new_cursor;
         last_cursor = cursor;
+    }
+
+    if cursor < tokens.len()
+        && UNARY_POSTFIX_OPERATORS.contains(&tokens[cursor].token)
+        && is_top_level
+    {
+        let token = &tokens[cursor];
+        let operand = token.token.clone();
+
+        cursor += 1;
+        expression = Expression::Unary(UnaryExpression {
+            first: Box::from(expression),
+            operand,
+        });
     }
 
     return Some((expression, cursor));
@@ -781,7 +823,7 @@ fn parse_insert_statement(
 fn parse_drop_table_statement(
     tokens: &mut Vec<TokenContainer>,
     initial_cursor: usize,
-    delimiter: Token,
+    _: Token,
 ) -> Result<(DropTableStatement, usize), String> {
     let mut cursor = initial_cursor;
     if let Some(TokenContainer {
@@ -855,7 +897,11 @@ fn parse_select_items(
             asterisk: false,
         };
 
-        if tokens[cursor].token == Token::Asterisk {
+        if let Some(TokenContainer {
+            token: Token::Asterisk,
+            loc: _,
+        }) = tokens.get(cursor)
+        {
             cursor += 1;
             select_item.asterisk = true;
         } else {
@@ -864,7 +910,7 @@ fn parse_select_items(
             delimiters_plus.push(Token::As);
 
             let (expression, new_cursor) =
-                match parse_expression(tokens, cursor, &delimiters_plus, 0) {
+                match parse_expression(tokens, cursor, &delimiters_plus, 0, true) {
                     None => {
                         help_message(tokens, cursor, "Expected expression".to_owned());
                         return None;
@@ -955,17 +1001,17 @@ fn parse_select_statement(
     }) = tokens.get(cursor)
     {
         cursor += 1;
-        let (where_clause, new_cursor) = match parse_expression(tokens, cursor, &vec![delimiter], 0)
-        {
-            None => {
-                return Err(help_message(
-                    tokens,
-                    cursor,
-                    "Expected WHERE conditionals".to_owned(),
-                ));
-            }
-            Some(value) => value,
-        };
+        let (where_clause, new_cursor) =
+            match parse_expression(tokens, cursor, &vec![delimiter], 0, true) {
+                None => {
+                    return Err(help_message(
+                        tokens,
+                        cursor,
+                        "Expected WHERE conditionals".to_owned(),
+                    ));
+                }
+                Some(value) => value,
+            };
 
         cursor = new_cursor;
         select.where_clause = where_clause;

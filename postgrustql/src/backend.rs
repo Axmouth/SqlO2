@@ -32,6 +32,7 @@ impl From<SqlType> for String {
             SqlType::DoublePrecision => "Double Precision".to_string(),
             SqlType::Boolean => "Bool".to_string(),
             SqlType::Null => "Null".to_string(),
+            SqlType::Type => "Type".to_string(),
         }
     }
 }
@@ -49,6 +50,7 @@ impl From<&SqlType> for String {
             SqlType::DoublePrecision => "Double Precision".to_string(),
             SqlType::Boolean => "Bool".to_string(),
             SqlType::Null => "Null".to_string(),
+            SqlType::Type => "Type".to_string(),
         }
     }
 }

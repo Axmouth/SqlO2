@@ -109,6 +109,7 @@ pub enum Token {
     BitwiseNot,
     BitwiseShiftLeft,
     BitwiseShiftRight,
+    TypeCast,
 
     IdentifierValue { value: String },
     StringValue { value: String },
@@ -186,107 +187,121 @@ impl Token {
                 return 7;
             }
 
+            // Cast
+            Token::TypeCast => {
+                return 8;
+            }
+
             _ => {
                 return 0;
             }
         };
     }
-}
 
-pub fn token_is_symbol(token: Token) -> bool {
-    match token {
-        Token::Semicolon
-        | Token::Asterisk
-        | Token::Comma
-        | Token::LeftParenthesis
-        | Token::RightParenthesis
-        | Token::Equal
-        | Token::NotEqual
-        | Token::Concat
-        | Token::Plus
-        | Token::Minus
-        | Token::Slash
-        | Token::LessThan
-        | Token::LessThanOrEqual
-        | Token::GreaterThan
-        | Token::GreaterThanOrEqual
-        | Token::BitwiseAnd
-        | Token::BitwiseNot
-        | Token::BitwiseOr
-        | Token::BitwiseXor
-        | Token::AbsoluteValue
-        | Token::BitwiseShiftLeft
-        | Token::BitwiseShiftRight
-        | Token::SquareRoot
-        | Token::CubeRoot
-        | Token::Factorial
-        | Token::FactorialPrefix
-        | Token::Exponentiation
-        | Token::Modulo => {
-            return true;
+    pub fn is_symbol(&self) -> bool {
+        match self {
+            Token::Semicolon
+            | Token::Asterisk
+            | Token::Comma
+            | Token::LeftParenthesis
+            | Token::RightParenthesis
+            | Token::Equal
+            | Token::NotEqual
+            | Token::Concat
+            | Token::Plus
+            | Token::Minus
+            | Token::Slash
+            | Token::LessThan
+            | Token::LessThanOrEqual
+            | Token::GreaterThan
+            | Token::GreaterThanOrEqual
+            | Token::BitwiseAnd
+            | Token::BitwiseNot
+            | Token::BitwiseOr
+            | Token::BitwiseXor
+            | Token::AbsoluteValue
+            | Token::BitwiseShiftLeft
+            | Token::BitwiseShiftRight
+            | Token::SquareRoot
+            | Token::CubeRoot
+            | Token::Factorial
+            | Token::FactorialPrefix
+            | Token::Exponentiation
+            | Token::Modulo
+            | Token::TypeCast => {
+                return true;
+            }
+            _ => {}
         }
-        _ => {}
+
+        false
     }
 
-    false
-}
-
-pub fn token_is_keyword(token: Token) -> bool {
-    match token {
-        Token::As
-        | Token::From
-        | Token::Into
-        | Token::Values
-        | Token::Insert
-        | Token::Select
-        | Token::Create
-        | Token::Where
-        | Token::Table
-        | Token::Drop
-        | Token::And
-        | Token::Or
-        | Token::Not
-        | Token::True
-        | Token::False
-        | Token::Join
-        | Token::Left
-        | Token::Right
-        | Token::Inner
-        | Token::Is
-        | Token::Int
-        | Token::BigInt
-        | Token::SmallInt
-        | Token::Real
-        | Token::DoublePrecision
-        | Token::Double
-        | Token::Precision
-        | Token::Varchar
-        | Token::Text
-        | Token::Char
-        | Token::Bool
-        | Token::Unique
-        | Token::Index
-        | Token::On
-        | Token::Primary
-        | Token::Key
-        | Token::Null
-        | Token::Alter
-        | Token::Delete
-        | Token::Update
-        | Token::Constraint
-        | Token::Foreign => {
-            return true;
+    pub fn is_keyword(&self) -> bool {
+        match self {
+            Token::As
+            | Token::From
+            | Token::Into
+            | Token::Values
+            | Token::Insert
+            | Token::Select
+            | Token::Create
+            | Token::Where
+            | Token::Table
+            | Token::Drop
+            | Token::And
+            | Token::Or
+            | Token::Not
+            | Token::True
+            | Token::False
+            | Token::Join
+            | Token::Left
+            | Token::Right
+            | Token::Inner
+            | Token::Is
+            | Token::Int
+            | Token::BigInt
+            | Token::SmallInt
+            | Token::Real
+            | Token::DoublePrecision
+            | Token::Double
+            | Token::Precision
+            | Token::Varchar
+            | Token::Text
+            | Token::Char
+            | Token::Bool
+            | Token::Unique
+            | Token::Index
+            | Token::On
+            | Token::Primary
+            | Token::Key
+            | Token::Null
+            | Token::Alter
+            | Token::Delete
+            | Token::Update
+            | Token::Constraint
+            | Token::Foreign => {
+                return true;
+            }
+            _ => {}
         }
-        _ => {}
+
+        false
     }
 
-    false
-}
-
-pub fn token_is_datatype(token: &Token) -> bool {
-    match token {
-        Token::Int | Token::Text | Token::Bool => true,
-        _ => false,
+    pub fn is_datatype(&self) -> bool {
+        match self {
+            Token::Int
+            | Token::BigInt
+            | Token::SmallInt
+            | Token::Text
+            | Token::Varchar
+            | Token::Real
+            | Token::DoublePrecision
+            | Token::Char
+            | Token::Bool => true,
+            _ => false,
+        }
     }
 }
 
@@ -370,6 +385,7 @@ pub const BITWISE_XOR_SYMBOL: Symbol = "#";
 pub const BITWISE_NOT_SYMBOL: Symbol = "~";
 pub const BITWISE_SHIFT_LEFT_SYMBOL: Symbol = "<<";
 pub const BITWISE_SHIFT_RIGHT_SYMBOL: Symbol = ">>";
+pub const TYPE_CAST_SYMBOL: Symbol = "::";
 
 impl TokenContainer {
     pub fn get_id_name(&self) -> Option<&String> {
@@ -529,6 +545,7 @@ impl Lexer {
             BITWISE_OR_SYMBOL.to_string(),
             BITWISE_XOR_SYMBOL.to_string(),
             BITWISE_NOT_SYMBOL.to_string(),
+            TYPE_CAST_SYMBOL.to_string(),
         ];
         let keywords = vec![
             SELECT_KEYWORD.to_string(),
@@ -938,6 +955,7 @@ impl Lexer {
             SLASH_SYMBOL => Token::Slash,
             MODULO_SYMBOL => Token::Modulo,
             EXPONENTIATION_SYMBOL => Token::Exponentiation,
+            TYPE_CAST_SYMBOL => Token::TypeCast,
             SQUARE_ROOT_SYMBOL => Token::SquareRoot,
             CUBE_ROOT_SYMBOL => Token::CubeRoot,
             FACTORIAL_SYMBOL => Token::Factorial,

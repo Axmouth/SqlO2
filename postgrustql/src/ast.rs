@@ -1,3 +1,5 @@
+use crate::sql_types::SqlType;
+
 use super::lexer::*;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -127,6 +129,7 @@ pub enum Expression {
     Literal(LiteralExpression),
     Binary(BinaryExpression),
     Unary(UnaryExpression),
+    Cast { data: Box<Expression>, typ: SqlType },
     Empty,
 }
 
@@ -333,6 +336,7 @@ impl Token {
             Token::Varchar => VARCHAR_KEYWORD.to_string(),
             Token::Char => CHAR_KEYWORD.to_string(),
             Token::Is => IS_KEYWORD.to_string(),
+            Token::TypeCast => TYPE_CAST_SYMBOL.to_string(),
         }
     }
 }
