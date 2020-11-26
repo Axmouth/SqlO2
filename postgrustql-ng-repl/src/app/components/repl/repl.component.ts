@@ -24,6 +24,8 @@ export class ReplComponent implements OnInit, OnDestroy {
   promptInputRef: ElementRef;
   @ViewChild('promptInput')
   contentFCAutosize: CdkTextareaAutosize;
+  historyPosition = 0;
+  current = '';
 
   constructor(private postgrustqlService: PostgrustqlService, private route: ActivatedRoute, private router: Router) {}
 
@@ -45,25 +47,59 @@ export class ReplComponent implements OnInit, OnDestroy {
           this.queryString = params.q;
           await this.submitQuery();
         } else {
-          this.queryString = `CREATE TABLE regulars (id INT, name TEXT);`;
+          this.queryString = `CREATE TABLE characters (id INT PRIMARY KEY, name TEXT);`;
           await this.submitQuery();
-          this.queryString = `INSERT INTO regulars VALUES (1, 'The 25th Bam');`;
+          this.queryString = `INSERT INTO characters VALUES (0, 'Phantaminum');`;
           await this.submitQuery();
-          this.queryString = `INSERT INTO regulars VALUES (2, 'Rachel'); `;
+          this.queryString = `INSERT INTO characters VALUES (1, 'The 25th Bam');`;
           await this.submitQuery();
-          this.queryString = `INSERT INTO regulars VALUES (3, 'Rak WraithKaiser');`;
+          this.queryString = `INSERT INTO characters VALUES (2, 'Rachel'); `;
           await this.submitQuery();
-          this.queryString = `INSERT INTO regulars VALUES (4, 'Khun Aguero Agnes');`;
+          this.queryString = `INSERT INTO characters VALUES (3, 'Rak WraithKaiser');`;
           await this.submitQuery();
-          this.queryString = `SELECT id, name FROM regulars;`;
+          this.queryString = `INSERT INTO characters VALUES (4, 'Khun Aguero Agnes');`;
           await this.submitQuery();
-          this.queryString = `SELECT id, name FROM regulars where id != 2;`;
+          this.queryString = `INSERT INTO characters VALUES (5, 'King Zahard');`;
           await this.submitQuery();
-          this.queryString = `SELECT id, name FROM regulars where name = 'Rachel'`;
+          this.queryString = `INSERT INTO characters VALUES (6, 'Ha Yuri Zahard');`;
           await this.submitQuery();
-          this.queryString = `SELECT id, name as charName FROM regulars where name = 'Rachel';`;
+          this.queryString = `INSERT INTO characters VALUES (7, 'Androssi Zahard');`;
           await this.submitQuery();
-          this.queryString = `SELECT id, name as "regulars.charName" FROM regulars where name = 'Rachel';`;
+          this.queryString = `INSERT INTO characters VALUES (7, 'Evankhell');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (8, 'Evankhell');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (9, 'Anak Zahard');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (10, 'Yeon Yihwa');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (11, 'Yeo Miseng');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (12, 'Yeo Goseng');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (13, 'Xia Xia');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (14, 'Sachi Faker');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (15, 'Hwa Ryun');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (16, 'Khun Ran');`;
+          await this.submitQuery();
+          this.queryString = `INSERT INTO characters VALUES (17, 'Ha Yura');`;
+          await this.submitQuery();
+          this.queryString = `SELECT id, name FROM characters;`;
+          await this.submitQuery();
+          this.queryString = `SELECT id, name FROM characters WHERE id != 2;`;
+          await this.submitQuery();
+          this.queryString = `SELECT id, name FROM characters WHERE name = 'Rachel'`;
+          await this.submitQuery();
+          this.queryString = `SELECT id, name as charName FROM characters WHERE name != 'Rachel' AND id < 5;`;
+          await this.submitQuery();
+          this.queryString = `SELECT name FROM characters ORDER BY name ASC`;
+          await this.submitQuery();
+          this.queryString = `SELECT DISTINCT (id / 2)::int FROM characters`;
+          await this.submitQuery();
+          this.queryString = `SELECT id::text || ' ' || name AS name_with_id FROM characters WHERE id > 1 ORDER BY id DESC LIMIT 4 OFFSET 5;`;
           await this.submitQuery();
         }
       }
@@ -73,19 +109,42 @@ export class ReplComponent implements OnInit, OnDestroy {
   async submitQuery() {
     this.canType = false;
     const queryString = this.queryString.replace('\r', '').replace('\n', '');
-    const result = await this.postgrustqlService.eval(queryString.trim());
-    const newHistoryObject: ExecutedQuery = { queryString, queryResults: result };
+    const queryResults = await this.postgrustqlService.eval(queryString.trim());
+    const newHistoryObject: ExecutedQuery = { queryString, queryResults };
     this.execHistory.push(newHistoryObject);
     this.promptInputRef.nativeElement.scrollIntoView();
     this.promptInputRef.nativeElement.focus();
     this.queryString = '';
     this.resetTextArea();
+    this.historyPosition = this.execHistory.length - 1;
     this.canType = true;
   }
 
   async onQuerySubmit(event: Event) {
     event.preventDefault();
     await this.submitQuery();
+  }
+
+  onHistoryUp(event: Event) {
+    event.preventDefault();
+    if (this.historyPosition <= 0) {
+      return;
+    }
+    this.historyPosition--;
+    if (this.historyPosition === this.execHistory.length - 1) {
+      this.current = this.queryString;
+    }
+    this.queryString = this.execHistory[this.historyPosition].queryString;
+  }
+
+  onHistoryDown(event: Event) {
+    event.preventDefault();
+    if (this.historyPosition > this.execHistory.length - 1) {
+      this.queryString = this.current;
+      return;
+    }
+    this.historyPosition++;
+    this.queryString = this.execHistory[this.historyPosition].queryString;
   }
 
   focusInput() {

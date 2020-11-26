@@ -23,6 +23,8 @@
   <textarea
     [(ngModel)]="queryString"
     (keyup.enter)="onQuerySubmit($event)"
+    (keyup.arrowup)="onHistoryUp($event)"
+    (keyup.arrowdown)="onHistoryDown($event)"
     (keyup)="autoGrow($event)"
     class="terminal-input"
     [cdkTextareaAutosize]="false"
