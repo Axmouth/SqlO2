@@ -12,12 +12,27 @@ fn lex_benchmark(c: &mut Criterion) {
         SELECT id, name FROM people where name = 'Rachel';".to_owned().as_str()))));
 }
 
+fn lex_select_benchmark(c: &mut Criterion) {
+    let lexer = lexer::Lexer::new();
+    c.bench_function("lex selects", |b| b.iter(|| lexer.lex(black_box("
+        SELECT id, name FROM people;
+        SELECT id, name FROM people where id != 3;
+        SELECT id, name FROM people where name = 'Rachel';
+        SELECT id, age, role, job, position, country, address from people WHERE country = 'GR' AND age > 17
+        SELECT id, age, role, job, position, country, address from people WHERE country = 'GR' AND age > 17 INNER LEFT JOIN ON jobs".to_owned().as_str()))));
+}
+
 fn parse_benchmark(c: &mut Criterion) {
     c.bench_function("parse", |b| b.iter(|| parser::parse(black_box("
     CREATE TABLE people (id INT PRIMARY KEY, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
     SELECT id, name FROM people;
     SELECT id, name FROM people where id != 3;
     SELECT id, name FROM people where name = 'Rachel';".to_owned().as_str()))));
+}
+
+fn parse_select_benchmark(c: &mut Criterion) {
+    c.bench_function("parse", |b| b.iter(|| parser::parse(
+        black_box("SELECT id, age, role, job, position, country, address from people WHERE country = 'GR' AND age > 17 INNER LEFT JOIN ON jobs".to_owned().as_str()))));
 }
 
 fn create_benchmark(c: &mut Criterion) {
@@ -217,7 +232,9 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
 criterion_group!(
     benches,
     lex_benchmark,
+    lex_select_benchmark,
     parse_benchmark,
+    // parse_select_benchmark,
     create_benchmark,
     single_insert_benchmark,
     insert_benchmark,

@@ -77,7 +77,9 @@ pub fn parse(source: &str) -> Result<Ast, String> {
     let lexer = Lexer::new();
     let mut tokens = lexer.lex(source)?;
 
-    let mut ast = Ast { statements: vec![] };
+    let mut ast = Ast {
+        statements: Vec::with_capacity(10),
+    };
 
     let mut cursor: usize = 0;
     let mut first_statement = true;
@@ -228,7 +230,7 @@ fn parse_column_definitions(
 ) -> Result<(Vec<ColumnDefinition>, usize), String> {
     let mut cursor = initial_cursor;
 
-    let mut column_definitions: Vec<ColumnDefinition> = vec![];
+    let mut column_definitions: Vec<ColumnDefinition> = Vec::with_capacity(10);
 
     loop {
         if cursor >= tokens.len() {
@@ -437,7 +439,7 @@ fn parse_expressions(
 ) -> Option<(Vec<Expression>, usize)> {
     let mut cursor = initial_cursor;
 
-    let mut expressions: Vec<Expression> = vec![];
+    let mut expressions: Vec<Expression> = Vec::with_capacity(10);
 
     loop {
         if cursor >= tokens.len() {
@@ -866,7 +868,7 @@ fn parse_select_items(
 ) -> Option<(Vec<SelectItem>, usize)> {
     let mut cursor = initial_cursor;
 
-    let mut select_items = vec![];
+    let mut select_items = Vec::with_capacity(10);
 
     'outer: loop {
         if cursor == tokens.len() {
@@ -958,10 +960,21 @@ fn parse_select_statement(
     }
     cursor += 1;
 
+    let mut distinct = false;
+    if let Some(TokenContainer {
+        token: Token::Distinct,
+        loc: _,
+    }) = tokens.get(cursor)
+    {
+        distinct = true;
+        cursor += 1;
+    }
+
     let mut select: SelectStatement = SelectStatement {
-        items: vec![],
+        items: Vec::with_capacity(10),
         from: None,
         where_clause: Expression::new(),
+        is_distinct: distinct,
     };
 
     let (select_items, new_cursor) =
@@ -1105,6 +1118,37 @@ mod parser_tests {
                         ],
                         from: Some("users".to_string()),
                         where_clause: Expression::Empty,
+                        is_distinct: false,
+                    })],
+                },
+            },
+            ParseTest {
+                input: "SELECT distinct id, name AS fullname FROM users;",
+                ast: Ast {
+                    statements: vec![Statement::SelectStatement(SelectStatement {
+                        items: vec![
+                            SelectItem {
+                                asterisk: false,
+                                as_clause: None,
+                                expression: Expression::Literal(LiteralExpression {
+                                    literal: Token::IdentifierValue {
+                                        value: "id".to_owned(),
+                                    },
+                                }),
+                            },
+                            SelectItem {
+                                asterisk: false,
+                                as_clause: Some("fullname".to_owned()),
+                                expression: Expression::Literal(LiteralExpression {
+                                    literal: Token::IdentifierValue {
+                                        value: "name".to_owned(),
+                                    },
+                                }),
+                            },
+                        ],
+                        from: Some("users".to_string()),
+                        where_clause: Expression::Empty,
+                        is_distinct: true,
                     })],
                 },
             },

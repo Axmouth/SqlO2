@@ -108,7 +108,7 @@ impl Index {
             columns: table.columns.clone(),
             indexes: vec![],
             name: table.name.clone(),
-            rows: vec![],
+            rows: Vec::with_capacity(100),
         };
 
         let (value, _, _) = match new_table.evaluate_cell(0, &value_exp) {
@@ -119,7 +119,7 @@ impl Index {
             }
         };
 
-        let mut row_indexes: Vec<usize> = vec![];
+        let mut row_indexes: Vec<usize> = Vec::with_capacity(100);
 
         match bin_exp.operand {
             Token::Equal => {
@@ -653,9 +653,9 @@ impl MemoryBackend {
         &self,
         select_statement: SelectStatement,
     ) -> Result<QueryResults<SqlValue>, String> {
-        let mut results: Vec<Vec<SqlValue>> = vec![];
+        let mut results: Vec<Vec<SqlValue>> = Vec::with_capacity(100);
 
-        let mut columns: ResultColumns = vec![];
+        let mut columns: ResultColumns = Vec::with_capacity(10);
 
         if select_statement.items.is_empty() {
             return Ok(QueryResults {
@@ -665,11 +665,11 @@ impl MemoryBackend {
         }
 
         let mut new_table = Table {
-            column_types: vec![],
-            columns: vec![],
-            indexes: vec![],
+            column_types: Vec::with_capacity(10),
+            columns: Vec::with_capacity(10),
+            indexes: Vec::with_capacity(10),
             name: "".to_string(),
-            rows: vec![],
+            rows: Vec::with_capacity(100),
         };
 
         let mut table: &Table;
@@ -696,10 +696,10 @@ impl MemoryBackend {
             }
         };
 
-        let mut final_select_items: Vec<SelectItem> = vec![];
+        let mut final_select_items: Vec<SelectItem> = Vec::with_capacity(10);
         for item in select_statement.items {
             if item.asterisk {
-                let mut new_select_items: Vec<SelectItem> = vec![];
+                let mut new_select_items: Vec<SelectItem> = Vec::with_capacity(10);
                 for column in table.columns.iter() {
                     let new_select_item = SelectItem {
                         expression: Expression::Literal(LiteralExpression {
@@ -757,6 +757,10 @@ impl MemoryBackend {
                 }
 
                 result.push(cell_val);
+            }
+
+            if select_statement.is_distinct && results.contains(&result) {
+                continue;
             }
 
             results.push(result);

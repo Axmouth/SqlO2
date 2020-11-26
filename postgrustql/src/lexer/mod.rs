@@ -79,6 +79,7 @@ pub enum Token {
     Update,
     Constraint,
     Foreign,
+    Distinct,
 
     // Symbols
     Semicolon,
@@ -111,10 +112,13 @@ pub enum Token {
     BitwiseShiftRight,
     TypeCast,
 
+    // Values
     IdentifierValue { value: String },
     StringValue { value: String },
     NumericValue { value: String },
     BoolValue { value: bool },
+
+    // Default
     Empty,
 }
 
@@ -280,7 +284,8 @@ impl Token {
             | Token::Delete
             | Token::Update
             | Token::Constraint
-            | Token::Foreign => {
+            | Token::Foreign
+            | Token::Distinct => {
                 return true;
             }
             _ => {}
@@ -349,6 +354,7 @@ pub const DOUBLE_KEYWORD: Keyword = "double";
 pub const PRECISION_KEYWORD: Keyword = "precision";
 pub const VARCHAR_KEYWORD: Keyword = "varchar";
 pub const CHAR_KEYWORD: Keyword = "char";
+pub const DISTINCT_KEYWORD: Keyword = "distinct";
 // new
 pub const DECIMAL_KEYWORD: Keyword = "decimal";
 pub const NUMERIC_KEYWORD: Keyword = "numeric";
@@ -568,6 +574,7 @@ impl Lexer {
             LEFT_KEYWORD.to_string(),
             RIGHT_KEYWORD.to_string(),
             IS_KEYWORD.to_string(),
+            DISTINCT_KEYWORD.to_string(),
             INTO_KEYWORD.to_string(),
             INT_KEYWORD.to_string(),
             BIGINT_KEYWORD.to_string(),
@@ -629,7 +636,7 @@ impl Lexer {
     // 3. If any of the lexer generate a token then add the token to the
     // token slice, update the cursor and restart the process from the new
     pub fn lex(&self, source: &str) -> Result<Vec<TokenContainer>, String> {
-        let mut tokens = vec![];
+        let mut tokens = Vec::with_capacity(100);
         let mut cur: Cursor = Cursor {
             pointer: 0,
             loc: TokenLocation { line: 0, col: 0 },
@@ -1000,8 +1007,9 @@ impl Lexer {
         }
         cur.pointer = ic.pointer + keyword_match.len() as u32;
         cur.loc.col = ic.loc.col + keyword_match.len() as u32;
+        // Check if the word continues, thus being an identifier
         if let Some(next_char) = source.chars().nth(cur.pointer as usize) {
-            if next_char.is_alphanumeric() {
+            if is_char_valid_for_identifier(next_char) {
                 return None;
             }
         }
@@ -1021,6 +1029,7 @@ impl Lexer {
             INNER_KEYWORD => Token::Inner,
             LEFT_KEYWORD => Token::Left,
             RIGHT_KEYWORD => Token::Right,
+            DISTINCT_KEYWORD => Token::Distinct,
             CONSTRAINT_KEYWORD => Token::Constraint,
             ON_KEYWORD => Token::On,
             INT_KEYWORD => Token::Int,

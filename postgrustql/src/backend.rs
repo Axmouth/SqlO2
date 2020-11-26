@@ -5,6 +5,20 @@ use crate::sql_types::{SqlType, SqlValue};
 use super::ast::*;
 use std::{io::Read, time::Duration};
 
+pub trait Selectable {
+    fn row_count(&self) -> usize;
+    fn column_count(&self) -> usize;
+    fn rows<C>(&self) -> QueryResults<C>
+    where
+        C: Cell;
+    //TODO
+    fn row_iter<C>(&self) -> QueryResults<C>
+    where
+        C: Cell;
+    fn columns(&self) -> Vec<ColumnDefinition>;
+    fn has_column(&self) -> bool;
+}
+
 pub trait Cell {
     fn as_text(&self) -> Result<String, &str>;
     fn as_int(&self) -> Result<i32, &str>;

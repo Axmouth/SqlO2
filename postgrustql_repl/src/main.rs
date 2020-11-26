@@ -93,7 +93,7 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
             for eval_result in eval_results {
                 match eval_result {
                     EvalResult::Select { results, time } => {
-                        let mut titles = vec![];
+                        let mut titles = Vec::with_capacity(10);
                         let mut table = prettytable::Table::new();
                         for col in &results.columns {
                             let title = format!("{}({:?})", col.name, col.col_type);
@@ -108,7 +108,7 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
                         table.set_titles(prettytable::Row::new(titles));
 
                         for result in &results.rows {
-                            let mut table_row = vec![];
+                            let mut table_row = Vec::with_capacity(10);
                             for i in 0..result.len() {
                                 let cell = &result[i];
                                 let typ = results.columns[i].col_type;

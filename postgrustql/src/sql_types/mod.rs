@@ -39,6 +39,22 @@ impl SqlType {
             )),
         }
     }
+
+    pub fn order(&self) -> i32 {
+        match self {
+            SqlType::SmallInt => 1,
+            SqlType::Int => 2,
+            SqlType::BigInt => 3,
+            SqlType::Real => 20,
+            SqlType::DoublePrecision => 21,
+            SqlType::Char => 101,
+            SqlType::VarChar => 102,
+            SqlType::Text => 103,
+            SqlType::Boolean => 0,
+            SqlType::Null => -1000,
+            SqlType::Type => -2000,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]

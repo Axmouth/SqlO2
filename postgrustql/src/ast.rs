@@ -17,6 +17,12 @@ pub enum Statement {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
+pub struct OrderByClause {
+    asc: bool,
+    exp: Expression,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum JoinClause {
     LeftInner {
         source: RowDataSource,
@@ -60,14 +66,16 @@ pub struct SelectStatement {
     pub items: Vec<SelectItem>,
     pub from: Option<String>,
     pub where_clause: Expression,
+    pub is_distinct: bool,
 }
 
 impl SelectStatement {
     pub fn new() -> Self {
         SelectStatement {
-            items: vec![],
+            items: Vec::with_capacity(10),
             from: None,
             where_clause: Expression::new(),
+            is_distinct: false,
         }
     }
 }
@@ -129,6 +137,7 @@ pub enum Expression {
     Literal(LiteralExpression),
     Binary(BinaryExpression),
     Unary(UnaryExpression),
+    SubSelect(Box<SelectStatement>),
     Cast { data: Box<Expression>, typ: SqlType },
     Empty,
 }
@@ -337,6 +346,7 @@ impl Token {
             Token::Char => CHAR_KEYWORD.to_string(),
             Token::Is => IS_KEYWORD.to_string(),
             Token::TypeCast => TYPE_CAST_SYMBOL.to_string(),
+            Token::Distinct => DISTINCT_KEYWORD.to_string(),
         }
     }
 }
@@ -443,6 +453,7 @@ mod ast_tests {
                         ],
                         from: Some("users".to_string()),
                         where_clause: Expression::Empty,
+                        is_distinct: false,
                     })],
                 },
             },
