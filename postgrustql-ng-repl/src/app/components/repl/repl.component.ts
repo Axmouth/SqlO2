@@ -116,7 +116,8 @@ export class ReplComponent implements OnInit, OnDestroy {
     this.promptInputRef.nativeElement.focus();
     this.queryString = '';
     this.resetTextArea();
-    this.historyPosition = this.execHistory.length - 1;
+    this.historyPosition = this.execHistory.length;
+    this.current = '';
     this.canType = true;
   }
 
@@ -139,7 +140,11 @@ export class ReplComponent implements OnInit, OnDestroy {
 
   onHistoryDown(event: Event) {
     event.preventDefault();
-    if (this.historyPosition > this.execHistory.length - 1) {
+    if (this.historyPosition === this.execHistory.length - 1) {
+      this.queryString = this.current;
+      this.historyPosition++;
+      return;
+    } else if (this.historyPosition > this.execHistory.length - 1) {
       this.queryString = this.current;
       return;
     }
