@@ -1,5 +1,5 @@
 // location of the token in source code
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub struct TokenLocation {
     pub line: u32,
     pub col: u32,
@@ -80,6 +80,11 @@ pub enum Token {
     Constraint,
     Foreign,
     Distinct,
+    Order,
+    By,
+    OrderBy,
+    Asc,
+    Desc,
 
     // Symbols
     Semicolon,
@@ -285,7 +290,10 @@ impl Token {
             | Token::Update
             | Token::Constraint
             | Token::Foreign
-            | Token::Distinct => {
+            | Token::Distinct
+            | Token::Order
+            | Token::By
+            | Token::OrderBy => {
                 return true;
             }
             _ => {}
@@ -307,6 +315,23 @@ impl Token {
             | Token::Bool => true,
             _ => false,
         }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub enum LexingError {
+    General { msg: String, loc: TokenLocation },
+}
+
+impl std::fmt::Display for LexingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                LexingError::General { msg, loc: _ } => msg.clone(),
+            }
+        )
     }
 }
 
@@ -355,6 +380,10 @@ pub const PRECISION_KEYWORD: Keyword = "precision";
 pub const VARCHAR_KEYWORD: Keyword = "varchar";
 pub const CHAR_KEYWORD: Keyword = "char";
 pub const DISTINCT_KEYWORD: Keyword = "distinct";
+pub const ORDER_KEYWORD: Keyword = "order";
+pub const BY_KEYWORD: Keyword = "by";
+pub const ASC_KEYWORD: Keyword = "asc";
+pub const DESC_KEYWORD: Keyword = "desc";
 // new
 pub const DECIMAL_KEYWORD: Keyword = "decimal";
 pub const NUMERIC_KEYWORD: Keyword = "numeric";
@@ -565,7 +594,10 @@ impl Lexer {
             TEXT_KEYWORD.to_string(),
             BOOL_KEYWORD.to_string(),
             AND_KEYWORD.to_string(),
+            ORDER_KEYWORD.to_string(),
             OR_KEYWORD.to_string(),
+            DESC_KEYWORD.to_string(),
+            ASC_KEYWORD.to_string(),
             AS_KEYWORD.to_string(),
             TRUE_KEYWORD.to_string(),
             FALSE_KEYWORD.to_string(),
@@ -574,6 +606,7 @@ impl Lexer {
             LEFT_KEYWORD.to_string(),
             RIGHT_KEYWORD.to_string(),
             IS_KEYWORD.to_string(),
+            BY_KEYWORD.to_string(),
             DISTINCT_KEYWORD.to_string(),
             INTO_KEYWORD.to_string(),
             INT_KEYWORD.to_string(),
@@ -635,7 +668,7 @@ impl Lexer {
     //
     // 3. If any of the lexer generate a token then add the token to the
     // token slice, update the cursor and restart the process from the new
-    pub fn lex(&self, source: &str) -> Result<Vec<TokenContainer>, String> {
+    pub fn lex(&self, source: &str) -> Result<Vec<TokenContainer>, LexingError> {
         let mut tokens = Vec::with_capacity(100);
         let mut cur: Cursor = Cursor {
             pointer: 0,
@@ -648,6 +681,35 @@ impl Lexer {
 
                 // Omit empty tokens for valid, but empty syntax like newlines
                 if token.token != Token::Empty {
+                    if let Some(TokenContainer {
+                        token: Token::Order,
+                        loc,
+                    }) = tokens.last()
+                    {
+                        if token.token == Token::By {
+                            let token_cur = tokens.len() - 1;
+                            tokens[token_cur] = TokenContainer {
+                                token: Token::OrderBy,
+                                loc: loc.clone(),
+                            };
+                            continue 'lex;
+                        }
+                    }
+                    if let Some(TokenContainer {
+                        token: Token::Double,
+                        loc,
+                    }) = tokens.last()
+                    {
+                        if token.token == Token::Precision {
+                            let token_cur = tokens.len() - 1;
+                            tokens[token_cur] = TokenContainer {
+                                token: Token::DoublePrecision,
+                                loc: loc.clone(),
+                            };
+                            continue 'lex;
+                        }
+                    }
+
                     tokens.push(token);
                 }
                 continue 'lex;
@@ -691,7 +753,10 @@ impl Lexer {
                 hint.push_str(format!("{:?}", &tokens[tokens.len() - 1].token).as_str());
             }
             let loc = get_location_from_cursor(source, cur.pointer);
-            let error = format!("Unable to lex token {}, at {}:{}", hint, loc.line, loc.col);
+            let error = LexingError::General {
+                msg: format!("Unable to lex token {}, at {}:{}", hint, loc.line, loc.col),
+                loc,
+            };
             return Err(error);
         }
 
@@ -1019,8 +1084,11 @@ impl Lexer {
             FROM_KEYWORD => Token::From,
             WHERE_KEYWORD => Token::Where,
             AND_KEYWORD => Token::And,
+            ORDER_KEYWORD => Token::Order,
             OR_KEYWORD => Token::Or,
             NOT_KEYWORD => Token::Not,
+            DESC_KEYWORD => Token::Desc,
+            ASC_KEYWORD => Token::Asc,
             AS_KEYWORD => Token::As,
             TRUE_KEYWORD => Token::True,
             FALSE_KEYWORD => Token::False,
@@ -1029,6 +1097,8 @@ impl Lexer {
             INNER_KEYWORD => Token::Inner,
             LEFT_KEYWORD => Token::Left,
             RIGHT_KEYWORD => Token::Right,
+            IS_KEYWORD => Token::Is,
+            BY_KEYWORD => Token::By,
             DISTINCT_KEYWORD => Token::Distinct,
             CONSTRAINT_KEYWORD => Token::Constraint,
             ON_KEYWORD => Token::On,
@@ -1068,8 +1138,6 @@ impl Lexer {
                 },
             };
         }
-
-        //TODO lex double precision in one step
 
         if keyword_match == NULL_KEYWORD.to_owned() {
             kind = Token::Null;
@@ -1945,7 +2013,7 @@ mod lexer_tests {
                 Err(err) => {
                     found_faults = true;
                     if test.valid {
-                        err_msg.push_str(err.as_str());
+                        err_msg.push_str(err.to_string().as_str());
                     }
                 }
             }

@@ -18,8 +18,8 @@ pub enum Statement {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct OrderByClause {
-    asc: bool,
-    exp: Expression,
+    pub asc: bool,
+    pub exp: Expression,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -67,6 +67,7 @@ pub struct SelectStatement {
     pub from: Option<String>,
     pub where_clause: Expression,
     pub is_distinct: bool,
+    pub order_by: Option<OrderByClause>,
 }
 
 impl SelectStatement {
@@ -76,6 +77,7 @@ impl SelectStatement {
             from: None,
             where_clause: Expression::new(),
             is_distinct: false,
+            order_by: None,
         }
     }
 }
@@ -347,6 +349,11 @@ impl Token {
             Token::Is => IS_KEYWORD.to_string(),
             Token::TypeCast => TYPE_CAST_SYMBOL.to_string(),
             Token::Distinct => DISTINCT_KEYWORD.to_string(),
+            Token::Order => ORDER_KEYWORD.to_string(),
+            Token::By => BY_KEYWORD.to_string(),
+            Token::OrderBy => "ORDER BY".to_string(),
+            Token::Asc => ASC_KEYWORD.to_string(),
+            Token::Desc => DESC_KEYWORD.to_string(),
         }
     }
 }
@@ -454,6 +461,7 @@ mod ast_tests {
                         from: Some("users".to_string()),
                         where_clause: Expression::Empty,
                         is_distinct: false,
+                        order_by: None,
                     })],
                 },
             },
@@ -470,7 +478,7 @@ mod ast_tests {
                 Ok(value) => value,
                 Err(err) => {
                     found_faults = true;
-                    err_msg.push_str(err.as_str());
+                    err_msg.push_str(err.to_string().as_str());
                     continue;
                 }
             };

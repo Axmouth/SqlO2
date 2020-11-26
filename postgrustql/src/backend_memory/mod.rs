@@ -654,6 +654,7 @@ impl MemoryBackend {
         select_statement: SelectStatement,
     ) -> Result<QueryResults<SqlValue>, String> {
         let mut results: Vec<Vec<SqlValue>> = Vec::with_capacity(100);
+        let mut results_order: Vec<SqlValue> = Vec::with_capacity(100);
 
         let mut columns: ResultColumns = Vec::with_capacity(10);
 
@@ -763,6 +764,28 @@ impl MemoryBackend {
                 continue;
             }
 
+            if let Some(ref order_by) = select_statement.order_by {
+                let (new_ord_val, _, _) = table.evaluate_cell(row_index, &order_by.exp)?;
+
+                let mut index = if order_by.asc {
+                    results_order.len()
+                } else {
+                    results_order.len()
+                };
+                for (i, val) in results_order.iter().enumerate() {
+                    if order_by.asc && new_ord_val < *val {
+                        index = i;
+                        break;
+                    } else if order_by.asc == false && new_ord_val > *val {
+                        index = i;
+                        break;
+                    }
+                }
+                results_order.insert(index, new_ord_val);
+                results.insert(index, result);
+                continue;
+            }
+
             results.push(result);
         }
 
@@ -789,7 +812,10 @@ impl MemoryBackend {
 
     pub fn eval_query(&mut self, query: &str) -> Result<Vec<EvalResult<SqlValue>>, String> {
         let mut before = Instant::now();
-        let ast = parse(query)?;
+        let ast = match parse(query) {
+            Ok(val) => val,
+            Err(err) => return Err(err.to_string()),
+        };
 
         let mut eval_results = vec![];
 
