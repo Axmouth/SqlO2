@@ -85,6 +85,8 @@ pub enum Token {
     OrderBy,
     Asc,
     Desc,
+    Offset,
+    Limit,
 
     // Symbols
     Semicolon,
@@ -268,6 +270,8 @@ impl Token {
             | Token::Right
             | Token::Inner
             | Token::Is
+            | Token::Limit
+            | Token::Offset
             | Token::Int
             | Token::BigInt
             | Token::SmallInt
@@ -384,6 +388,8 @@ pub const ORDER_KEYWORD: Keyword = "order";
 pub const BY_KEYWORD: Keyword = "by";
 pub const ASC_KEYWORD: Keyword = "asc";
 pub const DESC_KEYWORD: Keyword = "desc";
+pub const OFFSET_KEYWORD: Keyword = "offset";
+pub const LIMIT_KEYWORD: Keyword = "limit";
 // new
 pub const DECIMAL_KEYWORD: Keyword = "decimal";
 pub const NUMERIC_KEYWORD: Keyword = "numeric";
@@ -459,10 +465,12 @@ impl TokenContainer {
         }
     }
 
+    #[inline]
     pub fn equals(&self, other: &Self) -> bool {
         self.token == other.token
     }
 
+    #[inline]
     pub fn binding_power(&self) -> u32 {
         match self.token {
             Token::And => {
@@ -606,6 +614,8 @@ impl Lexer {
             LEFT_KEYWORD.to_string(),
             RIGHT_KEYWORD.to_string(),
             IS_KEYWORD.to_string(),
+            LIMIT_KEYWORD.to_string(),
+            OFFSET_KEYWORD.to_string(),
             BY_KEYWORD.to_string(),
             DISTINCT_KEYWORD.to_string(),
             INTO_KEYWORD.to_string(),
@@ -986,6 +996,10 @@ impl Lexer {
                 cur.loc.line += 1;
                 cur.loc.col = 0;
             }
+            '\r' => {
+                cur.loc.line += 1;
+                cur.loc.col = 0;
+            }
             '\t' => {}
             ' ' => {
                 return Some((
@@ -1098,6 +1112,8 @@ impl Lexer {
             LEFT_KEYWORD => Token::Left,
             RIGHT_KEYWORD => Token::Right,
             IS_KEYWORD => Token::Is,
+            LIMIT_KEYWORD => Token::Limit,
+            OFFSET_KEYWORD => Token::Offset,
             BY_KEYWORD => Token::By,
             DISTINCT_KEYWORD => Token::Distinct,
             CONSTRAINT_KEYWORD => Token::Constraint,
@@ -1207,6 +1223,7 @@ impl Lexer {
     }
 }
 
+#[inline]
 pub fn get_location_from_cursor(source: &str, cursor: u32) -> TokenLocation {
     let rev_pos = source[..(cursor + 1) as usize]
         .chars()
@@ -1226,18 +1243,22 @@ pub fn get_location_from_cursor(source: &str, cursor: u32) -> TokenLocation {
     }
 }
 
+#[inline]
 fn get_chat_at(source: &str, position: usize) -> Option<char> {
     source[position..(position + 1)].chars().nth(0)
 }
 
+#[inline]
 fn is_char_alphabetical(c: char) -> bool {
     (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 }
 
+#[inline]
 fn is_char_digit(c: char) -> bool {
     c >= '0' && c <= '9'
 }
 
+#[inline]
 fn is_char_valid_for_identifier(c: char) -> bool {
     is_char_alphabetical(c) || is_char_digit(c) || c == '$' || c == '_'
 }

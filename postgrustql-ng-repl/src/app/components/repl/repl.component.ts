@@ -37,43 +37,43 @@ export class ReplComponent implements OnInit, OnDestroy {
         if (Array.isArray(params.q)) {
           for (const query of params.q) {
             this.queryString = query;
-            await this.onQuerySubmit();
+            await this.submitQuery();
           }
         } else if (params.q === '') {
           return;
         } else if (params.q !== undefined) {
           this.queryString = params.q;
-          await this.onQuerySubmit();
+          await this.submitQuery();
         } else {
           this.queryString = `CREATE TABLE regulars (id INT, name TEXT);`;
-          await this.onQuerySubmit();
+          await this.submitQuery();
           this.queryString = `INSERT INTO regulars VALUES (1, 'The 25th Bam');`;
-          await this.onQuerySubmit();
+          await this.submitQuery();
           this.queryString = `INSERT INTO regulars VALUES (2, 'Rachel'); `;
-          await this.onQuerySubmit();
+          await this.submitQuery();
           this.queryString = `INSERT INTO regulars VALUES (3, 'Rak WraithKaiser');`;
-          await this.onQuerySubmit();
+          await this.submitQuery();
           this.queryString = `INSERT INTO regulars VALUES (4, 'Khun Aguero Agnes');`;
-          await this.onQuerySubmit();
+          await this.submitQuery();
           this.queryString = `SELECT id, name FROM regulars;`;
-          await this.onQuerySubmit();
+          await this.submitQuery();
           this.queryString = `SELECT id, name FROM regulars where id != 2;`;
-          await this.onQuerySubmit();
+          await this.submitQuery();
           this.queryString = `SELECT id, name FROM regulars where name = 'Rachel'`;
-          await this.onQuerySubmit();
+          await this.submitQuery();
           this.queryString = `SELECT id, name as charName FROM regulars where name = 'Rachel';`;
-          await this.onQuerySubmit();
+          await this.submitQuery();
           this.queryString = `SELECT id, name as "regulars.charName" FROM regulars where name = 'Rachel';`;
-          await this.onQuerySubmit();
+          await this.submitQuery();
         }
       }
     });
   }
 
-  async onQuerySubmit() {
+  async submitQuery() {
     this.canType = false;
-    const queryString = this.queryString;
-    const result = await this.postgrustqlService.eval(this.queryString.trim());
+    const queryString = this.queryString.replace('\r', '').replace('\n', '');
+    const result = await this.postgrustqlService.eval(queryString.trim());
     const newHistoryObject: ExecutedQuery = { queryString, queryResults: result };
     this.execHistory.push(newHistoryObject);
     this.promptInputRef.nativeElement.scrollIntoView();
@@ -81,6 +81,11 @@ export class ReplComponent implements OnInit, OnDestroy {
     this.queryString = '';
     this.resetTextArea();
     this.canType = true;
+  }
+
+  async onQuerySubmit(event: Event) {
+    event.preventDefault();
+    await this.submitQuery();
   }
 
   focusInput() {
@@ -96,7 +101,7 @@ export class ReplComponent implements OnInit, OnDestroy {
     this.contentFCAutosize.reset();
   }
 
-  public autoGrow() {
+  public autoGrow(event: Event) {
     const textArea = this.promptInputRef.nativeElement;
     textArea.style.overflow = 'hidden';
     textArea.style.height = textArea.scrollHeight + 'px';

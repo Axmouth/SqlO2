@@ -193,6 +193,7 @@ pub struct Table {
 }
 
 impl Table {
+    #[inline]
     pub fn evaluate_literal_cell(
         &self,
         row_index: usize,
@@ -261,6 +262,7 @@ impl Table {
         }
     }
 
+    #[inline]
     pub fn evaluate_binary_cell(
         &self,
         row_index: usize,
@@ -429,6 +431,7 @@ impl Table {
         }
     }
 
+    #[inline]
     pub fn evaluate_cell(
         &self,
         row_index: usize,
@@ -655,6 +658,7 @@ impl MemoryBackend {
     ) -> Result<QueryResults<SqlValue>, String> {
         let mut results: Vec<Vec<SqlValue>> = Vec::with_capacity(100);
         let mut results_order: Vec<SqlValue> = Vec::with_capacity(100);
+        let mut offset = 0;
 
         let mut columns: ResultColumns = Vec::with_capacity(10);
 
@@ -720,6 +724,11 @@ impl MemoryBackend {
         }
 
         for row_index in 0..table.rows.len() {
+            if let Some(limit) = select_statement.limit {
+                if results.len() >= limit {
+                    break;
+                }
+            }
             let mut result: Vec<SqlValue> = vec![];
             let is_first_row = results.len() == 0;
 
@@ -733,6 +742,12 @@ impl MemoryBackend {
                     } else {
                         continue;
                     }
+                }
+            }
+            if let Some(target_offset) = select_statement.offset {
+                offset += 1;
+                if offset <= target_offset {
+                    continue;
                 }
             }
 
@@ -923,6 +938,7 @@ pub fn linearize_expressions(
     }
 }
 
+#[inline]
 pub fn literal_to_memory_cell(token: &Token) -> Result<SqlValue, String> {
     match SqlValue::from_token(&token) {
         Ok(value) => Ok(value),

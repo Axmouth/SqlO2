@@ -45,9 +45,9 @@ lazy_static! {
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ParsingError {
-    General { msg: String, loc: TokenLocation },
+    General { msg: String, cursor: usize },
     Lexing { msg: String, loc: TokenLocation },
-    Delimiter { msg: String, loc: TokenLocation },
+    Delimiter { msg: String, cursor: usize },
 }
 
 impl std::fmt::Display for ParsingError {
@@ -56,9 +56,9 @@ impl std::fmt::Display for ParsingError {
             f,
             "{}",
             match self {
-                ParsingError::General { msg, loc: _ } => msg.clone(),
+                ParsingError::General { msg, cursor: _ } => msg.clone(),
                 ParsingError::Lexing { msg, loc: _ } => msg.clone(),
-                ParsingError::Delimiter { msg, loc: _ } => msg.clone(),
+                ParsingError::Delimiter { msg, cursor: _ } => msg.clone(),
             }
         )
     }
@@ -72,6 +72,7 @@ impl From<LexingError> for ParsingError {
     }
 }
 
+#[inline]
 fn expect_token<'a>(
     tokens: &mut impl Iterator<Item = &'a TokenContainer>,
     _cursor: usize,
@@ -86,6 +87,7 @@ fn expect_token<'a>(
     return token == current_token.token;
 }
 
+#[inline]
 fn help_message(tokens: &Vec<TokenContainer>, cursor: usize, msg: String) -> String {
     let token: TokenContainer;
     if cursor == 0 {
@@ -126,7 +128,7 @@ pub fn parse(source: &str) -> Result<Ast, ParsingError> {
                         cursor,
                         "Expected Semicolon Delimiter between Statements".to_owned(),
                     ),
-                    loc: tokens[cursor].loc.clone(),
+                    cursor,
                 });
             }
         }
@@ -140,8 +142,8 @@ pub fn parse(source: &str) -> Result<Ast, ParsingError> {
 
             Err(err) => {
                 return Err(ParsingError::Delimiter {
-                    msg: help_message(&tokens, cursor, err),
-                    loc: tokens[cursor].loc.clone(),
+                    msg: help_message(&tokens, cursor, err.to_string()),
+                    cursor,
                 });
             }
         }
@@ -157,7 +159,7 @@ fn parse_statement(
     tokens: &mut Vec<TokenContainer>,
     initial_cursor: usize,
     delimiter: Token,
-) -> Result<(Statement, usize), String> {
+) -> Result<(Statement, usize), ParsingError> {
     let cursor = initial_cursor;
 
     if let Some(first_token) = tokens.get(cursor) {
@@ -168,7 +170,7 @@ fn parse_statement(
                     Ok((select, new_cursor)) => {
                         return Ok((Statement::SelectStatement(select), new_cursor));
                     }
-                    Err(err) => (Err(err)),
+                    Err(err) => Err(err),
                 }
             }
             Token::Insert => {
@@ -177,13 +179,25 @@ fn parse_statement(
                     Ok((insert, new_cursor)) => {
                         Ok((Statement::InsertStatement(insert), new_cursor))
                     }
-                    Err(err) => (Err(err)),
+                    Err(err) => Err(err),
                 }
             }
-            Token::Delete => Err("Delete not implemented".to_string()),
-            Token::Update => Err("Update not implemented".to_string()),
-            Token::Alter => Err("Alter not implemented".to_string()),
-            Token::IdentifierValue { value: _ } => Err("Assignment not implemented".to_string()),
+            Token::Delete => Err(ParsingError::General {
+                msg: "Delete not implemented".to_string(),
+                cursor,
+            }),
+            Token::Update => Err(ParsingError::General {
+                msg: "Update not implemented".to_string(),
+                cursor,
+            }),
+            Token::Alter => Err(ParsingError::General {
+                msg: "Alter not implemented".to_string(),
+                cursor,
+            }),
+            Token::IdentifierValue { value: _ } => Err(ParsingError::General {
+                msg: "Assignment not implemented".to_string(),
+                cursor,
+            }),
             Token::Create => {
                 if let Some(first_token) = tokens.get(cursor + 1) {
                     match first_token.token {
@@ -217,10 +231,19 @@ fn parse_statement(
                             Some(TokenContainer {
                                 token: Token::Constraint,
                                 loc: _,
-                            }) => Err("Create constraint not implemented".to_string()),
-                            _ => Err("Invalid Create Statement".to_string()),
+                            }) => Err(ParsingError::General {
+                                msg: "Create constraint not implemented".to_string(),
+                                cursor,
+                            }),
+                            _ => Err(ParsingError::General {
+                                msg: "Invalid Create Statement".to_string(),
+                                cursor,
+                            }),
                         },
-                        Token::Constraint => Err("Create constraint not implemented".to_string()),
+                        Token::Constraint => Err(ParsingError::General {
+                            msg: "Create constraint not implemented".to_string(),
+                            cursor,
+                        }),
                         Token::Table => {
                             // Look for a CREATE TABLE statement
                             match parse_create_table_statement(tokens, cursor, delimiter.clone()) {
@@ -230,10 +253,16 @@ fn parse_statement(
                                 Err(err) => (Err(err)),
                             }
                         }
-                        _ => Err("Invalid Create Statement".to_string()),
+                        _ => Err(ParsingError::General {
+                            msg: "Invalid Create Statement".to_string(),
+                            cursor,
+                        }),
                     }
                 } else {
-                    Err("Invalid Create Statement".to_string())
+                    Err(ParsingError::General {
+                        msg: "Invalid Create Statement".to_string(),
+                        cursor,
+                    })
                 }
             }
             Token::Drop => {
@@ -243,18 +272,16 @@ fn parse_statement(
                     Err(err) => (Err(err)),
                 }
             }
-            _ => Err(help_message(
-                tokens,
+            _ => Err(ParsingError::General {
+                msg: help_message(tokens, cursor, "Expected a valid statement".to_string()),
                 cursor,
-                "Expected a valid statement".to_string(),
-            )),
+            }),
         }
     } else {
-        Err(help_message(
-            tokens,
+        Err(ParsingError::General {
+            msg: help_message(tokens, cursor, "Expected a valid statement".to_string()),
             cursor,
-            "Expected a valid statement".to_string(),
-        ))
+        })
     }
 }
 
@@ -262,14 +289,17 @@ fn parse_column_definitions(
     tokens: &Vec<TokenContainer>,
     initial_cursor: usize,
     delimiter: Token,
-) -> Result<(Vec<ColumnDefinition>, usize), String> {
+) -> Result<(Vec<ColumnDefinition>, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
     let mut column_definitions: Vec<ColumnDefinition> = Vec::with_capacity(10);
 
     loop {
         if cursor >= tokens.len() {
-            return Err("Unexpected end of file.".to_string());
+            return Err(ParsingError::General {
+                msg: "Unexpected end of file.".to_string(),
+                cursor,
+            });
         }
 
         // Look for a delimiter
@@ -281,7 +311,10 @@ fn parse_column_definitions(
         // Look for a comma
         if column_definitions.len() > 0 {
             if tokens[cursor].token != Token::Comma {
-                return Err(help_message(tokens, cursor, "Expected Comma".to_owned()));
+                return Err(ParsingError::General {
+                    msg: help_message(tokens, cursor, "Expected Comma".to_owned()),
+                    cursor,
+                });
             }
 
             cursor += 1;
@@ -290,22 +323,20 @@ fn parse_column_definitions(
         let col_name = match &tokens[cursor].token {
             Token::IdentifierValue { value } => value,
             _ => {
-                return Err(help_message(
-                    tokens,
+                return Err(ParsingError::General {
+                    msg: help_message(tokens, cursor, "Expected Column Name".to_owned()),
                     cursor,
-                    "Expected Column Name".to_owned(),
-                ));
+                });
             }
         };
         cursor += 1;
 
         // Look for a column type
         if !tokens[cursor].token.is_datatype() {
-            return Err(help_message(
-                tokens,
+            return Err(ParsingError::General {
+                msg: help_message(tokens, cursor, "Expected Column Type".to_owned()),
                 cursor,
-                "Expected Column Type".to_owned(),
-            ));
+            });
         }
 
         let col_type = &tokens[cursor];
@@ -335,16 +366,22 @@ fn parse_create_table_statement(
     tokens: &mut Vec<TokenContainer>,
     initial_cursor: usize,
     _: Token,
-) -> Result<(CreateTableStatement, usize), String> {
+) -> Result<(CreateTableStatement, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
     if !expect_token(&mut tokens[cursor..].into_iter(), cursor, Token::Create) {
-        return Err("Not a create table statement".to_string());
+        return Err(ParsingError::General {
+            msg: "Not a create table statement".to_string(),
+            cursor,
+        });
     }
     cursor += 1;
 
     if !expect_token(&mut tokens[cursor..].into_iter(), cursor, Token::Table) {
-        return Err("Expected table keyword".to_string());
+        return Err(ParsingError::General {
+            msg: "Expected table keyword".to_string(),
+            cursor,
+        });
     }
     cursor += 1;
 
@@ -352,20 +389,18 @@ fn parse_create_table_statement(
     let name = match curr_token {
         Token::IdentifierValue { value } => value,
         _ => {
-            return Err(help_message(
-                tokens,
+            return Err(ParsingError::General {
+                msg: help_message(tokens, cursor, "Expected Table Name".to_owned()),
                 cursor,
-                "Expected Table Name".to_owned(),
-            ));
+            });
         }
     };
     cursor += 1;
     if tokens[cursor].token != Token::LeftParenthesis {
-        return Err(help_message(
-            tokens,
+        return Err(ParsingError::General {
+            msg: help_message(tokens, cursor, "Expected Left Parenthesis".to_owned()),
             cursor,
-            "Expected Left Parenthesis".to_owned(),
-        ));
+        });
     }
     cursor += 1;
 
@@ -373,11 +408,10 @@ fn parse_create_table_statement(
     cursor = new_cursor;
 
     if tokens[cursor].token != Token::RightParenthesis {
-        return Err(help_message(
-            tokens,
+        return Err(ParsingError::General {
+            msg: help_message(tokens, cursor, "Expected Right Parenthesis".to_owned()),
             cursor,
-            "Expected Right Parenthesis".to_owned(),
-        ));
+        });
     }
     cursor += 1;
 
@@ -388,7 +422,7 @@ fn parse_create_index_statement(
     tokens: &mut Vec<TokenContainer>,
     initial_cursor: usize,
     delimiter: Token,
-) -> Result<(CreateIndexStatement, usize), String> {
+) -> Result<(CreateIndexStatement, usize), ParsingError> {
     let mut cursor = initial_cursor;
     if let Some(TokenContainer {
         loc: _,
@@ -397,7 +431,10 @@ fn parse_create_index_statement(
     {
         cursor += 1;
     } else {
-        return Err("Not a create index statement".to_string());
+        return Err(ParsingError::General {
+            msg: "Not a create index statement".to_string(),
+            cursor,
+        });
     }
     let mut is_unique = false;
     if let Some(TokenContainer {
@@ -415,7 +452,10 @@ fn parse_create_index_statement(
     {
         cursor += 1;
     } else {
-        return Err("Not a create index statement".to_string());
+        return Err(ParsingError::General {
+            msg: "Not a create index statement".to_string(),
+            cursor,
+        });
     }
     let name;
     if let Some(TokenContainer {
@@ -426,7 +466,10 @@ fn parse_create_index_statement(
         cursor += 1;
         name = value.clone();
     } else {
-        return Err("Expected index name".to_string());
+        return Err(ParsingError::General {
+            msg: "Expected index name".to_string(),
+            cursor,
+        });
     }
     if let Some(TokenContainer {
         loc: _,
@@ -435,7 +478,10 @@ fn parse_create_index_statement(
     {
         cursor += 1;
     } else {
-        return Err("Expected on keyword".to_string());
+        return Err(ParsingError::General {
+            msg: "Expected on keyword".to_string(),
+            cursor,
+        });
     }
     let table;
     if let Some(TokenContainer {
@@ -446,12 +492,18 @@ fn parse_create_index_statement(
         cursor += 1;
         table = value.clone();
     } else {
-        return Err("Expected table name".to_string());
+        return Err(ParsingError::General {
+            msg: "Expected table name".to_string(),
+            cursor,
+        });
     }
     let (expression, cursor) = match parse_expression(tokens, cursor, &vec![delimiter], 0, true) {
         Some(value) => value,
         None => {
-            return Err("Expected index expressions".to_string());
+            return Err(ParsingError::General {
+                msg: "Expected index expressions".to_string(),
+                cursor,
+            });
         }
     };
 
@@ -538,27 +590,38 @@ fn parse_expression(
     {
         cursor += 1;
 
-        match parse_expression(
-            tokens,
-            cursor,
-            &vec![Token::RightParenthesis],
-            min_binding_power,
-            true,
-        ) {
-            Some((expression_, cursor_)) => {
-                expression = expression_;
-                cursor = cursor_;
-            }
-            None => {
-                let x = help_message(
-                    tokens,
-                    cursor,
-                    "Expected expression after opening parenthesis".to_string(),
-                );
-                println!("{}", x);
-                return None;
-            }
-        };
+        if let Some(TokenContainer {
+            loc: _,
+            token: Token::Select,
+        }) = tokens.get(cursor)
+        {
+            let (select_statement, new_cursor) =
+                parse_select_statement(tokens, cursor, Token::RightParenthesis).ok()?;
+            expression = Expression::SubSelect(Box::new(select_statement));
+            cursor = new_cursor;
+        } else {
+            match parse_expression(
+                tokens,
+                cursor,
+                &vec![Token::RightParenthesis],
+                min_binding_power,
+                true,
+            ) {
+                Some((expression_, cursor_)) => {
+                    expression = expression_;
+                    cursor = cursor_;
+                }
+                None => {
+                    let x = help_message(
+                        tokens,
+                        cursor,
+                        "Expected expression after opening parenthesis".to_string(),
+                    );
+                    println!("{}", x);
+                    return None;
+                }
+            };
+        }
 
         if let Some(TokenContainer {
             loc: _,
@@ -778,29 +841,34 @@ fn parse_insert_statement(
     tokens: &mut Vec<TokenContainer>,
     initial_cursor: usize,
     _: Token,
-) -> Result<(InsertStatement, usize), String> {
+) -> Result<(InsertStatement, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
     // Look for INSERT
     if !expect_token(&mut tokens[cursor..].into_iter(), cursor, Token::Insert) {
-        return Err("Not an insert statement".to_string());
+        return Err(ParsingError::General {
+            msg: "Not an insert statement".to_string(),
+            cursor,
+        });
     }
     cursor += 1;
 
     // Look for INTO
     if !expect_token(&mut tokens[cursor..].into_iter(), cursor, Token::Into) {
-        return Err(help_message(tokens, cursor, "Expected INTO".to_owned()));
+        return Err(ParsingError::General {
+            msg: help_message(tokens, cursor, "Expected INTO".to_owned()),
+            cursor,
+        });
     }
     cursor += 1;
 
     let table_name = match &tokens[cursor].token {
         Token::IdentifierValue { value } => value,
         _ => {
-            return Err(help_message(
-                tokens,
+            return Err(ParsingError::General {
+                msg: help_message(tokens, cursor, "Expected Table Name".to_owned()),
                 cursor,
-                "Expected Table Name".to_owned(),
-            ));
+            });
         }
     };
 
@@ -809,17 +877,19 @@ fn parse_insert_statement(
     // Look for VALUES
     if tokens[cursor].token != Token::Values {
         help_message(tokens, cursor, "Expected VALUES".to_owned());
-        return Err(help_message(tokens, cursor, "Expected VALUES".to_owned()));
+        return Err(ParsingError::General {
+            msg: help_message(tokens, cursor, "Expected VALUES".to_owned()),
+            cursor,
+        });
     }
     cursor += 1;
 
     // Look for left parenthesis
     if tokens[cursor].token != Token::LeftParenthesis {
-        return Err(help_message(
-            tokens,
+        return Err(ParsingError::General {
+            msg: help_message(tokens, cursor, "Expected Left Parenthesis".to_owned()),
             cursor,
-            "Expected Left Parenthesis".to_owned(),
-        ));
+        });
     }
     cursor += 1;
 
@@ -827,11 +897,10 @@ fn parse_insert_statement(
     let (values, new_cursor) =
         match parse_expressions(tokens, cursor, &vec![Token::RightParenthesis]) {
             None => {
-                return Err(help_message(
-                    tokens,
+                return Err(ParsingError::General {
+                    msg: help_message(tokens, cursor, "Expected value expressions".to_owned()),
                     cursor,
-                    "Expected value expressions".to_owned(),
-                ));
+                });
             }
             Some(value) => value,
         };
@@ -840,11 +909,10 @@ fn parse_insert_statement(
 
     // Look for right parenthesis
     if tokens[cursor].token != Token::RightParenthesis {
-        return Err(help_message(
-            tokens,
+        return Err(ParsingError::General {
+            msg: help_message(tokens, cursor, "Expected Right Parenthesis".to_owned()),
             cursor,
-            "Expected Right Parenthesis".to_owned(),
-        ));
+        });
     }
     cursor += 1;
 
@@ -861,7 +929,7 @@ fn parse_drop_table_statement(
     tokens: &mut Vec<TokenContainer>,
     initial_cursor: usize,
     _: Token,
-) -> Result<(DropTableStatement, usize), String> {
+) -> Result<(DropTableStatement, usize), ParsingError> {
     let mut cursor = initial_cursor;
     if let Some(TokenContainer {
         loc: _,
@@ -870,7 +938,10 @@ fn parse_drop_table_statement(
     {
         cursor += 1;
     } else {
-        return Err("Not a drop table statement".to_string());
+        return Err(ParsingError::General {
+            msg: "Not a drop table statement".to_string(),
+            cursor,
+        });
     }
     if let Some(TokenContainer {
         loc: _,
@@ -879,7 +950,10 @@ fn parse_drop_table_statement(
     {
         cursor += 1;
     } else {
-        return Err("Not a drop table statement".to_string());
+        return Err(ParsingError::General {
+            msg: "Not a drop table statement".to_string(),
+            cursor,
+        });
     }
     let name;
     if let Some(TokenContainer {
@@ -890,14 +964,17 @@ fn parse_drop_table_statement(
         cursor += 1;
         name = value.clone();
     } else {
-        return Err("Not a drop table statement".to_string());
+        return Err(ParsingError::General {
+            msg: "Not a drop table statement".to_string(),
+            cursor,
+        });
     }
 
     Ok((DropTableStatement { name }, cursor))
 }
 
 fn parse_select_items(
-    tokens: &mut Vec<TokenContainer>,
+    tokens: &Vec<TokenContainer>,
     initial_cursor: usize,
     delimiters: &Vec<Token>,
 ) -> Option<(Vec<SelectItem>, usize)> {
@@ -984,14 +1061,27 @@ fn parse_select_items(
 }
 
 fn parse_select_statement(
-    tokens: &mut Vec<TokenContainer>,
+    tokens: &Vec<TokenContainer>,
     initial_cursor: usize,
     delimiter: Token,
-) -> Result<(SelectStatement, usize), String> {
+) -> Result<(SelectStatement, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
-    if tokens[cursor].token != Token::Select {
-        return Err("Not a select statement".to_string());
+    if let Some(TokenContainer {
+        token: Token::Select,
+        loc: _,
+    }) = tokens.get(cursor)
+    {
+    } else if let Some(TokenContainer { token: _, loc: _ }) = tokens.get(cursor) {
+        return Err(ParsingError::General {
+            msg: "Not a Select statement".to_string(),
+            cursor,
+        });
+    } else {
+        return Err(ParsingError::General {
+            msg: "Reached end".to_string(),
+            cursor,
+        });
     }
     cursor += 1;
 
@@ -1011,31 +1101,51 @@ fn parse_select_statement(
         where_clause: Expression::new(),
         is_distinct: distinct,
         order_by: None,
+        limit: None,
+        offset: None,
     };
 
-    let (select_items, new_cursor) =
-        match parse_select_items(tokens, cursor, &vec![Token::From, delimiter.clone()]) {
-            None => {
-                return Err("Expected select items".to_string());
-            }
-            Some(value) => value,
-        };
+    let (select_items, new_cursor) = match parse_select_items(
+        tokens,
+        cursor,
+        &vec![
+            Token::From,
+            Token::OrderBy,
+            Token::Limit,
+            Token::Offset,
+            delimiter.clone(),
+        ],
+    ) {
+        None => {
+            return Err(ParsingError::General {
+                msg: "Expected select items".to_string(),
+                cursor,
+            });
+        }
+        Some(value) => value,
+    };
 
     cursor = new_cursor;
     select.items = select_items;
 
     // let delimiters_plus = vec![delimiter, &where_token];
 
-    if tokens[cursor].token == Token::From {
+    if let Some(TokenContainer {
+        token: Token::From,
+        loc: _,
+    }) = tokens.get(cursor)
+    {
         cursor += 1;
-        let from_name = match &tokens[cursor].token {
-            Token::IdentifierValue { value } => value,
+        let from_name = match &tokens.get(cursor) {
+            Some(TokenContainer {
+                token: Token::IdentifierValue { value },
+                loc: _,
+            }) => value,
             _ => {
-                return Err(help_message(
-                    tokens,
+                return Err(ParsingError::General {
+                    msg: help_message(tokens, cursor, "Expected FROM item".to_owned()),
                     cursor,
-                    "Expected FROM item".to_owned(),
-                ));
+                });
             }
         };
 
@@ -1050,17 +1160,26 @@ fn parse_select_statement(
     }) = tokens.get(cursor)
     {
         cursor += 1;
-        let (where_clause, new_cursor) =
-            match parse_expression(tokens, cursor, &vec![delimiter.clone()], 0, true) {
-                None => {
-                    return Err(help_message(
-                        tokens,
-                        cursor,
-                        "Expected WHERE conditionals".to_owned(),
-                    ));
-                }
-                Some(value) => value,
-            };
+        let (where_clause, new_cursor) = match parse_expression(
+            tokens,
+            cursor,
+            &vec![
+                Token::OrderBy,
+                Token::Limit,
+                Token::Offset,
+                delimiter.clone(),
+            ],
+            0,
+            true,
+        ) {
+            None => {
+                return Err(ParsingError::General {
+                    msg: help_message(tokens, cursor, "Expected WHERE conditionals".to_owned()),
+                    cursor,
+                });
+            }
+            Some(value) => value,
+        };
 
         cursor = new_cursor;
         select.where_clause = where_clause;
@@ -1076,16 +1195,21 @@ fn parse_select_statement(
         let (exp, new_cursor) = match parse_expression(
             tokens,
             cursor,
-            &vec![Token::Desc, Token::Asc, delimiter],
+            &vec![
+                Token::Desc,
+                Token::Asc,
+                Token::Limit,
+                Token::Offset,
+                delimiter,
+            ],
             0,
             true,
         ) {
             None => {
-                return Err(help_message(
-                    tokens,
+                return Err(ParsingError::General {
+                    msg: help_message(tokens, cursor, "Expected WHERE conditionals".to_owned()),
                     cursor,
-                    "Expected WHERE conditionals".to_owned(),
-                ));
+                });
             }
             Some(value) => value,
         };
@@ -1110,6 +1234,82 @@ fn parse_select_statement(
 
         select.order_by = Some(order_by_clause);
     }
+
+    if let Some(TokenContainer {
+        loc: _,
+        token: Token::Limit,
+    }) = tokens.get(cursor)
+    {
+        cursor += 1;
+
+        if let Some(TokenContainer {
+            loc: _,
+            token: Token::NumericValue { value },
+        }) = tokens.get(cursor)
+        {
+            cursor += 1;
+            let limit = match value.parse::<f64>() {
+                Ok(val) => val,
+                Err(err) => {
+                    return Err(ParsingError::General {
+                        msg: format!("Failed to parse Limit value: {}", err.to_string()),
+                        cursor,
+                    });
+                }
+            };
+            if limit.is_sign_negative() {
+                return Err(ParsingError::General {
+                    msg: format!("Limit must not be negative"),
+                    cursor,
+                });
+            }
+            if limit.is_nan() || limit.is_infinite() {
+                return Err(ParsingError::General {
+                    msg: format!("Limit cannot be interpreted as a whole number"),
+                    cursor,
+                });
+            }
+            select.limit = Some(limit as usize);
+        }
+    }
+
+    if let Some(TokenContainer {
+        loc: _,
+        token: Token::Offset,
+    }) = tokens.get(cursor)
+    {
+        cursor += 1;
+
+        if let Some(TokenContainer {
+            loc: _,
+            token: Token::NumericValue { value },
+        }) = tokens.get(cursor)
+        {
+            cursor += 1;
+            let offset = match value.parse::<f64>() {
+                Ok(val) => val,
+                Err(err) => {
+                    return Err(ParsingError::General {
+                        msg: format!("Failed to parse Offset value: {}", err.to_string()),
+                        cursor,
+                    });
+                }
+            };
+            if offset.is_sign_negative() {
+                return Err(ParsingError::General {
+                    msg: format!("Offset must not be negative"),
+                    cursor,
+                });
+            }
+            if offset.is_nan() || offset.is_infinite() {
+                return Err(ParsingError::General {
+                    msg: format!("Offset cannot be interpreted as a whole number"),
+                    cursor,
+                });
+            }
+            select.offset = Some(offset as usize);
+        }
+    };
 
     Ok((select, cursor))
 }
@@ -1201,6 +1401,8 @@ mod parser_tests {
                         where_clause: Expression::Empty,
                         is_distinct: false,
                         order_by: None,
+                        limit: None,
+                        offset: None,
                     })],
                 },
             },
@@ -1232,6 +1434,8 @@ mod parser_tests {
                         where_clause: Expression::Empty,
                         is_distinct: true,
                         order_by: None,
+                        limit: None,
+                        offset: None,
                     })],
                 },
             },

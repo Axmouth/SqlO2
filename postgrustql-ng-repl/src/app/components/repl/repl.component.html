@@ -22,8 +22,8 @@
   <div class="prompt">PostgRustQL#:&nbsp;</div>
   <textarea
     [(ngModel)]="queryString"
-    (keyup.enter)="onQuerySubmit()"
-    (keyup)="autoGrow()"
+    (keyup.enter)="onQuerySubmit($event)"
+    (keyup)="autoGrow($event)"
     class="terminal-input"
     [cdkTextareaAutosize]="false"
     #promptInput="cdkTextareaAutosize"

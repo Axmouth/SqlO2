@@ -68,6 +68,8 @@ pub struct SelectStatement {
     pub where_clause: Expression,
     pub is_distinct: bool,
     pub order_by: Option<OrderByClause>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
 }
 
 impl SelectStatement {
@@ -78,6 +80,8 @@ impl SelectStatement {
             where_clause: Expression::new(),
             is_distinct: false,
             order_by: None,
+            limit: None,
+            offset: None,
         }
     }
 }
@@ -195,6 +199,7 @@ impl Expression {
         }
     }
 
+    #[inline]
     pub fn is_unary(&self) -> bool {
         match self {
             Expression::Unary(_) => true,
@@ -202,6 +207,7 @@ impl Expression {
         }
     }
 
+    #[inline]
     pub fn is_binary(&self) -> bool {
         match self {
             Expression::Binary(_) => true,
@@ -209,6 +215,7 @@ impl Expression {
         }
     }
 
+    #[inline]
     pub fn is_literal(&self) -> bool {
         match self {
             Expression::Literal(_) => true,
@@ -216,6 +223,7 @@ impl Expression {
         }
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         match self {
             Expression::Empty => true,
@@ -354,6 +362,8 @@ impl Token {
             Token::OrderBy => "ORDER BY".to_string(),
             Token::Asc => ASC_KEYWORD.to_string(),
             Token::Desc => DESC_KEYWORD.to_string(),
+            Token::Limit => LIMIT_KEYWORD.to_string(),
+            Token::Offset => OFFSET_KEYWORD.to_string(),
         }
     }
 }
@@ -462,6 +472,8 @@ mod ast_tests {
                         where_clause: Expression::Empty,
                         is_distinct: false,
                         order_by: None,
+                        limit: None,
+                        offset: None,
                     })],
                 },
             },
