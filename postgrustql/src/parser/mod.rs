@@ -747,6 +747,15 @@ fn parse_expression(
             break 'outer;
         }
 
+        if let Some(TokenContainer {
+            token: Token::IdentifierValue { value: _ },
+            loc: _,
+        }) = tokens.get(cursor)
+        {
+            if takes_as_clause {
+                break;
+            }
+        }
         let mut operand = Token::Empty;
         if cursor < tokens.len() && BINARY_OPERATORS.contains(&tokens[cursor].token) {
             let token = &tokens[cursor];
@@ -765,15 +774,6 @@ fn parse_expression(
                 let x = help_message(tokens, cursor, "Expected type for type cast".to_owned());
                 println!("{}", x);
                 return None;
-            }
-        }
-        if let Some(TokenContainer {
-            token: Token::IdentifierValue { value: _ },
-            loc: _,
-        }) = tokens.get(cursor)
-        {
-            if takes_as_clause {
-                break;
             }
         }
         if operand == Token::Empty {
