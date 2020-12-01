@@ -101,6 +101,11 @@ export class ReplComponent implements OnInit, OnDestroy {
           await this.submitQuery();
           this.queryString = `SELECT id::text || ' ' || name AS name_with_id FROM characters WHERE id > 1 ORDER BY id DESC LIMIT 4 OFFSET 5;`;
           await this.submitQuery();
+          this.queryString = `CREATE TABLE regular_roles (regular_id INT, role_name TEXT); INSERT INTO regular_roles VALUES (1, 'Wave Controller'); INSERT INTO regular_roles VALUES (2, 'Light Bearer'); INSERT INTO regular_roles VALUES (3, 'Spear Bearer'); INSERT INTO regular_roles VALUES (4, 'Light Bearer'); INSERT INTO regular_roles VALUES (1, 'Fisherman'); INSERT INTO regular_roles VALUES (4, 'Spear Bearer');`;
+          await this.submitQuery();
+          // tslint:disable-next-line:max-line-length
+          this.queryString = `SELECT id, name FROM regulars inner join regular_roles on regulars.id=regular_roles.regular_id where id != 2;`;
+          await this.submitQuery();
         }
       }
     });
@@ -108,7 +113,7 @@ export class ReplComponent implements OnInit, OnDestroy {
 
   async submitQuery() {
     this.canType = false;
-    const queryString = this.queryString.replace('\r', '').replace('\n', '');
+    const queryString = this.queryString;
     const queryResults = await this.postgrustqlService.eval(queryString.trim());
     const newHistoryObject: ExecutedQuery = { queryString, queryResults };
     this.execHistory.push(newHistoryObject);

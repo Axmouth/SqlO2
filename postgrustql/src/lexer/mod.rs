@@ -1,15 +1,15 @@
 // location of the token in source code
 #[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub struct TokenLocation {
-    pub line: u32,
-    pub col: u32,
+    pub line: usize,
+    pub col: usize,
 }
 
 impl TokenLocation {
     pub fn new() -> Self {
         TokenLocation { col: 0, line: 0 }
     }
-    pub fn new_with_col_and_line(col: u32, line: u32) -> Self {
+    pub fn new_with_col_and_line(col: usize, line: usize) -> Self {
         TokenLocation { col, line }
     }
 }
@@ -30,7 +30,7 @@ pub struct TokenContainer {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Cursor {
-    pub pointer: u32,
+    pub pointer: usize,
     pub loc: TokenLocation,
 }
 
@@ -118,6 +118,7 @@ pub enum Token {
     BitwiseShiftLeft,
     BitwiseShiftRight,
     TypeCast,
+    Dot,
 
     // Values
     IdentifierValue { value: String },
@@ -127,6 +128,9 @@ pub enum Token {
 
     // Default
     Empty,
+
+    // Comment
+    Comment,
 }
 
 impl Token {
@@ -239,7 +243,8 @@ impl Token {
             | Token::FactorialPrefix
             | Token::Exponentiation
             | Token::Modulo
-            | Token::TypeCast => {
+            | Token::TypeCast
+            | Token::Dot => {
                 return true;
             }
             _ => {}
@@ -427,44 +432,9 @@ pub const BITWISE_NOT_SYMBOL: Symbol = "~";
 pub const BITWISE_SHIFT_LEFT_SYMBOL: Symbol = "<<";
 pub const BITWISE_SHIFT_RIGHT_SYMBOL: Symbol = ">>";
 pub const TYPE_CAST_SYMBOL: Symbol = "::";
+pub const DOT_SYMBOL: Symbol = ".";
 
 impl TokenContainer {
-    pub fn get_id_name(&self) -> Option<&String> {
-        if let Token::IdentifierValue { value } = &self.token {
-            return Some(&value);
-        } else {
-            return None;
-        }
-    }
-
-    pub fn new() -> Self {
-        TokenContainer {
-            token: Token::Empty,
-            loc: TokenLocation { line: 0, col: 0 },
-        }
-    }
-
-    pub fn new_with_kind_and_value(kind: Token, _value: String) -> Self {
-        TokenContainer {
-            token: kind,
-            loc: TokenLocation::new(),
-        }
-    }
-
-    pub fn new_with_col_and_line(col: u32, line: u32) -> Self {
-        TokenContainer {
-            token: Token::Empty,
-            loc: TokenLocation::new_with_col_and_line(col, line),
-        }
-    }
-
-    pub fn new_with_all(kind: Token, _value: String, col: u32, line: u32) -> Self {
-        TokenContainer {
-            token: kind,
-            loc: TokenLocation::new_with_col_and_line(col, line),
-        }
-    }
-
     #[inline]
     pub fn equals(&self, other: &Self) -> bool {
         self.token == other.token
@@ -589,6 +559,7 @@ impl Lexer {
             BITWISE_XOR_SYMBOL.to_string(),
             BITWISE_NOT_SYMBOL.to_string(),
             TYPE_CAST_SYMBOL.to_string(),
+            DOT_SYMBOL.to_string(),
         ];
         let keywords = vec![
             SELECT_KEYWORD.to_string(),
@@ -685,7 +656,7 @@ impl Lexer {
             loc: TokenLocation { line: 0, col: 0 },
         };
 
-        'lex: while cur.pointer < source.len() as u32 {
+        'lex: while cur.pointer < source.len() {
             if let Some((token, new_cursor)) = self.lex_keyword(source, cur.clone()) {
                 cur = new_cursor;
 
@@ -722,6 +693,9 @@ impl Lexer {
 
                     tokens.push(token);
                 }
+                continue 'lex;
+            } else if let Some((_, new_cursor)) = self.lex_comment(source, cur.clone()) {
+                cur = new_cursor;
                 continue 'lex;
             } else if let Some((token, new_cursor)) = self.lex_symbol(source, cur.clone()) {
                 cur = new_cursor;
@@ -769,8 +743,52 @@ impl Lexer {
             };
             return Err(error);
         }
-
         Ok(tokens)
+    }
+
+    pub fn lex_comment(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
+        let mut cur = ic.clone();
+        if source[cur.pointer..].starts_with("/*") {
+            cur.pointer += 2;
+            let mut char_iter = source[cur.pointer..].chars().peekable();
+            while let Some(c) = char_iter.next() {
+                cur.pointer += 1;
+                if c == '\n' {
+                    cur.loc.col = 0;
+                    cur.loc.line += 1;
+                } else if c == '*' && char_iter.peek() == Some(&'/') {
+                    cur.pointer += 2;
+                    break;
+                }
+            }
+            return Some((
+                TokenContainer {
+                    token: Token::Comment,
+                    loc: ic.loc,
+                },
+                cur,
+            ));
+        }
+        if source[cur.pointer..].starts_with("--") {
+            cur.pointer += 2;
+            let mut char_iter = source[cur.pointer..].chars().peekable();
+            while let Some(c) = char_iter.next() {
+                cur.pointer += 1;
+                if c == '\n' {
+                    cur.loc.col = 0;
+                    cur.loc.line += 1;
+                    break;
+                }
+            }
+            return Some((
+                TokenContainer {
+                    token: Token::Comment,
+                    loc: ic.loc,
+                },
+                cur,
+            ));
+        }
+        None
     }
 
     pub fn lex_numeric(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
@@ -779,7 +797,7 @@ impl Lexer {
         let mut period_found = false;
         let mut exp_marker_found = false;
 
-        let mut char_iter = source[cur.pointer as usize..].chars().peekable();
+        let mut char_iter = source[cur.pointer..].chars().peekable();
 
         while let Some(c) = char_iter.next() {
             cur.loc.col += 1;
@@ -819,7 +837,7 @@ impl Lexer {
                 exp_marker_found = true;
 
                 // exp_marker must be followed by digits
-                if cur.pointer == (source.len() - 1) as u32 {
+                if cur.pointer == (source.len() - 1) {
                     return None;
                 }
 
@@ -853,7 +871,7 @@ impl Lexer {
             TokenContainer {
                 loc: ic.loc,
                 token: Token::NumericValue {
-                    value: source[ic.pointer as usize..cur.pointer as usize].to_owned(),
+                    value: source[ic.pointer..cur.pointer].to_owned(),
                 },
             },
             cur,
@@ -872,11 +890,11 @@ impl Lexer {
     ) -> Option<(TokenContainer, Cursor)> {
         let mut cur = ic.clone();
 
-        if source[cur.pointer as usize..].len() == 0 {
+        if source[cur.pointer..].len() == 0 {
             return None;
         }
 
-        let first_char = match get_chat_at(source, cur.pointer as usize) {
+        let first_char = match get_chat_at(source, cur.pointer) {
             None => {
                 return None;
             }
@@ -892,7 +910,7 @@ impl Lexer {
 
         let mut value: String = "".to_owned();
 
-        let mut char_iter = source[cur.pointer as usize..].chars().peekable();
+        let mut char_iter = source[cur.pointer..].chars().peekable();
 
         while let Some(c) = char_iter.next() {
             if c == delimiter {
@@ -961,12 +979,12 @@ impl Lexer {
         let cur = ic.clone();
 
         let rest_of_text = if let Some(mut max_length) = max_length {
-            if cur.pointer as usize + max_length > source.len() {
-                max_length = source.len() - cur.pointer as usize;
+            if cur.pointer + max_length > source.len() {
+                max_length = source.len() - cur.pointer;
             }
-            source[cur.pointer as usize..(cur.pointer as usize + max_length)].to_lowercase()
+            source[cur.pointer..(cur.pointer + max_length)].to_lowercase()
         } else {
-            source[cur.pointer as usize..].to_lowercase()
+            source[cur.pointer..].to_lowercase()
         };
 
         for option in options {
@@ -978,7 +996,7 @@ impl Lexer {
     }
 
     pub fn lex_symbol(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
-        let c = match get_chat_at(source, ic.pointer as usize) {
+        let c = match get_chat_at(source, ic.pointer) {
             None => {
                 return None;
             }
@@ -990,18 +1008,14 @@ impl Lexer {
         cur.pointer += 1;
         cur.loc.col += 1;
 
+        // Syntax that should be thrown away
+        if c == '\n' {
+            cur.loc.line += 1;
+            cur.loc.col = 0;
+        }
+
         match c {
-            // Syntax that should be thrown away
-            '\n' => {
-                cur.loc.line += 1;
-                cur.loc.col = 0;
-            }
-            '\r' => {
-                cur.loc.line += 1;
-                cur.loc.col = 0;
-            }
-            '\t' => {}
-            ' ' => {
+            ' ' | '\n' | '\r' | '\t' => {
                 return Some((
                     TokenContainer {
                         token: Token::Empty,
@@ -1054,14 +1068,15 @@ impl Lexer {
             BITWISE_SHIFT_LEFT_SYMBOL => Token::BitwiseShiftLeft,
             BITWISE_SHIFT_RIGHT_SYMBOL => Token::BitwiseShiftRight,
             SEMICOLON_SYMBOL => Token::Semicolon,
+            DOT_SYMBOL => Token::Dot,
             CONCAT_SYMBOL => Token::Concat,
             _ => {
                 return None;
             }
         };
 
-        cur.pointer = ic.pointer + symbol_match.len() as u32;
-        cur.loc.col = ic.loc.col + symbol_match.len() as u32;
+        cur.pointer = ic.pointer + symbol_match.len();
+        cur.loc.col = ic.loc.col + symbol_match.len();
 
         Some((
             TokenContainer {
@@ -1084,10 +1099,10 @@ impl Lexer {
         if keyword_match == "" {
             return None;
         }
-        cur.pointer = ic.pointer + keyword_match.len() as u32;
-        cur.loc.col = ic.loc.col + keyword_match.len() as u32;
+        cur.pointer = ic.pointer + keyword_match.len();
+        cur.loc.col = ic.loc.col + keyword_match.len();
         // Check if the word continues, thus being an identifier
-        if let Some(next_char) = source.chars().nth(cur.pointer as usize) {
+        if let Some(next_char) = source.chars().nth(cur.pointer) {
             if is_char_valid_for_identifier(next_char) {
                 return None;
             }
@@ -1175,9 +1190,14 @@ impl Lexer {
         if token_result.is_some() {
             return token_result;
         }
+        if let Some(res) =
+            self.lex_character_delimited(source, ic.clone(), '"', TokenKind::Identifier)
+        {
+            return Some(res);
+        }
 
         let mut cur = ic.clone();
-        let c = match get_chat_at(source, ic.pointer as usize) {
+        let c = match get_chat_at(source, ic.pointer) {
             None => {
                 return None;
             }
@@ -1194,7 +1214,7 @@ impl Lexer {
 
         let mut value: String = format!("{}", c);
 
-        for c in source[cur.pointer as usize..].to_owned().chars() {
+        for c in source[cur.pointer..].chars() {
             // Other characters count too, big ignoring non-ascii for now
             if is_char_valid_for_identifier(c) {
                 value.push(c);
@@ -1224,8 +1244,8 @@ impl Lexer {
 }
 
 #[inline]
-pub fn get_location_from_cursor(source: &str, cursor: u32) -> TokenLocation {
-    let rev_pos = source[..(cursor + 1) as usize]
+pub fn get_location_from_cursor(source: &str, cursor: usize) -> TokenLocation {
+    let rev_pos = source[..(cursor + 1)]
         .chars()
         .rev()
         .collect::<String>()
@@ -1233,13 +1253,13 @@ pub fn get_location_from_cursor(source: &str, cursor: u32) -> TokenLocation {
     let mut col = cursor;
     match rev_pos {
         Some(rev_pos) => {
-            col = (source[..(cursor + 1) as usize].len() - rev_pos) as u32;
+            col = source[..(cursor + 1)].len() - rev_pos;
         }
         _ => {}
     }
     TokenLocation {
         col,
-        line: source[..(cursor + 1) as usize].matches('\n').count() as u32,
+        line: source[..(cursor + 1)].matches('\n').count(),
     }
 }
 

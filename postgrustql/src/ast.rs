@@ -31,15 +31,29 @@ pub enum JoinClause {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct FromItem {
-    source: RowDataSource,
-    as_clause: Option<String>,
+pub enum RowDataSource {
+    SubSelect {
+        select: SelectStatement,
+        as_clause: String,
+        joins: Vec<JoinClause>,
+    },
+    Table {
+        table_name: String,
+        as_clause: Option<String>,
+        joins: Vec<JoinClause>,
+    },
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub enum RowDataSource {
-    Select(SelectStatement),
-    Table(String),
+pub struct TableColumn {
+    pub col_name: String,
+    pub table_name: Option<String>,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct ProcessedTableColumn {
+    pub col_name: Option<String>,
+    pub col_idx: usize,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -64,7 +78,7 @@ pub struct ColumnDefinition {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct SelectStatement {
     pub items: Vec<SelectItem>,
-    pub from: Option<String>,
+    pub from: Vec<RowDataSource>,
     pub where_clause: Expression,
     pub is_distinct: bool,
     pub order_by: Option<OrderByClause>,
@@ -76,7 +90,7 @@ impl SelectStatement {
     pub fn new() -> Self {
         SelectStatement {
             items: Vec::with_capacity(10),
-            from: None,
+            from: vec![],
             where_clause: Expression::new(),
             is_distinct: false,
             order_by: None,
@@ -144,6 +158,8 @@ pub enum Expression {
     Binary(BinaryExpression),
     Unary(UnaryExpression),
     SubSelect(Box<SelectStatement>),
+    TableColumn(TableColumn),
+    ProcessedTableColumn(ProcessedTableColumn),
     Cast { data: Box<Expression>, typ: SqlType },
     Empty,
 }
@@ -364,6 +380,8 @@ impl Token {
             Token::Desc => DESC_KEYWORD.to_string(),
             Token::Limit => LIMIT_KEYWORD.to_string(),
             Token::Offset => OFFSET_KEYWORD.to_string(),
+            Token::Dot => DOT_SYMBOL.to_string(),
+            Token::Comment => "".to_string(),
         }
     }
 }
@@ -452,23 +470,25 @@ mod ast_tests {
                             SelectItem {
                                 asterisk: false,
                                 as_clause: None,
-                                expression: Expression::Literal(LiteralExpression {
-                                    literal: Token::IdentifierValue {
-                                        value: "id".to_owned(),
-                                    },
+                                expression: Expression::TableColumn(TableColumn {
+                                    col_name: "id".to_owned(),
+                                    table_name: None,
                                 }),
                             },
                             SelectItem {
                                 asterisk: false,
                                 as_clause: Some("fullname".to_owned()),
-                                expression: Expression::Literal(LiteralExpression {
-                                    literal: Token::IdentifierValue {
-                                        value: "name".to_owned(),
-                                    },
+                                expression: Expression::TableColumn(TableColumn {
+                                    col_name: "name".to_owned(),
+                                    table_name: None,
                                 }),
                             },
                         ],
-                        from: Some("users".to_string()),
+                        from: vec![RowDataSource::Table {
+                            table_name: "users".to_string(),
+                            as_clause: None,
+                            joins: vec![],
+                        }],
                         where_clause: Expression::Empty,
                         is_distinct: false,
                         order_by: None,

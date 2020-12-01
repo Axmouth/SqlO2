@@ -16,6 +16,12 @@ const ERR_INVALID_CELL: &str = "Invalid Cell";
 const ERR_INVALID_OPERANDS: &str = "Invalid Operands";
 const ANONYMOUS_COL_NAME: &str = "?column?";
 
+#[derive(Clone, PartialEq)]
+pub enum TableContainer<'a> {
+    Temp(Box<Table>),
+    Concrete(&'a Table),
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Index {
     name: String,
@@ -23,7 +29,7 @@ pub struct Index {
     unique: bool,
     primary_key: bool,
     typ: String,
-    tree: std::collections::btree_map::BTreeMap<Vec<u8>, Vec<usize>>,
+    tree: std::collections::btree_map::BTreeMap<SqlValue, Vec<usize>>,
 }
 
 impl Index {
@@ -35,18 +41,17 @@ impl Index {
         }
 
         if self.unique {
-            if let Some(_) = self.tree.get(&index_value.encode().bytes) {
+            if let Some(_) = self.tree.get(&index_value) {
                 return Err("Duplicate Value violates UNIQUE Constraint".to_string());
             }
         }
 
-        match self.tree.get_mut(&index_value.encode().bytes) {
+        match self.tree.get_mut(&index_value) {
             Some(row_indexes) => {
                 row_indexes.push(row_index);
             }
             None => {
-                self.tree
-                    .insert(index_value.encode().bytes, vec![row_index]);
+                self.tree.insert(index_value, vec![row_index]);
             }
         }
 
@@ -123,7 +128,7 @@ impl Index {
 
         match bin_exp.operand {
             Token::Equal => {
-                match self.tree.get(&value.encode().bytes) {
+                match self.tree.get(&value) {
                     Some(indexes) => {
                         row_indexes.append(&mut indexes.clone());
                     }
@@ -132,7 +137,7 @@ impl Index {
             }
             Token::NotEqual => {
                 for (key, indexes) in &self.tree {
-                    if *key == value.encode().bytes {
+                    if *key == value {
                         continue;
                     }
                     row_indexes.append(&mut indexes.clone());
@@ -140,7 +145,7 @@ impl Index {
             }
             Token::LessThan => {
                 for (key, indexes) in &self.tree {
-                    if key >= &value.encode().bytes {
+                    if key >= &value {
                         break;
                     }
                     row_indexes.append(&mut indexes.clone());
@@ -148,25 +153,25 @@ impl Index {
             }
             Token::LessThanOrEqual => {
                 for (key, indexes) in &self.tree {
-                    if key > &value.encode().bytes {
+                    if key > &value {
                         break;
                     }
                     row_indexes.append(&mut indexes.clone());
                 }
             }
             Token::GreaterThan => {
-                for (_, ref mut indexes) in self.tree.clone().split_off(&value.encode().bytes) {
+                for (_, ref mut indexes) in self.tree.clone().split_off(&value) {
                     row_indexes.append(indexes);
                 }
             }
             Token::GreaterThanOrEqual => {
-                match self.tree.get(&value.encode().bytes) {
+                match self.tree.get(&value) {
                     Some(indexes) => {
                         row_indexes.append(&mut indexes.clone());
                     }
                     None => {}
                 };
-                for (_, ref mut indexes) in self.tree.clone().split_off(&value.encode().bytes) {
+                for (_, ref mut indexes) in self.tree.clone().split_off(&value) {
                     row_indexes.append(indexes);
                 }
             }
@@ -183,13 +188,25 @@ impl Index {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug, Eq)]
 pub struct Table {
     name: String,
     columns: Vec<String>,
     column_types: Vec<SqlType>,
     rows: Vec<Vec<SqlValue>>,
     indexes: Vec<Index>,
+}
+
+impl From<QueryResults<SqlValue>> for Table {
+    fn from(results: QueryResults<SqlValue>) -> Self {
+        Self {
+            column_types: results.columns.iter().map(|c| c.col_type).collect(),
+            name: String::from(""),
+            columns: results.columns.iter().map(|c| c.name.clone()).collect(),
+            indexes: vec![],
+            rows: results.rows,
+        }
+    }
 }
 
 impl Table {
@@ -225,38 +242,43 @@ impl Table {
                         let val = SqlValue::from_token(&literal)?;
                         let typ = val.get_type();
                         return Ok((val, ANONYMOUS_COL_NAME, typ));
-                    } /*
-                      Token::BoolValue { value } => {
-                          if *value {
-                              return Ok((get_true_mem_cell(), ANONYMOUS_COL_NAME, SqlType::Boolean));
-                          } else {
-                              return Ok((get_false_mem_cell(), ANONYMOUS_COL_NAME, SqlType::Boolean));
-                          }
-                      }
-                      LexTokenKind::NumericKind => {
-                      return Err(format!("{}", ERR_INVALID_CELL).to_string());
-                      }
-                      _ => {
-                          let mut column_type = SqlType::Int;
-                          match literal.token {
-                              Token::StringValue { value: _ } => {
-                                  column_type = SqlType::Text;
-                              }
-                              Token::BoolValue { value: _ } => {
-                                  column_type = SqlType::Boolean;
-                              }
-                              _ => {}
-                          }
-                          let mem_cell = match literal_to_memory_cell(&literal) {
-                              Err(err) => {
-                                  return Err(err);
-                              }
-                              Ok(value) => value,
-                          };
-
-                          return Ok((mem_cell, ANONYMOUS_COL_NAME, column_type));
-                      }*/
+                    }
                 }
+            }
+            Expression::TableColumn(table_column) => {
+                for (i, table_col) in self.columns.iter().enumerate() {
+                    if table_col == &table_column.col_name {
+                        let typ = self.column_types.get(i).ok_or("Error accesing column")?;
+                        let val = self
+                            .rows
+                            .get(row_index)
+                            .ok_or("Error accesing row")?
+                            .get(i)
+                            .ok_or("Error accesing row's column")?;
+                        return Ok((val.clone(), table_col, *typ));
+                    }
+                }
+
+                return Err(
+                    format!("{}: {}", table_column.col_name, ERR_COLUMN_DOES_NOT_EXIST).to_string(),
+                );
+            }
+            Expression::ProcessedTableColumn(table_column) => {
+                let table_col = self
+                    .columns
+                    .get(table_column.col_idx)
+                    .ok_or(ERR_COLUMN_DOES_NOT_EXIST)?;
+                let val = self
+                    .rows
+                    .get(row_index)
+                    .ok_or("Error accesing row")?
+                    .get(table_column.col_idx)
+                    .ok_or("Error accesing row's column")?;
+                let typ = self
+                    .column_types
+                    .get(table_column.col_idx)
+                    .ok_or(ERR_COLUMN_DOES_NOT_EXIST)?;
+                return Ok((val.clone(), table_col, *typ));
             }
             _ => return Err(ERR_INVALID_CELL.to_string()),
         }
@@ -438,13 +460,33 @@ impl Table {
         expression: &Expression,
     ) -> Result<(SqlValue, &str, SqlType), String> {
         match expression {
-            Expression::Literal(_) => {
-                return self.evaluate_literal_cell(row_index, expression);
+            Expression::Literal(_)
+            | Expression::TableColumn(_)
+            | Expression::ProcessedTableColumn(_) => {
+                self.evaluate_literal_cell(row_index, expression)
             }
             Expression::Binary(_) | Expression::Unary(_) | Expression::Cast { data: _, typ: _ } => {
-                return self.evaluate_binary_cell(row_index, expression);
+                self.evaluate_binary_cell(row_index, expression)
             }
-            _ => return Err(ERR_INVALID_CELL.to_string()),
+            Expression::SubSelect(select_statement) => {
+                if select_statement.items.len() != 1 {
+                    return Err("Subquery must return only one column".to_string());
+                }
+                if Expression::Empty != select_statement.where_clause {
+                    if let (SqlValue::Boolean(false), _, SqlType::Boolean) =
+                        self.evaluate_cell(row_index, &select_statement.where_clause)?
+                    {
+                        return Ok((SqlValue::Null, ANONYMOUS_COL_NAME, SqlType::Null));
+                    }
+                }
+                if let Some(item) = select_statement.items.get(0) {
+                    let (result, _, typ) = self.evaluate_cell(row_index, &item.expression)?;
+                    return Ok((result, ANONYMOUS_COL_NAME, typ));
+                } else {
+                    Err("Subquery must return only one column".to_string())
+                }
+            }
+            _ => Err(ERR_INVALID_CELL.to_string()),
         }
     }
 
@@ -625,7 +667,7 @@ impl MemoryBackend {
             }
 
             if index.unique {
-                if let Some(_) = index.tree.get(&index_value.encode().bytes) {
+                if let Some(_) = index.tree.get(&index_value) {
                     table.rows.remove(row_index);
                     return Err("Duplicate Value violates UNIQUE Constraint".to_string());
                 }
@@ -637,14 +679,12 @@ impl MemoryBackend {
                 Some(value) => value,
             };
 
-            match index.tree.get_mut(&index_value.encode().bytes) {
+            match index.tree.get_mut(&index_value) {
                 Some(row_indexes) => {
                     row_indexes.push(row_index);
                 }
                 None => {
-                    table.indexes[i]
-                        .tree
-                        .insert(index_value.encode().bytes, vec![row_index]);
+                    table.indexes[i].tree.insert(index_value, vec![row_index]);
                 }
             }
         }
@@ -656,6 +696,8 @@ impl MemoryBackend {
         &self,
         select_statement: SelectStatement,
     ) -> Result<QueryResults<SqlValue>, String> {
+        let mut tables: HashMap<String, TableContainer> = HashMap::new();
+
         let mut results: Vec<Vec<SqlValue>> = Vec::with_capacity(100);
         let mut results_order: Vec<SqlValue> = Vec::with_capacity(100);
         let mut offset = 0;
@@ -669,59 +711,253 @@ impl MemoryBackend {
             });
         }
 
-        let mut new_table = Table {
-            column_types: Vec::with_capacity(10),
-            columns: Vec::with_capacity(10),
-            indexes: Vec::with_capacity(10),
-            name: "".to_string(),
-            rows: Vec::with_capacity(100),
-        };
-
-        let mut table: &Table;
-        match select_statement.from {
-            Some(from_name) => match self.tables.get(&from_name) {
+        let mut table_joins = &vec![];
+        let (table_name, mut table) = match select_statement.from.get(0) {
+            Some(RowDataSource::Table {
+                as_clause,
+                table_name: ref from_name,
+                joins,
+            }) => match self.tables.get(from_name) {
+                // TODO
                 None => {
                     return Err(ERR_TABLE_DOES_NOT_EXIST.to_string());
                 }
-                Some(value) => {
-                    table = value;
+                Some(table) => {
+                    let mut new_table;
+                    let from_name = if let Some(from_name) = as_clause {
+                        from_name.clone()
+                    } else {
+                        from_name.clone()
+                    };
+
+                    new_table = TableContainer::Concrete(&table);
                     for (index, exp) in
-                        value.get_applicable_indexes(Some(&select_statement.where_clause))?
+                        table.get_applicable_indexes(Some(&select_statement.where_clause))?
                     {
                         if let Expression::Binary(bin_exp) = exp {
-                            new_table = index.new_table_from_subset(table, bin_exp)?;
-                            table = &new_table;
+                            new_table = TableContainer::Temp(Box::new(
+                                index.new_table_from_subset(table, bin_exp)?,
+                            ));
                         }
                     }
+                    table_joins = joins;
+                    (from_name.clone(), new_table)
                 }
             },
+            Some(RowDataSource::SubSelect {
+                as_clause,
+                select,
+                joins,
+            }) => {
+                // TODO
+                let result = self.select(select.clone())?;
+                let new_table = Table::from(result);
+                table_joins = joins;
+                (as_clause.clone(), TableContainer::Temp(Box::new(new_table)))
+            }
             None => {
+                let mut new_table = Table {
+                    column_types: Vec::with_capacity(10),
+                    columns: Vec::with_capacity(10),
+                    indexes: Vec::with_capacity(10),
+                    name: "".to_string(),
+                    rows: Vec::with_capacity(1),
+                };
                 new_table.rows.push(vec![]);
-                table = &new_table;
+                ("".to_string(), TableContainer::Temp(Box::new(new_table)))
             }
         };
+        if let Some(JoinClause::LeftInner { on, source }) = table_joins.get(0) {
+            let (source_table_name, source_table) = match source {
+                RowDataSource::Table {
+                    as_clause,
+                    table_name: ref from_name,
+                    joins,
+                } => match self.tables.get(from_name) {
+                    // TODO
+                    None => {
+                        return Err(ERR_TABLE_DOES_NOT_EXIST.to_string());
+                    }
+                    Some(table) => {
+                        let mut new_table;
+                        let from_name = if let Some(from_name) = as_clause {
+                            from_name.clone()
+                        } else {
+                            from_name.clone()
+                        };
+
+                        new_table = TableContainer::Concrete(&table);
+                        for (index, exp) in
+                            table.get_applicable_indexes(Some(&select_statement.where_clause))?
+                        {
+                            if let Expression::Binary(bin_exp) = exp {
+                                new_table = TableContainer::Temp(Box::new(
+                                    index.new_table_from_subset(table, bin_exp)?,
+                                ));
+                            }
+                        }
+                        // table_joins = joins;
+                        (from_name.clone(), new_table)
+                    }
+                },
+                RowDataSource::SubSelect {
+                    as_clause,
+                    select,
+                    joins,
+                } => {
+                    // TODO
+                    let result = self.select(select.clone())?;
+                    let new_table = Table::from(result);
+                    // table_joins = joins;
+                    (as_clause.clone(), TableContainer::Temp(Box::new(new_table)))
+                }
+            };
+            let &mut rows;
+            let temp;
+            let (mut columns, mut column_types) = match table {
+                TableContainer::Concrete(table) => {
+                    rows = &table.rows;
+                    (table.columns.clone(), table.column_types.clone())
+                }
+                TableContainer::Temp(table) => {
+                    temp = table.rows;
+                    rows = &temp;
+                    (table.columns.clone(), table.column_types.clone())
+                }
+            };
+
+            let &mut source_rows;
+            let temp;
+            let (mut source_columns, mut source_column_types) = match source_table {
+                TableContainer::Concrete(table) => {
+                    source_rows = &table.rows;
+                    (table.columns.clone(), table.column_types.clone())
+                }
+                TableContainer::Temp(table) => {
+                    temp = table.rows;
+                    source_rows = &temp;
+                    (table.columns.clone(), table.column_types.clone())
+                }
+            };
+            let mut full_derp_table = Table {
+                column_types: source_column_types,
+                columns: source_columns,
+                indexes: vec![],
+                name: "".to_string(),
+                rows: Vec::with_capacity(100),
+            };
+            full_derp_table.columns.append(&mut columns);
+            full_derp_table.column_types.append(&mut column_types);
+            let mut temp_table = full_derp_table.clone();
+            // TODO nested loop through tables, temp table with only the current row for each loop, run expression, rename cols if needed
+
+            for source_row in source_rows {
+                for row in rows {
+                    let mut new_row = source_row.clone();
+                    new_row.append(&mut row.clone());
+                    temp_table.rows = vec![new_row.clone()];
+                    let (result, _, typ) = temp_table.evaluate_cell(0, on)?;
+                    if let SqlValue::Boolean(true) = result {
+                        full_derp_table.rows.push(new_row);
+                    } else if let SqlValue::Boolean(false) = result {
+                        continue;
+                    } else {
+                        return Err("Invalid Join Expression".to_string());
+                    }
+                }
+            }
+
+            table = TableContainer::Temp(Box::new(full_derp_table));
+        }
+        tables.insert(table_name, table);
 
         let mut final_select_items: Vec<SelectItem> = Vec::with_capacity(10);
         for item in select_statement.items {
+            // TODO when multiple tables in join have same column name, rename them to table.column
             if item.asterisk {
-                let mut new_select_items: Vec<SelectItem> = Vec::with_capacity(10);
-                for column in table.columns.iter() {
-                    let new_select_item = SelectItem {
-                        expression: Expression::Literal(LiteralExpression {
-                            literal: Token::IdentifierValue {
-                                value: column.to_string(),
-                            },
-                        }),
-                        as_clause: None,
-                        asterisk: false,
+                for table in tables.values() {
+                    let table = match table {
+                        TableContainer::Concrete(table) => table,
+                        TableContainer::Temp(table) => table.as_ref(),
                     };
-                    new_select_items.push(new_select_item);
+                    let mut new_select_items: Vec<SelectItem> = Vec::with_capacity(10);
+                    for (idx, column) in table.columns.iter().enumerate() {
+                        let new_select_item = SelectItem {
+                            expression: Expression::ProcessedTableColumn(ProcessedTableColumn {
+                                col_name: Some(column.to_string()),
+                                col_idx: idx,
+                            }),
+                            as_clause: None,
+                            asterisk: false,
+                        };
+                        new_select_items.push(new_select_item);
+                    }
+                    final_select_items.append(&mut new_select_items);
                 }
-                final_select_items.append(&mut new_select_items);
             } else {
-                final_select_items.push(item);
+                for table in tables.values() {
+                    let table = match table {
+                        TableContainer::Concrete(table) => table,
+                        TableContainer::Temp(table) => table.as_ref(),
+                    };
+                    if let Expression::TableColumn(TableColumn {
+                        ref col_name,
+                        table_name: Some(ref table_name),
+                    }) = item.expression
+                    {
+                        if table_name != &table.name {
+                            continue;
+                        }
+                        for (idx, column) in table.columns.iter().enumerate() {
+                            if column != col_name {
+                                continue;
+                            }
+                            let new_select_item = SelectItem {
+                                expression: Expression::ProcessedTableColumn(
+                                    ProcessedTableColumn {
+                                        col_name: Some(column.to_string()),
+                                        col_idx: idx,
+                                    },
+                                ),
+                                as_clause: None,
+                                asterisk: false,
+                            };
+                            final_select_items.push(new_select_item.clone());
+                            break;
+                        }
+                        break;
+                    } else {
+                        final_select_items.push(item.clone());
+                    }
+                }
             }
         }
+
+        let table_name = if let Some(RowDataSource::Table {
+            as_clause,
+            table_name,
+            joins,
+        }) = select_statement.from.get(0)
+        {
+            // TODO
+            table_name.clone()
+        } else if let Some(RowDataSource::SubSelect {
+            as_clause,
+            select,
+            joins,
+        }) = select_statement.from.get(0)
+        {
+            // TODO
+            as_clause.clone()
+        // return Err("Not implemented subquery for FROM, yet..".to_string());
+        } else {
+            "".to_string()
+        };
+        let table = match &tables.get(&table_name) {
+            Some(TableContainer::Concrete(table)) => table,
+            Some(TableContainer::Temp(table)) => table.as_ref(),
+            None => return Err(format!("Table {} not found", table_name)),
+        };
 
         for row_index in 0..table.rows.len() {
             if let Some(limit) = select_statement.limit {

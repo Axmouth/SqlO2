@@ -227,6 +227,24 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
         "Elapsed time to select 1000000 rows, 100 times: {:.2?}",
         before.elapsed()
     );
+
+    db.eval_query(black_box(
+        "Create unique index \"fdfddf\" on \"people\" (id);",
+    ))
+    .unwrap();
+
+    // Select benchmark 5
+    let before = Instant::now();
+    for _ in 0..1 {
+        db.eval_query(black_box(
+            format!("SELECT * FROM people WHERE id = 999999;").as_str(),
+        ))
+        .unwrap();
+    }
+    println!(
+        "Elapsed time to select single last row, 1 time, with an index: {:.2?}",
+        before.elapsed()
+    );
 }
 
 criterion_group!(

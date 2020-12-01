@@ -84,7 +84,7 @@ impl ToString for SqlTypeError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum SqlValue {
     Null,
     Text(SqlText),
@@ -102,7 +102,18 @@ pub enum SqlNumeric {
     DoublePrecision { value: f64 },
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+impl Eq for SqlNumeric {}
+
+impl Ord for SqlNumeric {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self).partial_cmp(&(other)) {
+            Some(val) => val,
+            None => std::cmp::Ordering::Greater,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum SqlText {
     Char {
         value: String,
