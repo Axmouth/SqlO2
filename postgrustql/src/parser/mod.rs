@@ -1032,6 +1032,11 @@ fn parse_select_items(
     let mut cursor = initial_cursor;
 
     let mut select_items = Vec::with_capacity(10);
+    let mut item_delims = delimiters.clone();
+    item_delims.push(Token::As);
+    let mut delimiters_plus = delimiters.to_vec();
+    delimiters_plus.push(Token::Comma);
+    delimiters_plus.push(Token::As);
 
     'outer: loop {
         if cursor == tokens.len() {
@@ -1070,10 +1075,6 @@ fn parse_select_items(
             cursor += 1;
             select_item.asterisk = true;
         } else {
-            let mut delimiters_plus = delimiters.to_vec();
-            delimiters_plus.push(Token::Comma);
-            delimiters_plus.push(Token::As);
-
             let (expression, new_cursor) =
                 match parse_expression(tokens, cursor, &delimiters_plus, 0, true, true) {
                     None => {

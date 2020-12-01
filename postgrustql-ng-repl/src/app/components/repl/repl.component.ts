@@ -99,12 +99,13 @@ export class ReplComponent implements OnInit, OnDestroy {
           await this.submitQuery();
           this.queryString = `SELECT DISTINCT (id / 2)::int FROM characters`;
           await this.submitQuery();
-          this.queryString = `SELECT id::text || ' ' || name AS name_with_id FROM characters WHERE id > 1 ORDER BY id DESC LIMIT 4 OFFSET 5;`;
-          await this.submitQuery();
-          this.queryString = `CREATE TABLE regular_roles (regular_id INT, role_name TEXT); INSERT INTO regular_roles VALUES (1, 'Wave Controller'); INSERT INTO regular_roles VALUES (2, 'Light Bearer'); INSERT INTO regular_roles VALUES (3, 'Spear Bearer'); INSERT INTO regular_roles VALUES (4, 'Light Bearer'); INSERT INTO regular_roles VALUES (1, 'Fisherman'); INSERT INTO regular_roles VALUES (4, 'Spear Bearer');`;
+          // tslint:disable-next-line:max-line-length
+          // this.queryString = `SELECT id::text || ' ' || name AS name_with_id FROM characters WHERE id > 1 ORDER BY id DESC LIMIT 4 OFFSET 5;`;
+          // await this.submitQuery();
+          this.queryString = `CREATE TABLE character_roles (character_id INT, role_name TEXT); INSERT INTO character_roles VALUES (1, 'Wave Controller'); INSERT INTO character_roles VALUES (2, 'Light Bearer'); INSERT INTO character_roles VALUES (3, 'Spear Bearer'); INSERT INTO character_roles VALUES (4, 'Light Bearer'); INSERT INTO character_roles VALUES (1, 'Fisherman'); INSERT INTO character_roles VALUES (4, 'Spear Bearer');`;
           await this.submitQuery();
           // tslint:disable-next-line:max-line-length
-          this.queryString = `SELECT id, name FROM regulars inner join regular_roles on regulars.id=regular_roles.regular_id where id != 2;`;
+          this.queryString = `SELECT * FROM characters INNER JOIN character_roles ON characters.id=character_roles.character_id WHERE id != 2 ORDER BY id;`;
           await this.submitQuery();
         }
       }
