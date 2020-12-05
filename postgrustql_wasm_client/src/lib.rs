@@ -10,11 +10,7 @@ use postgrustql::{
 use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
 
-use js_sys::Array;
-use js_sys::Boolean;
-use js_sys::JsString;
-use js_sys::Number;
-use js_sys::{Map, Object};
+use js_sys::{Array, Boolean, JsString, Map, Number, Object};
 
 lazy_static! {
     static ref BACKEND: Mutex<MemoryBackend> = Mutex::new(MemoryBackend::new());
@@ -66,6 +62,10 @@ pub fn query_results_to_js(results: Result<Vec<EvalResult<SqlValue>>, String>) -
                         for row in query_results.rows {
                             let row_array = Array::new();
                             for (i, col) in row.into_iter().enumerate() {
+                                if col.is_null() {
+                                    row_array.push(&wasm_bindgen::JsValue::null());
+                                    continue;
+                                }
                                 match col_list[i].col_type {
                                     SqlType::Text | SqlType::VarChar | SqlType::Char => {
                                         row_array

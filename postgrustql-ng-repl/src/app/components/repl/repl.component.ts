@@ -53,7 +53,7 @@ export class ReplComponent implements OnInit, OnDestroy {
           await this.submitQuery();
           this.queryString = `INSERT INTO characters VALUES (1, 'The 25th Bam');`;
           await this.submitQuery();
-          this.queryString = `INSERT INTO characters VALUES (2, 'Rachel'); `;
+          this.queryString = `INSERT INTO characters VALUES (2, 'Rachel');`;
           await this.submitQuery();
           this.queryString = `INSERT INTO characters VALUES (3, 'Rak WraithKaiser');`;
           await this.submitQuery();
