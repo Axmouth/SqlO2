@@ -767,7 +767,7 @@ impl MemoryBackend {
                 ("".to_string(), TableContainer::Temp(Box::new(new_table)))
             }
         };
-        if let Some(JoinClause::LeftInner { on, source }) = table_joins.get(0) {
+        if let Some(JoinClause { on, source, kind }) = table_joins.get(0) {
             let (source_table_name, source_table) = match source {
                 RowDataSource::Table {
                     as_clause,
@@ -839,30 +839,67 @@ impl MemoryBackend {
                     (table.columns.clone(), table.column_types.clone())
                 }
             };
+            let source_columns_num = source_columns.len();
+            let on_columns_num = columns.len();
             let mut full_derp_table = Table {
-                column_types: source_column_types,
-                columns: source_columns,
+                column_types,
+                columns,
                 indexes: vec![],
                 name: "".to_string(),
                 rows: Vec::with_capacity(100),
             };
-            full_derp_table.columns.append(&mut columns);
-            full_derp_table.column_types.append(&mut column_types);
+            full_derp_table.columns.append(&mut source_columns);
+            full_derp_table
+                .column_types
+                .append(&mut source_column_types);
             let mut temp_table = full_derp_table.clone();
             // TODO nested loop through tables, temp table with only the current row for each loop, run expression, rename cols if needed
 
-            for source_row in source_rows {
-                for row in rows {
-                    let mut new_row = source_row.clone();
-                    new_row.append(&mut row.clone());
+            let mut used_source_indices = vec![];
+            let mut used_on_indices = vec![];
+            for (source_index, source_row) in source_rows.iter().enumerate() {
+                for (on_index, row) in rows.iter().enumerate() {
+                    let mut new_row = row.clone();
+                    new_row.append(&mut source_row.clone());
                     temp_table.rows = vec![new_row.clone()];
                     let (result, _, typ) = temp_table.evaluate_cell(0, on)?;
+
                     if let SqlValue::Boolean(true) = result {
+                        used_source_indices.push(source_index);
+                        used_on_indices.push(on_index);
                         full_derp_table.rows.push(new_row);
                     } else if let SqlValue::Boolean(false) = result {
                         continue;
                     } else {
                         return Err("Invalid Join Expression".to_string());
+                    }
+                }
+            }
+
+            if kind == &JoinKind::RightOuter || kind == &JoinKind::FullOuter {
+                let start = 0;
+                let end = source_columns_num;
+                for (source_index, source_row) in source_rows.iter().enumerate() {
+                    if used_source_indices.contains(&source_index) == false {
+                        let mut new_row = vec![];
+                        for _ in start..end {
+                            new_row.push(SqlValue::Null);
+                        }
+                        new_row.append(&mut source_row.clone());
+                        full_derp_table.rows.push(new_row);
+                    }
+                }
+            }
+            if kind == &JoinKind::LeftOuter || kind == &JoinKind::FullOuter {
+                let start = source_columns_num;
+                let end = source_columns_num + on_columns_num;
+                for (on_index, on_row) in rows.iter().enumerate() {
+                    if used_on_indices.contains(&on_index) == false {
+                        let mut new_row = on_row.clone();
+                        for _ in start..end {
+                            new_row.push(SqlValue::Null);
+                        }
+                        full_derp_table.rows.push(new_row);
                     }
                 }
             }

@@ -87,6 +87,8 @@ pub enum Token {
     Desc,
     Offset,
     Limit,
+    Outer,
+    Full,
 
     // Symbols
     Semicolon,
@@ -302,7 +304,9 @@ impl Token {
             | Token::Distinct
             | Token::Order
             | Token::By
-            | Token::OrderBy => {
+            | Token::OrderBy
+            | Token::Outer
+            | Token::Full => {
                 return true;
             }
             _ => {}
@@ -395,6 +399,8 @@ pub const ASC_KEYWORD: Keyword = "asc";
 pub const DESC_KEYWORD: Keyword = "desc";
 pub const OFFSET_KEYWORD: Keyword = "offset";
 pub const LIMIT_KEYWORD: Keyword = "limit";
+pub const OUTER_KEYWORD: Keyword = "outer";
+pub const FULL_KEYWORD: Keyword = "full";
 // new
 pub const DECIMAL_KEYWORD: Keyword = "decimal";
 pub const NUMERIC_KEYWORD: Keyword = "numeric";
@@ -584,6 +590,8 @@ impl Lexer {
             INNER_KEYWORD.to_string(),
             LEFT_KEYWORD.to_string(),
             RIGHT_KEYWORD.to_string(),
+            OUTER_KEYWORD.to_string(),
+            FULL_KEYWORD.to_string(),
             IS_KEYWORD.to_string(),
             LIMIT_KEYWORD.to_string(),
             OFFSET_KEYWORD.to_string(),
@@ -1126,6 +1134,8 @@ impl Lexer {
             INNER_KEYWORD => Token::Inner,
             LEFT_KEYWORD => Token::Left,
             RIGHT_KEYWORD => Token::Right,
+            OUTER_KEYWORD => Token::Outer,
+            FULL_KEYWORD => Token::Full,
             IS_KEYWORD => Token::Is,
             LIMIT_KEYWORD => Token::Limit,
             OFFSET_KEYWORD => Token::Offset,
@@ -1243,7 +1253,6 @@ impl Lexer {
     }
 }
 
-#[inline]
 pub fn get_location_from_cursor(source: &str, cursor: usize) -> TokenLocation {
     let rev_pos = source[..(cursor + 1)]
         .chars()

@@ -23,11 +23,18 @@ pub struct OrderByClause {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub enum JoinClause {
-    LeftInner {
-        source: RowDataSource,
-        on: Expression,
-    },
+pub struct JoinClause {
+    pub kind: JoinKind,
+    pub source: RowDataSource,
+    pub on: Expression,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub enum JoinKind {
+    Inner,
+    FullOuter,
+    LeftOuter,
+    RightOuter,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -381,6 +388,8 @@ impl Token {
             Token::Limit => LIMIT_KEYWORD.to_string(),
             Token::Offset => OFFSET_KEYWORD.to_string(),
             Token::Dot => DOT_SYMBOL.to_string(),
+            Token::Outer => OUTER_KEYWORD.to_string(),
+            Token::Full => FULL_KEYWORD.to_string(),
             Token::Comment => "".to_string(),
         }
     }
