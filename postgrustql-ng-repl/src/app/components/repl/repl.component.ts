@@ -134,6 +134,8 @@ export class ReplComponent implements OnInit, OnDestroy {
 
   onHistoryUp(event: Event) {
     event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
     if (this.historyPosition <= 0) {
       return;
     }

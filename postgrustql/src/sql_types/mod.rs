@@ -6,8 +6,9 @@ use crate::{
     backend::{Cell, MemoryCell, MemoryCellData, ERR_INVALID_DATA_TYPE},
     lexer::Token,
 };
+use serde::{Deserialize, Serialize, Serializer};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum SqlType {
     SmallInt,
     Int,
@@ -84,7 +85,7 @@ impl ToString for SqlTypeError {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize)]
 pub enum SqlValue {
     Null,
     Text(SqlText),
@@ -93,7 +94,31 @@ pub enum SqlValue {
     Type(SqlType),
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
+impl Serialize for SqlValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            SqlValue::Null => serializer.serialize_none(),
+            SqlValue::Text(text) => match text {
+                SqlText::Char { value, len } => serializer.serialize_str(value),
+                SqlText::VarChar { value, maxlen, len } => serializer.serialize_str(value),
+                SqlText::Text { value } => serializer.serialize_str(value),
+            },
+            SqlValue::Numeric(num) => match num {
+                SqlNumeric::SmallInt { value } => serializer.serialize_i16(*value),
+                SqlNumeric::Int { value } => serializer.serialize_i32(*value),
+                SqlNumeric::BigInt { value } => serializer.serialize_i64(*value),
+                SqlNumeric::Real { value } => serializer.serialize_f32(*value),
+                SqlNumeric::DoublePrecision { value } => serializer.serialize_f64(*value),
+            },
+            SqlValue::Boolean(val) => serializer.serialize_bool(*val),
+            SqlValue::Type(typ) => serializer.serialize_str(&typ.to_string()),
+        }
+    }
+}
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub enum SqlNumeric {
     SmallInt { value: i16 },
     Int { value: i32 },
@@ -113,7 +138,7 @@ impl Ord for SqlNumeric {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize)]
 pub enum SqlText {
     Char {
         value: String,

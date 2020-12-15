@@ -625,6 +625,7 @@ dependencies = [
  "instant",
  "lazy_static",
  "regex",
+ "serde",
 ]
 
 [[package]]
@@ -654,6 +655,7 @@ dependencies = [
  "lazy_static",
  "postgrustql",
  "postgrustql_repl",
+ "serde",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]
@@ -864,6 +866,9 @@ name = "serde"
 version = "1.0.114"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5317f7588f0a5078ee60ef675ef96735a1442132dc645eb1d12c018620ed8cd3"
+dependencies = [
+ "serde_derive",
+]
 
 [[package]]
 name = "serde_derive"
@@ -1081,6 +1086,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c2dc4aa152834bc334f506c1a06b866416a8b6697d5c9f75b9a689c8486def0"
 dependencies = [
  "cfg-if",
+ "serde",
+ "serde_json",
  "wasm-bindgen-macro",
 ]
 
