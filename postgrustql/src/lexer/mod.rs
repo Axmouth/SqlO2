@@ -89,6 +89,7 @@ pub enum Token {
     Limit,
     Outer,
     Full,
+    Like,
 
     // Symbols
     Semicolon,
@@ -306,7 +307,8 @@ impl Token {
             | Token::By
             | Token::OrderBy
             | Token::Outer
-            | Token::Full => {
+            | Token::Full
+            | Token::Like => {
                 return true;
             }
             _ => {}
@@ -401,6 +403,7 @@ pub const OFFSET_KEYWORD: Keyword = "offset";
 pub const LIMIT_KEYWORD: Keyword = "limit";
 pub const OUTER_KEYWORD: Keyword = "outer";
 pub const FULL_KEYWORD: Keyword = "full";
+pub const LIKE_KEYWORD: Keyword = "like";
 // new
 pub const DECIMAL_KEYWORD: Keyword = "decimal";
 pub const NUMERIC_KEYWORD: Keyword = "numeric";
@@ -448,77 +451,7 @@ impl TokenContainer {
 
     #[inline]
     pub fn binding_power(&self) -> u32 {
-        match self.token {
-            Token::And => {
-                return 1;
-            }
-            Token::Or => {
-                return 1;
-            }
-
-            Token::Equal => {
-                return 2;
-            }
-            Token::NotEqual => {
-                return 2;
-            }
-
-            Token::LessThan => {
-                return 3;
-            }
-            Token::GreaterThan => {
-                return 3;
-            }
-
-            // For some reason these are grouped separately
-            Token::LessThanOrEqual => {
-                return 4;
-            }
-            Token::GreaterThanOrEqual => {
-                return 4;
-            }
-
-            Token::Plus => {
-                return 5;
-            }
-            Token::Minus => {
-                return 5;
-            }
-
-            Token::Concat => {
-                return 6;
-            }
-            Token::Asterisk => {
-                return 6;
-            }
-            Token::Slash => {
-                return 6;
-            }
-            Token::Modulo => {
-                return 6;
-            }
-            Token::Exponentiation => {
-                return 6;
-            }
-
-            // Unary ops
-            Token::SquareRoot => {
-                return 7;
-            }
-            Token::CubeRoot => {
-                return 7;
-            }
-            Token::Factorial => {
-                return 7;
-            }
-            Token::FactorialPrefix => {
-                return 7;
-            }
-
-            _ => {
-                return 0;
-            }
-        };
+        self.token.binding_power()
     }
 }
 
@@ -617,6 +550,7 @@ impl Lexer {
             UPDATE_KEYWORD.to_string(),
             CONSTRAINT_KEYWORD.to_string(),
             FOREIGN_KEYWORD.to_string(),
+            LIKE_KEYWORD.to_string(),
         ];
         let max_symbol_length =
             symbols.iter().fold(
@@ -990,9 +924,9 @@ impl Lexer {
             if cur.pointer + max_length > source.len() {
                 max_length = source.len() - cur.pointer;
             }
-            source[cur.pointer..(cur.pointer + max_length)].to_lowercase()
+            source[cur.pointer..(cur.pointer + max_length)].to_ascii_lowercase()
         } else {
-            source[cur.pointer..].to_lowercase()
+            source[cur.pointer..].to_ascii_lowercase()
         };
 
         for option in options {
@@ -1000,7 +934,7 @@ impl Lexer {
                 text_match = option.to_string();
             }
         }
-        return text_match;
+        return source[cur.pointer..(cur.pointer + text_match.len())].to_string();
     }
 
     pub fn lex_symbol(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
@@ -1047,7 +981,7 @@ impl Lexer {
             return None;
         }
         // != is rewritten as <>: https://www.postgresql.org/docs/9.5/functions-comparison.html
-        let kind = match symbol_match.as_str() {
+        let kind = match symbol_match.to_ascii_lowercase().as_str() {
             COMMA_SYMBOL => Token::Comma,
             EQUAL_SYMBOL => Token::Equal,
             NOT_EQUAL_SYMBOL | NOT_EQUAL_SYMBOL_2 => Token::NotEqual,
@@ -1116,7 +1050,7 @@ impl Lexer {
             }
         }
 
-        let mut kind = match keyword_match.as_str() {
+        let mut kind = match keyword_match.to_ascii_lowercase().as_str() {
             SELECT_KEYWORD => Token::Select,
             FROM_KEYWORD => Token::From,
             WHERE_KEYWORD => Token::Where,
@@ -1165,6 +1099,7 @@ impl Lexer {
             UNIQUE_KEYWORD => Token::Unique,
             INDEX_KEYWORD => Token::Index,
             FOREIGN_KEYWORD => Token::Foreign,
+            LIKE_KEYWORD => Token::Like,
             _ => {
                 return None;
             }
@@ -1244,9 +1179,7 @@ impl Lexer {
             TokenContainer {
                 // Unquoted identifiers are case-insensitive
                 loc: ic.loc,
-                token: Token::IdentifierValue {
-                    value: value.to_lowercase(),
-                },
+                token: Token::IdentifierValue { value },
             },
             cur,
         ))
@@ -1624,7 +1557,7 @@ mod lexer_tests {
                 expected_result: true,
                 value: "userName",
                 expected_value: Token::IdentifierValue {
-                    value: "username".to_owned(),
+                    value: "userName".to_owned(),
                 },
             },
             LexerTest {

@@ -390,6 +390,7 @@ impl Token {
             Token::Dot => DOT_SYMBOL.to_string(),
             Token::Outer => OUTER_KEYWORD.to_string(),
             Token::Full => FULL_KEYWORD.to_string(),
+            Token::Like => LIKE_KEYWORD.to_string(),
             Token::Comment => "".to_string(),
         }
     }
@@ -506,6 +507,257 @@ mod ast_tests {
                     })],
                 },
             },
+            ParseTest {
+                input:
+                    "SELECT id, name as charName FROM characters WHERE name != 'Rachel' AND id < 5;",
+                ast: Ast {
+                    statements: vec![Statement::SelectStatement(SelectStatement {
+                        items: vec![
+                            SelectItem {
+                                asterisk: false,
+                                as_clause: None,
+                                expression: Expression::TableColumn(TableColumn {
+                                    col_name: "id".to_owned(),
+                                    table_name: None,
+                                }),
+                            },
+                            SelectItem {
+                                asterisk: false,
+                                as_clause: Some("charName".to_owned()),
+                                expression: Expression::TableColumn(TableColumn {
+                                    col_name: "name".to_owned(),
+                                    table_name: None,
+                                }),
+                            },
+                        ],
+                        from: vec![RowDataSource::Table {
+                            table_name: "characters".to_string(),
+                            as_clause: None,
+                            joins: vec![],
+                        }],
+                        where_clause: Expression::Binary(BinaryExpression {
+                            first: Box::new(Expression::Binary(BinaryExpression {
+                                first: Box::new(Expression::TableColumn(TableColumn {
+                                    col_name: "name".to_owned(),
+                                    table_name: None,
+                                })),
+                                operand: Token::NotEqual,
+                                second: Box::new(Expression::Literal(LiteralExpression {
+                                    literal: Token::StringValue {
+                                        value: "Rachel".to_owned(),
+                                    },
+                                })),
+                            })),
+                            operand: Token::And,
+                            second: Box::new(Expression::Binary(BinaryExpression {
+                                first: Box::new(Expression::TableColumn(TableColumn {
+                                    col_name: "id".to_owned(),
+                                    table_name: None,
+                                })),
+                                operand: Token::LessThan,
+                                second: Box::new(Expression::Literal(LiteralExpression {
+                                    literal: Token::NumericValue {
+                                        value: "5".to_owned(),
+                                    },
+                                })),
+                            })),
+                        }),
+                        is_distinct: false,
+                        order_by: None,
+                        limit: None,
+                        offset: None,
+                    })],
+                },
+            },
+            ParseTest {
+                input: "SELECT name FROM characters ORDER BY name ASC;",
+                ast: Ast {
+                    statements: vec![Statement::SelectStatement(SelectStatement {
+                        items: vec![SelectItem {
+                            asterisk: false,
+                            as_clause: None,
+                            expression: Expression::TableColumn(TableColumn {
+                                col_name: "name".to_owned(),
+                                table_name: None,
+                            }),
+                        }],
+                        from: vec![RowDataSource::Table {
+                            table_name: "characters".to_string(),
+                            as_clause: None,
+                            joins: vec![],
+                        }],
+                        where_clause: Expression::Empty,
+                        is_distinct: false,
+                        order_by: Some(OrderByClause {
+                            asc: true,
+                            exp: Expression::TableColumn(TableColumn {
+                                col_name: "name".to_owned(),
+                                table_name: None,
+                            }),
+                        }),
+                        limit: None,
+                        offset: None,
+                    })],
+                },
+            },
+            ParseTest {
+                input: "SELECT DISTINCT (id / 2)::int FROM characters",
+                ast: Ast {
+                    statements: vec![Statement::SelectStatement(SelectStatement {
+                        items: vec![SelectItem {
+                            asterisk: false,
+                            as_clause: None,
+                            expression: Expression::Cast {
+                                data: Box::new(Expression::Binary(BinaryExpression {
+                                    first: Box::new(Expression::TableColumn(TableColumn {
+                                        col_name: "id".to_owned(),
+                                        table_name: None,
+                                    })),
+                                    operand: Token::Slash,
+                                    second: Box::new(Expression::Literal(LiteralExpression {
+                                        literal: Token::NumericValue {
+                                            value: "2".to_owned(),
+                                        },
+                                    })),
+                                })),
+                                typ: SqlType::Int,
+                            },
+                        }],
+                        from: vec![RowDataSource::Table {
+                            table_name: "characters".to_string(),
+                            as_clause: None,
+                            joins: vec![],
+                        }],
+                        where_clause: Expression::Empty,
+                        is_distinct: true,
+                        order_by: None,
+                        limit: None,
+                        offset: None,
+                    })],
+                },
+            },
+            ParseTest {
+                input: "SELECT id::text || ' ' || name AS name_with_id FROM characters WHERE id > 1 ORDER BY id DESC LIMIT 4 OFFSET 5;",
+                ast: Ast {
+                    statements: vec![Statement::SelectStatement(SelectStatement {
+                        items: vec![SelectItem {
+                            asterisk: false,
+                            as_clause: Some(String::from("name_with_id")),
+                            expression:Expression::Binary(BinaryExpression {
+                                        first: Box::new(Expression::Cast{
+                                            data: Box::new(Expression::TableColumn(TableColumn {
+                                            col_name: "id".to_owned(),
+                                            table_name: None,
+                                            })),
+                                        typ: SqlType::Text,
+                                        }),
+                                    operand: Token::Concat,
+                                    second: Box::new(Expression::Binary(BinaryExpression {
+                                        first: Box::new(Expression::Literal(LiteralExpression {
+                                            literal: Token::StringValue {
+                                                value: " ".to_owned(),
+                                            },
+                                        })),
+                                        operand: Token::Concat,
+                                        second: Box::new(Expression::TableColumn(TableColumn {
+                                            col_name: "name".to_owned(),
+                                            table_name: None,
+                                            })),
+                                    })),
+                                }),
+                                        
+                        }],
+                        from: vec![RowDataSource::Table {
+                            table_name: "characters".to_string(),
+                            as_clause: None,
+                            joins: vec![],
+                        }],
+                        where_clause: Expression::Binary(BinaryExpression {
+                            first: Box::new(Expression::TableColumn(TableColumn {
+                                col_name: "id".to_owned(),
+                                table_name: None,
+                            })),
+                            operand: Token::GreaterThan,
+                            second: Box::new(Expression::Literal(LiteralExpression {
+                                literal: Token::NumericValue {
+                                    value: "1".to_owned(),
+                                },
+                            })),
+                        }),
+                        is_distinct: false,
+                        order_by: Some(OrderByClause {
+                            asc: false,
+                            exp: Expression::TableColumn(TableColumn {
+                                col_name: "id".to_owned(),
+                                table_name: None,
+                            }),
+                        }),
+                        limit: Some(4),
+                        offset: Some(5),
+                    })],
+                },
+            },
+            ParseTest {
+                input: "SELECT * FROM characters INNER JOIN character_roles ON characters.id=character_roles.character_id WHERE id != 2 ORDER BY id;",
+                ast: Ast {
+                    statements: vec![Statement::SelectStatement(SelectStatement {
+                        items: vec![SelectItem {
+                            asterisk: true,
+                            as_clause: None,
+                            expression: Expression::Empty,
+                        }],
+                        from: vec![RowDataSource::Table {
+                            table_name: String::from("characters"),
+                            as_clause: None,
+                            joins: vec![
+                                JoinClause {
+                                    kind: JoinKind::Inner,
+                                    source: 
+                                        RowDataSource::Table {
+                                            table_name: String::from("character_roles"),
+                                            as_clause: None,
+                                            joins: vec![],
+                                        },
+                                    on: Expression::Binary(BinaryExpression {
+                                            first: Box::new(Expression::TableColumn(TableColumn {
+                                                col_name: String::from("id"),
+                                                table_name: Some(String::from("characters")),
+                                            })),
+                                            operand: Token::Equal,
+                                            second: Box::new(Expression::TableColumn(TableColumn {
+                                                col_name: String::from("character_id"),
+                                                table_name: Some(String::from("character_roles")) ,
+                                            })),
+                                        }),
+
+                                }
+                            ],
+                        }],
+                        where_clause: Expression:: Binary(BinaryExpression {
+                            first: Box::new(Expression::TableColumn(TableColumn {
+                                col_name: "id".to_owned(),
+                                table_name: None,
+                            })),
+                            operand: Token::NotEqual,
+                            second: Box::new(Expression::Literal(LiteralExpression {
+                                literal: Token::NumericValue {
+                                    value: "2".to_owned(),
+                                },
+                            })),
+                        }),
+                        is_distinct: false,
+                        order_by: Some(OrderByClause {
+                            asc: true,
+                            exp: Expression::TableColumn(TableColumn {
+                                col_name: "id".to_owned(),
+                                table_name: None,
+                            }),
+                        }),
+                        limit: None,
+                        offset: None,
+                    })],
+                },
+            },
         ];
 
         let mut found_faults = false;
@@ -514,7 +766,6 @@ mod ast_tests {
         for test in parse_tests {
             print!("(Parser) Testing: {}", test.input);
 
-            parse(test.input).unwrap();
             let ast = match parse(test.input) {
                 Ok(value) => value,
                 Err(err) => {

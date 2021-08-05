@@ -9,7 +9,6 @@ use postgrustql::backend_memory::*;
 use rustyline::{error::ReadlineError, Editor};
 use std::io::{stdout, Write};
 use std::time::Duration;
-use tokio;
 
 fn main() {
     let mut mb = MemoryBackend::new();
