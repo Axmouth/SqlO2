@@ -89,11 +89,11 @@ pub struct QueryResults<C> {
     pub rows: Vec<Vec<C>>,
 }
 
-pub const ERR_TABLE_DOES_NOT_EXIST: &'static str = "Table does not exist.";
-pub const ERR_COLUMN_DOES_NOT_EXIST: &'static str = "Column does not exist.";
-pub const ERR_INVALID_SELECT_ITEM: &'static str = "Select item is not valid.";
-pub const ERR_INVALID_DATA_TYPE: &'static str = "Invalid data type.";
-pub const ERR_MISSING_VALUES: &'static str = "Missing values.";
+pub const ERR_TABLE_DOES_NOT_EXIST: &str = "Table does not exist.";
+pub const ERR_COLUMN_DOES_NOT_EXIST: &str = "Column does not exist.";
+pub const ERR_INVALID_SELECT_ITEM: &str = "Select item is not valid.";
+pub const ERR_INVALID_DATA_TYPE: &str = "Invalid data type.";
+pub const ERR_MISSING_VALUES: &str = "Missing values.";
 
 pub trait Backend<C> {
     fn create_table(_: CreateTableStatement) -> Result<bool, String>;
@@ -113,17 +113,13 @@ impl Cell for MemoryCell {
     fn as_int(&self) -> Result<i32, &'static str> {
         let mut rdr = std::io::Cursor::new(&self.bytes);
         match rdr.read_i32::<BigEndian>() {
-            Ok(result) => {
-                return Ok(result);
-            }
-            Err(_err) => {
-                return Err("Failed to parse bytes to int32.");
-            }
+            Ok(result) => Ok(result),
+            Err(_err) => Err("Failed to parse bytes to int32."),
         }
     }
 
     fn as_num(&self, typ: SqlType) -> Result<f64, &'static str> {
-        let text = match SqlValue::decode_type(&self, typ) {
+        let text = match SqlValue::decode_type(self, typ) {
             Ok(val) => val.to_string(),
             Err(_) => {
                 return Err("Failed to parse bytes to double precision.");
@@ -136,7 +132,7 @@ impl Cell for MemoryCell {
     }
 
     fn as_bool(&self) -> Result<bool, &'static str> {
-        return Ok(self.bytes != vec![0]);
+        Ok(self.bytes != vec![0])
     }
 
     fn as_text(&self) -> Result<String, &'static str> {
@@ -144,16 +140,12 @@ impl Cell for MemoryCell {
 
         let mut text = "".to_owned();
         match rdr.read_to_string(&mut text) {
-            Ok(_) => {
-                return Ok(text);
-            }
-            Err(_err) => {
-                return Err("Failed to parse bytes to String.");
-            }
+            Ok(_) => Ok(text),
+            Err(_err) => Err("Failed to parse bytes to String."),
         }
     }
 
     fn equals(&self, other: Self) -> bool {
-        return self.bytes == other.bytes;
+        self.bytes == other.bytes
     }
 }

@@ -1,5 +1,5 @@
 // location of the token in source code
-#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Default)]
 pub struct TokenLocation {
     pub line: usize,
     pub col: usize,
@@ -139,81 +139,39 @@ pub enum Token {
 impl Token {
     pub fn binding_power(&self) -> u32 {
         match self {
-            Token::And => {
-                return 1;
-            }
-            Token::Or => {
-                return 1;
-            }
+            Token::And => 1,
+            Token::Or => 1,
 
-            Token::Equal => {
-                return 2;
-            }
-            Token::NotEqual => {
-                return 2;
-            }
+            Token::Equal => 2,
+            Token::NotEqual => 2,
 
-            Token::LessThan => {
-                return 3;
-            }
-            Token::GreaterThan => {
-                return 3;
-            }
+            Token::LessThan => 3,
+            Token::GreaterThan => 3,
 
             // For some reason these are grouped separately
-            Token::LessThanOrEqual => {
-                return 4;
-            }
-            Token::GreaterThanOrEqual => {
-                return 4;
-            }
+            Token::LessThanOrEqual => 4,
+            Token::GreaterThanOrEqual => 4,
 
-            Token::Plus => {
-                return 5;
-            }
-            Token::Minus => {
-                return 5;
-            }
+            Token::Plus => 5,
+            Token::Minus => 5,
 
-            Token::Concat => {
-                return 6;
-            }
-            Token::Asterisk => {
-                return 6;
-            }
-            Token::Slash => {
-                return 6;
-            }
-            Token::Modulo => {
-                return 6;
-            }
-            Token::Exponentiation => {
-                return 6;
-            }
+            Token::Concat => 6,
+            Token::Asterisk => 6,
+            Token::Slash => 6,
+            Token::Modulo => 6,
+            Token::Exponentiation => 6,
 
             // Unary ops
-            Token::SquareRoot => {
-                return 7;
-            }
-            Token::CubeRoot => {
-                return 7;
-            }
-            Token::Factorial => {
-                return 7;
-            }
-            Token::FactorialPrefix => {
-                return 7;
-            }
+            Token::SquareRoot => 7,
+            Token::CubeRoot => 7,
+            Token::Factorial => 7,
+            Token::FactorialPrefix => 7,
 
             // Cast
-            Token::TypeCast => {
-                return 8;
-            }
+            Token::TypeCast => 8,
 
-            _ => {
-                return 0;
-            }
-        };
+            _ => 0,
+        }
     }
 
     pub fn is_symbol(&self) -> bool {
@@ -318,18 +276,18 @@ impl Token {
     }
 
     pub fn is_datatype(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Token::Int
-            | Token::BigInt
-            | Token::SmallInt
-            | Token::Text
-            | Token::Varchar
-            | Token::Real
-            | Token::DoublePrecision
-            | Token::Char
-            | Token::Bool => true,
-            _ => false,
-        }
+                | Token::BigInt
+                | Token::SmallInt
+                | Token::Text
+                | Token::Varchar
+                | Token::Real
+                | Token::DoublePrecision
+                | Token::Char
+                | Token::Bool
+        )
     }
 }
 
@@ -457,6 +415,7 @@ impl TokenContainer {
 
 pub type LexerFn = fn(&Lexer, &str, Cursor) -> Option<(TokenContainer, Cursor)>;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Lexer {
     // Syntax that should be kept
     symbols: Vec<String>,
@@ -674,7 +633,7 @@ impl Lexer {
             }
             let mut hint = "".to_owned();
 
-            if tokens.len() > 0 {
+            if !tokens.is_empty() {
                 hint = "after ".to_owned();
                 hint.push_str(format!("{:?}", &tokens[tokens.len() - 1].token).as_str());
             }
@@ -713,8 +672,8 @@ impl Lexer {
         }
         if source[cur.pointer..].starts_with("--") {
             cur.pointer += 2;
-            let mut char_iter = source[cur.pointer..].chars().peekable();
-            while let Some(c) = char_iter.next() {
+            let char_iter = source[cur.pointer..].chars().peekable();
+            for c in char_iter {
                 cur.pointer += 1;
                 if c == '\n' {
                     cur.loc.col = 0;
@@ -832,7 +791,7 @@ impl Lexer {
     ) -> Option<(TokenContainer, Cursor)> {
         let mut cur = ic.clone();
 
-        if source[cur.pointer..].len() == 0 {
+        if source[cur.pointer..].is_empty() {
             return None;
         }
 
@@ -904,7 +863,7 @@ impl Lexer {
     }
 
     pub fn lex_string(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
-        return self.lex_character_delimited(source, ic, '\'', TokenKind::String);
+        self.lex_character_delimited(source, ic, '\'', TokenKind::String)
     }
 
     // longestMatch iterates through a source string starting at the given
@@ -914,11 +873,11 @@ impl Lexer {
         &self,
         source: &str,
         ic: Cursor,
-        options: &Vec<String>,
+        options: &[String],
         max_length: Option<usize>,
     ) -> String {
         let mut text_match: String = "".to_string();
-        let cur = ic.clone();
+        let cur = ic;
 
         let rest_of_text = if let Some(mut max_length) = max_length {
             if cur.pointer + max_length > source.len() {
@@ -934,7 +893,7 @@ impl Lexer {
                 text_match = option.to_string();
             }
         }
-        return source[cur.pointer..(cur.pointer + text_match.len())].to_string();
+        source[cur.pointer..(cur.pointer + text_match.len())].to_string()
     }
 
     pub fn lex_symbol(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
@@ -977,7 +936,7 @@ impl Lexer {
             Some(self.max_symbol_length),
         );
         // Unknown character
-        if symbol_match == "" {
+        if symbol_match.is_empty() {
             return None;
         }
         // != is rewritten as <>: https://www.postgresql.org/docs/9.5/functions-comparison.html
@@ -1038,7 +997,7 @@ impl Lexer {
             &self.keywords,
             Some(self.max_keyword_length),
         );
-        if keyword_match == "" {
+        if keyword_match.is_empty() {
             return None;
         }
         cur.pointer = ic.pointer + keyword_match.len();
@@ -1105,17 +1064,13 @@ impl Lexer {
             }
         };
 
-        if keyword_match == TRUE_KEYWORD.to_owned() || keyword_match == FALSE_KEYWORD.to_owned() {
+        if keyword_match == *TRUE_KEYWORD || keyword_match == *FALSE_KEYWORD {
             kind = Token::BoolValue {
-                value: if keyword_match == TRUE_KEYWORD.to_owned() {
-                    true
-                } else {
-                    false
-                },
+                value: keyword_match == *TRUE_KEYWORD,
             };
         }
 
-        if keyword_match == NULL_KEYWORD.to_owned() {
+        if keyword_match == *NULL_KEYWORD {
             kind = Token::Null;
         }
 
@@ -1171,7 +1126,7 @@ impl Lexer {
             break;
         }
 
-        if value.len() == 0 {
+        if value.is_empty() {
             return None;
         }
 
@@ -1193,11 +1148,8 @@ pub fn get_location_from_cursor(source: &str, cursor: usize) -> TokenLocation {
         .collect::<String>()
         .find('\n');
     let mut col = cursor;
-    match rev_pos {
-        Some(rev_pos) => {
-            col = source[..(cursor + 1)].len() - rev_pos;
-        }
-        _ => {}
+    if let Some(rev_pos) = rev_pos {
+        col = source[..(cursor + 1)].len() - rev_pos;
     }
     TokenLocation {
         col,
@@ -1207,17 +1159,17 @@ pub fn get_location_from_cursor(source: &str, cursor: usize) -> TokenLocation {
 
 #[inline]
 fn get_chat_at(source: &str, position: usize) -> Option<char> {
-    source[position..(position + 1)].chars().nth(0)
+    source[position..(position + 1)].chars().next()
 }
 
 #[inline]
 fn is_char_alphabetical(c: char) -> bool {
-    (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+    ('A'..='Z').contains(&c) || ('a'..='z').contains(&c)
 }
 
 #[inline]
 fn is_char_digit(c: char) -> bool {
-    c >= '0' && c <= '9'
+    ('0'..='9').contains(&c)
 }
 
 #[inline]
@@ -1294,7 +1246,7 @@ mod lexer_tests {
         }
 
         if found_faults {
-            panic!(error_msg);
+            panic!("{}", error_msg);
         }
     }
 
@@ -2003,7 +1955,7 @@ mod lexer_tests {
         }
 
         if found_faults {
-            panic!(err_msg);
+            panic!("{}", err_msg);
         }
     }
 }

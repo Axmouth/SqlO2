@@ -1,4 +1,4 @@
-use criterion::{black_box, Criterion};
+use criterion::black_box;
 use instant::Instant;
 use postgrustql::lexer;
 

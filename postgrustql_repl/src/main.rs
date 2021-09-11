@@ -1,9 +1,6 @@
-use postgrustql::{
-    self,
-    sql_types::{SqlType, SqlValue},
-};
+use postgrustql::{self};
 
-use postgrustql::backend::{Cell, EvalResult};
+use postgrustql::backend::EvalResult;
 use postgrustql::backend_memory::*;
 
 use rustyline::{error::ReadlineError, Editor};
@@ -14,10 +11,7 @@ fn main() {
     let mut mb = MemoryBackend::new();
     let mut rl = Editor::<()>::new();
 
-    match rl.load_history("history.txt") {
-        Ok(_) => {}
-        Err(_) => {}
-    }
+    if rl.load_history("history.txt").is_ok() {}
 
     loop {
         match stdout().flush() {
@@ -108,9 +102,7 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
 
                         for result in &results.rows {
                             let mut table_row = Vec::with_capacity(10);
-                            for i in 0..result.len() {
-                                let cell = &result[i];
-                                let typ = results.columns[i].col_type;
+                            for cell in result.iter() {
                                 let s = cell.to_string();
                                 table_row.push(prettytable::Cell::new(&s));
                             }
@@ -118,7 +110,7 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
                         }
                         table
                             .set_format(*prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-                        if results.rows.len() > 0 {
+                        if !results.rows.is_empty() {
                             output_text.push_str(table.to_string().as_str());
                         }
                         output_text

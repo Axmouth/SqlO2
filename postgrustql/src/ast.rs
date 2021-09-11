@@ -82,7 +82,7 @@ pub struct ColumnDefinition {
     pub is_primary_key: bool,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct SelectStatement {
     pub items: Vec<SelectItem>,
     pub from: Vec<RowDataSource>,
@@ -171,6 +171,12 @@ pub enum Expression {
     Empty,
 }
 
+impl Default for Expression {
+    fn default() -> Self {
+        Expression::Empty
+    }
+}
+
 impl Expression {
     pub fn new() -> Expression {
         Expression::Empty
@@ -179,28 +185,28 @@ impl Expression {
     pub fn new_literal_id(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
             literal: Token::IdentifierValue {
-                value: value.clone(),
+                value,
             },
         })
     }
     pub fn new_literal_num(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
             literal: Token::NumericValue {
-                value: value.clone(),
+                value,
             },
         })
     }
     pub fn new_literal_string(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
             literal: Token::StringValue {
-                value: value.clone(),
+                value,
             },
         })
     }
     pub fn new_literal_bool(value: String) -> Expression {
         Expression::Literal(LiteralExpression {
             literal: Token::BoolValue {
-                value: if value == TRUE_KEYWORD { true } else { false },
+                value:  value == TRUE_KEYWORD,
             },
         })
     }
@@ -224,34 +230,22 @@ impl Expression {
 
     #[inline]
     pub fn is_unary(&self) -> bool {
-        match self {
-            Expression::Unary(_) => true,
-            _ => false,
-        }
+        matches!(self, Expression::Unary(_))
     }
 
     #[inline]
     pub fn is_binary(&self) -> bool {
-        match self {
-            Expression::Binary(_) => true,
-            _ => false,
-        }
+        matches!(self, Expression::Binary(_))
     }
 
     #[inline]
     pub fn is_literal(&self) -> bool {
-        match self {
-            Expression::Literal(_) => true,
-            _ => false,
-        }
+        matches!(self, Expression::Literal(_))
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        match self {
-            Expression::Empty => true,
-            _ => false,
-        }
+        matches!(self, Expression::Empty)
     }
 }
 
@@ -396,7 +390,7 @@ impl Token {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct SelectItem {
     pub expression: Expression,
     pub as_clause: Option<String>,
@@ -780,7 +774,7 @@ mod ast_tests {
         }
 
         if found_faults {
-            panic!(err_msg);
+            panic!("{}", err_msg);
         }
     }
 }

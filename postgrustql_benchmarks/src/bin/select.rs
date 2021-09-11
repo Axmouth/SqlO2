@@ -24,11 +24,7 @@ fn main() {
         db.insert(statement.clone()).unwrap();
     }
     for _ in 0..100 {
-        db.eval_query(
-            format!("SELECT * FROM people WHERE id = 999999;")
-                .to_owned()
-                .as_str(),
-        )
-        .unwrap();
+        db.eval_query("SELECT * FROM people WHERE id = 999999;")
+            .unwrap();
     }
 }

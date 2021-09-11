@@ -3,7 +3,7 @@ use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 
 use crate::{
-    backend::{Cell, MemoryCell, MemoryCellData, ERR_INVALID_DATA_TYPE},
+    backend::{Cell, MemoryCell, ERR_INVALID_DATA_TYPE},
     lexer::Token,
 };
 use serde::{Deserialize, Serialize, Serializer};
@@ -102,8 +102,12 @@ impl Serialize for SqlValue {
         match self {
             SqlValue::Null => serializer.serialize_none(),
             SqlValue::Text(text) => match text {
-                SqlText::Char { value, len } => serializer.serialize_str(value),
-                SqlText::VarChar { value, maxlen, len } => serializer.serialize_str(value),
+                SqlText::Char { value, len: _ } => serializer.serialize_str(value),
+                SqlText::VarChar {
+                    value,
+                    maxlen: _,
+                    len: _,
+                } => serializer.serialize_str(value),
                 SqlText::Text { value } => serializer.serialize_str(value),
             },
             SqlValue::Numeric(num) => match num {
@@ -129,9 +133,11 @@ pub enum SqlNumeric {
 
 impl Eq for SqlNumeric {}
 
+// TODO: Find better approach
+#[allow(clippy::derive_ord_xor_partial_ord)]
 impl Ord for SqlNumeric {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match (self).partial_cmp(&(other)) {
+        match (self).partial_cmp(other) {
             Some(val) => val,
             None => std::cmp::Ordering::Greater,
         }
@@ -178,22 +184,18 @@ fn factorial(num: i64) -> Result<i64, SqlTypeError> {
 impl SqlValue {
     #[inline]
     pub fn is_numeric(&self) -> bool {
-        if let SqlValue::Numeric(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, SqlValue::Numeric(_))
     }
 
     #[inline]
     pub fn is_int(&self) -> bool {
         match self {
-            SqlValue::Numeric(num) => match num {
+            SqlValue::Numeric(num) => matches!(
+                num,
                 SqlNumeric::SmallInt { value: _ }
-                | SqlNumeric::Int { value: _ }
-                | SqlNumeric::BigInt { value: _ } => true,
-                _ => false,
-            },
+                    | SqlNumeric::Int { value: _ }
+                    | SqlNumeric::BigInt { value: _ }
+            ),
             _ => false,
         }
     }
@@ -201,39 +203,27 @@ impl SqlValue {
     #[inline]
     pub fn is_float(&self) -> bool {
         match self {
-            SqlValue::Numeric(num) => match num {
-                SqlNumeric::Real { value: _ } | SqlNumeric::DoublePrecision { value: _ } => true,
-                _ => false,
-            },
+            SqlValue::Numeric(num) => matches!(
+                num,
+                SqlNumeric::Real { value: _ } | SqlNumeric::DoublePrecision { value: _ }
+            ),
             _ => false,
         }
     }
 
     #[inline]
     pub fn is_null(&self) -> bool {
-        if let SqlValue::Null = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, SqlValue::Null)
     }
 
     #[inline]
     pub fn is_text(&self) -> bool {
-        if let SqlValue::Text(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, SqlValue::Text(_))
     }
 
     #[inline]
     pub fn is_bool(&self) -> bool {
-        if let SqlValue::Boolean(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, SqlValue::Boolean(_))
     }
 
     #[inline]
@@ -339,7 +329,6 @@ impl SqlValue {
                     SqlValue::Numeric(*num1),
                     SqlValue::Numeric(SqlNumeric::Int { value: *v2 as i32 }),
                 )),
-                _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
             },
             (SqlValue::Text(text1), SqlValue::Text(text2)) => match (&text1, &text2) {
                 (&SqlText::Text { value: _ }, &SqlText::Text { value: _ })
@@ -388,7 +377,7 @@ impl SqlValue {
 
     #[inline]
     pub fn decode_type(data: &MemoryCell, typ: SqlType) -> Result<Self, SqlTypeError> {
-        if data.bytes.len() == 0 {
+        if data.bytes.is_empty() {
             return Ok(SqlValue::Null);
         }
         match typ {
@@ -832,7 +821,7 @@ impl SqlValue {
     pub fn bitwise_and(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
-        if a.is_int() == false || b.is_int() == false {
+        if !(a.is_int() && b.is_int()) {
             return Err(SqlTypeError::TypeMismatchError(
                 "Can only apply bitwise and to integer types".to_string(),
             ));
@@ -862,7 +851,7 @@ impl SqlValue {
     pub fn bitwise_or(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
-        if a.is_int() == false || b.is_int() == false {
+        if !(a.is_int() && b.is_int()) {
             return Err(SqlTypeError::TypeMismatchError(
                 "Can only apply bitwise or to integer types".to_string(),
             ));
@@ -892,7 +881,7 @@ impl SqlValue {
     pub fn bitwise_xor(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
-        if a.is_int() == false || b.is_int() == false {
+        if !(a.is_int() && b.is_int()) {
             return Err(SqlTypeError::TypeMismatchError(
                 "Can only apply bitwise xor to integer types".to_string(),
             ));
@@ -922,7 +911,7 @@ impl SqlValue {
     pub fn bitwise_shift_left(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
-        if a.is_int() == false || b.is_int() == false {
+        if !(a.is_int() && b.is_int()) {
             return Err(SqlTypeError::TypeMismatchError(
                 "Can only apply bitwise shift left to integer types".to_string(),
             ));
@@ -952,7 +941,7 @@ impl SqlValue {
     pub fn bitwise_shift_right(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
-        if a.is_int() == false || b.is_int() == false {
+        if !(a.is_int() && b.is_int()) {
             return Err(SqlTypeError::TypeMismatchError(
                 "Can only apply bitwise shift left to integer types".to_string(),
             ));
@@ -1358,9 +1347,9 @@ impl SqlValue {
                     SqlNumeric::Int { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
                         value: i64::try_from(*value)?,
                     })),
-                    SqlNumeric::BigInt { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
-                        value: i64::try_from(*value)?,
-                    })),
+                    SqlNumeric::BigInt { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: *value }))
+                    }
                     SqlNumeric::Real { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
                         value: *value as i64,
                     })),
@@ -1399,9 +1388,9 @@ impl SqlValue {
                     SqlNumeric::SmallInt { value } => Ok(SqlValue::Numeric(SqlNumeric::Int {
                         value: i32::from(*value),
                     })),
-                    SqlNumeric::Int { value } => Ok(SqlValue::Numeric(SqlNumeric::Int {
-                        value: i32::try_from(*value)?,
-                    })),
+                    SqlNumeric::Int { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::Int { value: *value }))
+                    }
                     SqlNumeric::BigInt { value } => Ok(SqlValue::Numeric(SqlNumeric::Int {
                         value: i32::try_from(*value)?,
                     })),
@@ -1440,9 +1429,9 @@ impl SqlValue {
             },
             SqlType::SmallInt => match self {
                 SqlValue::Numeric(num) => match num {
-                    SqlNumeric::SmallInt { value } => Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
-                        value: i16::from(*value),
-                    })),
+                    SqlNumeric::SmallInt { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::SmallInt { value: *value }))
+                    }
                     SqlNumeric::Int { value } => Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
                         value: i16::try_from(*value)?,
                     })),
@@ -1495,9 +1484,9 @@ impl SqlValue {
                     SqlNumeric::BigInt { value } => Ok(SqlValue::Numeric(SqlNumeric::Real {
                         value: *value as f32,
                     })),
-                    SqlNumeric::Real { value } => Ok(SqlValue::Numeric(SqlNumeric::Real {
-                        value: f32::try_from(*value)?,
-                    })),
+                    SqlNumeric::Real { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::Real { value: *value }))
+                    }
                     SqlNumeric::DoublePrecision { value } => {
                         Ok(SqlValue::Numeric(SqlNumeric::Real {
                             value: *value as f32,
@@ -1545,7 +1534,7 @@ impl SqlValue {
                     }
                     SqlNumeric::DoublePrecision { value } => {
                         Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
-                            value: f64::from(*value),
+                            value: *value,
                         }))
                     }
                 },
@@ -1796,10 +1785,7 @@ impl SqlValue {
                 _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
             },
             SqlType::Null => Ok(SqlValue::Null),
-            SqlType::Type => match self {
-                _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
-            },
-            _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
+            SqlType::Type => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
         }
     }
 
@@ -1817,9 +1803,9 @@ impl SqlValue {
                     SqlNumeric::Int { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
                         value: i64::try_from(*value)?,
                     })),
-                    SqlNumeric::BigInt { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
-                        value: i64::try_from(*value)?,
-                    })),
+                    SqlNumeric::BigInt { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::BigInt { value: *value }))
+                    }
                     SqlNumeric::Real { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
                         value: *value as i64,
                     })),
@@ -1836,9 +1822,9 @@ impl SqlValue {
                     SqlNumeric::SmallInt { value } => Ok(SqlValue::Numeric(SqlNumeric::Int {
                         value: i32::from(*value),
                     })),
-                    SqlNumeric::Int { value } => Ok(SqlValue::Numeric(SqlNumeric::Int {
-                        value: i32::try_from(*value)?,
-                    })),
+                    SqlNumeric::Int { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::Int { value: *value }))
+                    }
                     SqlNumeric::BigInt { value } => Ok(SqlValue::Numeric(SqlNumeric::Int {
                         value: i32::try_from(*value)?,
                     })),
@@ -1855,9 +1841,9 @@ impl SqlValue {
             },
             SqlType::SmallInt => match self {
                 SqlValue::Numeric(num) => match num {
-                    SqlNumeric::SmallInt { value } => Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
-                        value: i16::from(*value),
-                    })),
+                    SqlNumeric::SmallInt { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::SmallInt { value: *value }))
+                    }
                     SqlNumeric::Int { value } => Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
                         value: i16::try_from(*value)?,
                     })),
@@ -1886,9 +1872,9 @@ impl SqlValue {
                     SqlNumeric::BigInt { value } => Ok(SqlValue::Numeric(SqlNumeric::Real {
                         value: *value as f32,
                     })),
-                    SqlNumeric::Real { value } => Ok(SqlValue::Numeric(SqlNumeric::Real {
-                        value: f32::try_from(*value)?,
-                    })),
+                    SqlNumeric::Real { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::Real { value: *value }))
+                    }
                     SqlNumeric::DoublePrecision { value } => {
                         Ok(SqlValue::Numeric(SqlNumeric::Real {
                             value: *value as f32,
@@ -1921,7 +1907,7 @@ impl SqlValue {
                     }
                     SqlNumeric::DoublePrecision { value } => {
                         Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
-                            value: f64::from(*value),
+                            value: *value,
                         }))
                     }
                 },
@@ -2003,7 +1989,7 @@ impl SqlValue {
 
 impl SqlNumeric {
     #[inline]
-    pub fn parse(data: &String) -> Result<Self, SqlTypeError> {
+    pub fn parse(data: &str) -> Result<Self, SqlTypeError> {
         if let Ok(value) = data.parse::<i16>() {
             Ok(SqlNumeric::SmallInt { value })
         } else if let Ok(value) = data.parse::<i32>() {
@@ -2013,7 +1999,7 @@ impl SqlNumeric {
         } else if let Ok(value) = data.parse::<f32>() {
             match (data.parse::<f32>(), data.parse::<f64>()) {
                 (Ok(v1), Ok(v2)) => {
-                    if v1 as f64 != v2 {
+                    if (v1 as f64 - v2).abs() > 0. {
                         Ok(SqlNumeric::DoublePrecision { value: v2 })
                     } else {
                         Ok(SqlNumeric::Real { value })

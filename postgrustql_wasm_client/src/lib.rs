@@ -43,8 +43,7 @@ pub fn eval_raw(cmd: String) -> JsValue {
 
 pub fn eval_query(cmd: String) -> Result<Vec<EvalResult<SqlValue>>, String> {
     let backend = &mut BACKEND.lock().unwrap();
-    let result = backend.eval_query(&cmd);
-    result
+    backend.eval_query(&cmd)
 }
 
 pub fn query_results_to_js(results: Result<Vec<EvalResult<SqlValue>>, String>) -> JsValue {
