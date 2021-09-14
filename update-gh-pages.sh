@@ -1,8 +1,8 @@
-cd postgrustql_wasm_client
+cd wasm_client
 wasm-pack build
-cd ../postgrustql-ng-repl
+cd ../ng-repl
 ng build --prod=true --base-href=https://axmouth.github.io/postgrustql/ --deployUrl=https://axmouth.github.io/postgrustql/
 cd ..
 
 mkdir -p docs
-cp -r postgrustql-ng-repl/dist/postgrustql-ng-repl/* docs
+cp -r ng-repl/dist/postgrustql-ng-repl/* docs

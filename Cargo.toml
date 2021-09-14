@@ -1,10 +1,11 @@
 [workspace]
 
 members = [
-    "postgrustql",
-    "postgrustql_benchmarks",
-    "postgrustql_repl",
-    "postgrustql_wasm_client"
+    "engine",
+    "benchmarks",
+    "repl",
+    "wasm_client",
+    "wire_protocol"
 ]
 
 [profile.bench]
