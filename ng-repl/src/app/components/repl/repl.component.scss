@@ -1,0 +1,93 @@
+.failed * {
+  color: orangered;
+  text-shadow: 0 0 5px red;
+  display: block;
+}
+
+.failed *::selection {
+  background-color: orangered;
+  color: darkgreen;
+}
+
+.ok * {
+  color: yellowgreen;
+  text-shadow: 0 0 2px darkgreen;
+  display: block;
+}
+
+.ok *::selection {
+  color: darkgreen;
+  background-color: yellowgreen;
+}
+
+.results {
+  display: block;
+}
+
+.results-table {
+  margin: 0.6em;
+  align-self: flex-start;
+}
+
+.terminal-input {
+  background: transparent;
+  border: none;
+  color: white;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  align-self: flex-start;
+  font: 0.8rem Inconsolata, monospace;
+  text-shadow: 0 0 2px #c8c8c8;
+}
+
+.executed-query {
+  word-break: break-all;
+  background: transparent;
+  border: none;
+  color: white;
+  font: 0.8rem Inconsolata, monospace;
+  text-shadow: 0 0 5px #c8c8c8;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  // flex: 1 1 200px;
+  display: contents;
+  //align-self: flex-start;
+}
+
+.executed-query::selection {
+  background-color: white;
+  color: darkgreen;
+}
+
+.prompt {
+  word-break: keep-all;
+  font-family: 'courier', monospace;
+  color: lime;
+  height: 1em;
+  font: 0.8rem Inconsolata, monospace;
+  text-shadow: none;
+  //display: inline-block;
+  //align-self: flex-start;
+}
+
+.prompt::selection {
+  background-color: lime;
+  color: darkgreen;
+}
+
+.prompt-wrapper {
+  display: flex;
+  margin-bottom: 0.4em;
+  margin-top: 0.2em;
+  width: 100%;
+}
+
+textarea {
+  outline: none;
+}
+
+textarea:focus {
+  outline: none;
+}

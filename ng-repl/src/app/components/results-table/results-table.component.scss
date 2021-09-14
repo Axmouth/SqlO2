@@ -1,0 +1,50 @@
+.table-header {
+    color: cyan;
+    text-shadow: 0 0 2px darkolivegreen;
+}
+
+.table-header::selection {
+    color: darkolivegreen;
+    background-color: cyan;
+}
+
+.results {
+    color: darkgray;
+    text-shadow: 0 0 5px gray;
+}
+
+.results::selection {
+    color: darkolivegreen;
+    background-color: darkgray;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 0.6em;
+    border-collapse: collapse;
+}
+
+th::selection,
+td::selection {
+    color: darkolivegreen;
+    background-color: white;
+}
+
+.dashed-border {
+    border: 2px dashed #3fa535;
+    position: relative;
+}
+
+.dashed-border:after {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: -1px;
+    right: -1px;
+    bottom: -1px;
+    border: 1px solid transparent;
+}
