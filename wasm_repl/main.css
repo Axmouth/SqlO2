@@ -1,0 +1,180 @@
+html,
+body {
+  padding: 0px;
+  margin: 0px;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  background-color: black;
+  background-image: radial-gradient(rgba(0, 150, 0, 0.75), black 120%);
+  background-attachment: fixed;
+  margin: 0;
+  color: white;
+  font: 0.8rem Inconsolata, monospace;
+  text-shadow: 0 0 5px #c8c8c8;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(black, 0.15),
+    rgba(black, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+}
+
+::selection {
+  background: #0080ff;
+  text-shadow: none;
+}
+
+.table-header {
+  color: cyan;
+  text-shadow: 0 0 2px darkolivegreen;
+}
+
+.table-header::selection {
+  color: darkolivegreen;
+  background-color: cyan;
+}
+
+.results {
+  color: darkgray;
+  text-shadow: 0 0 5px gray;
+}
+
+.results::selection {
+  color: darkolivegreen;
+  background-color: darkgray;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.6em;
+  border-collapse: collapse;
+}
+
+th::selection,
+td::selection {
+  color: darkolivegreen;
+  background-color: white;
+}
+
+.dashed-border {
+  border: 2px dashed #3fa535;
+  position: relative;
+}
+
+.dashed-border:after {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  right: -1px;
+  bottom: -1px;
+  border: 1px solid transparent;
+}
+
+.failed * {
+  color: orangered;
+  text-shadow: 0 0 5px red;
+  display: block;
+}
+
+.failed *::selection {
+  background-color: orangered;
+  color: darkgreen;
+}
+
+.ok * {
+  color: yellowgreen;
+  text-shadow: 0 0 2px darkgreen;
+  display: block;
+}
+
+.ok *::selection {
+  color: darkgreen;
+  background-color: yellowgreen;
+}
+
+.results {
+  display: block;
+}
+
+.results-table {
+  margin: 0.6em;
+  align-self: flex-start;
+}
+
+.terminal-input {
+  background: transparent;
+  border: none;
+  color: white;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  align-self: flex-start;
+  font: 0.8rem Inconsolata, monospace;
+  text-shadow: 0 0 2px #c8c8c8;
+}
+
+.executed-query {
+  word-break: break-all;
+  background: transparent;
+  border: none;
+  color: white;
+  font: 0.8rem Inconsolata, monospace;
+  text-shadow: 0 0 5px #c8c8c8;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  display: contents;
+}
+
+.executed-query::selection {
+  background-color: white;
+  color: darkgreen;
+}
+
+.prompt {
+  word-break: keep-all;
+  font-family: 'courier', monospace;
+  color: lime;
+  height: 1em;
+  font: 0.8rem Inconsolata, monospace;
+  text-shadow: none;
+}
+
+.prompt::selection {
+  background-color: lime;
+  color: darkgreen;
+}
+
+.prompt-wrapper {
+  display: flex;
+  margin-bottom: 0.4em;
+  margin-top: 0.2em;
+  width: 100%;
+}
+
+textarea {
+  outline: none;
+}
+
+textarea:focus {
+  outline: none;
+}

@@ -13,7 +13,6 @@ wasm-bindgen = [ "instant/wasm-bindgen" ]
 [dependencies]
 byteorder = "1"
 bytes = "1.0.1"
-futures = "0.3"
 regex  = "1.4"
 lazy_static = "1.4"
 instant = { version = "0.1", features = [ "now" ] }

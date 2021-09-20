@@ -15,5 +15,9 @@ instant = { version = "0.1", features = [ "now" ] }
 name = "bench_main"
 harness = false
 
+[profile.bench]
+debug = true
+
 [profile.release]
 debug = true
+
