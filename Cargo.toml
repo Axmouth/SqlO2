@@ -4,7 +4,9 @@ members = [
     "engine",
     "benchmarks",
     "repl",
+    "server",
     "wasm_client",
+    "wasm_repl",
     "wire_protocol"
 ]
 
