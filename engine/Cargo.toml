@@ -7,8 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+default = []
 stdweb = [ "instant/stdweb" ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
+wasm = ["stdweb", "wasm-bindgen"]
 
 [dependencies]
 byteorder = "1"
@@ -17,3 +19,5 @@ regex  = "1.4"
 lazy_static = "1.4"
 instant = { version = "0.1", features = [ "now" ] }
 serde = { version = "1.0", features = ["derive"] }
+jemallocator = {version = "0.3", optional = true }
+mimalloc = { version = "0.1", default-features = false, optional = true }
