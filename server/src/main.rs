@@ -4,7 +4,7 @@ use std::{
     thread,
 };
 
-use postgrustql_wire_protocol::{
+use sqlo2_wire_protocol::{
     messages::{
         AuthenticationOk, Bind, Describe, DeserializableMessage, Execute, Parse, ReadyForQuery,
         SerializableMessage, Sync,
@@ -16,7 +16,7 @@ fn main() {
     dotenv::dotenv().unwrap();
     env_logger::init();
 
-    log::info!("postgrustql server starting..");
+    log::info!("sqlo2 server starting..");
 
     let port = 9876;
 

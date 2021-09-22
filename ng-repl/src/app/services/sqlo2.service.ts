@@ -18,14 +18,14 @@ function sleep(ms: number) {
 @Injectable({
   providedIn: 'root',
 })
-export class PostgrustqlService implements OnDestroy {
+export class SqlO2Service implements OnDestroy {
   notifier = new Subject();
-  private wasm: typeof import('../../../../wasm_client/pkg/postgrustql_wasm_client.js');
+  private wasm: typeof import('../../../../wasm_client/pkg/sqlo2_wasm_client.js');
   private loaded = false;
   loading: Subject<boolean> = new Subject<boolean>();
 
   constructor() {
-    import('../../../../wasm_client/pkg/postgrustql_wasm_client.js').then((wasm) => {
+    import('../../../../wasm_client/pkg/sqlo2_wasm_client.js').then((wasm) => {
       console.log('this.loaded');
       this.wasm = wasm;
       this.loaded = true;

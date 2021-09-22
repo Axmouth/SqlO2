@@ -1,7 +1,7 @@
-use postgrustql::{self};
+use sqlo2::{self};
 
-use postgrustql::backend::EvalResult;
-use postgrustql::backend_memory::*;
+use sqlo2::backend::EvalResult;
+use sqlo2::backend_memory::*;
 
 use rustyline::{error::ReadlineError, Editor};
 use std::io::{stdout, Write};
@@ -21,7 +21,7 @@ fn main() {
             }
         }
 
-        let readline = rl.readline("PostgRustQL #: ");
+        let readline = rl.readline("SqlO2 #: ");
         let input = match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
