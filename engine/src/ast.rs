@@ -756,11 +756,12 @@ mod ast_tests {
 
         let mut found_faults = false;
         let mut err_msg = "\n".to_owned();
+        let parser = Parser::new();
 
         for test in parse_tests {
             print!("(Parser) Testing: {}", test.input);
 
-            let ast = match parse(test.input) {
+            let ast = match parser.parse(test.input) {
                 Ok(value) => value,
                 Err(err) => {
                     found_faults = true;

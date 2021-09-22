@@ -43,6 +43,69 @@ lazy_static! {
     static ref UNARY_POSTFIX_OPERATORS: Vec<Token> = vec![Token::Factorial];
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct Parser {
+    lexer: Lexer,
+}
+
+impl Parser {
+    pub fn new() -> Parser {
+        Parser {
+            lexer: Lexer::new(),
+        }
+    }
+
+    pub fn parse(&self, source: &str) -> Result<Ast, ParsingError> {
+        let mut tokens = self.lexer.lex(source)?;
+
+        let mut ast = Ast {
+            statements: Vec::with_capacity(10),
+        };
+
+        let mut cursor: usize = 0;
+        let mut first_statement = true;
+        while cursor < tokens.len() {
+            if !first_statement {
+                let mut at_least_one_semicolon = false;
+                while expect_token(&mut tokens[cursor..].iter(), cursor, Token::Semicolon) {
+                    cursor += 1;
+                    at_least_one_semicolon = true;
+                }
+                if !(first_statement || at_least_one_semicolon) {
+                    return Err(ParsingError::Delimiter {
+                        msg: help_message(
+                            &tokens,
+                            cursor,
+                            "Expected Semicolon Delimiter between Statements".to_owned(),
+                        ),
+                        cursor,
+                    });
+                }
+            }
+            match parse_statement(&mut tokens, cursor, Token::Semicolon) {
+                Ok((statement, new_cursor)) => {
+                    cursor = new_cursor;
+
+                    ast.statements.push(statement);
+                    first_statement = false;
+                }
+
+                Err(err) => {
+                    return Err(ParsingError::Delimiter {
+                        msg: help_message(&tokens, cursor, err.to_string()),
+                        cursor,
+                    });
+                }
+            }
+            if cursor == tokens.len() - 1 {
+                break;
+            }
+        }
+
+        Ok(ast)
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ParsingError {
     General { msg: String, cursor: usize },
@@ -102,57 +165,6 @@ fn help_message(tokens: &[TokenContainer], cursor: usize, msg: String) -> String
         "[{}, {}]: {}, got {:?}",
         token.loc.line, token.loc.col, msg, token.token,
     )
-}
-
-pub fn parse(source: &str) -> Result<Ast, ParsingError> {
-    let lexer = Lexer::new();
-    let mut tokens = lexer.lex(source)?;
-
-    let mut ast = Ast {
-        statements: Vec::with_capacity(10),
-    };
-
-    let mut cursor: usize = 0;
-    let mut first_statement = true;
-    while cursor < tokens.len() {
-        if !first_statement {
-            let mut at_least_one_semicolon = false;
-            while expect_token(&mut tokens[cursor..].iter(), cursor, Token::Semicolon) {
-                cursor += 1;
-                at_least_one_semicolon = true;
-            }
-            if !(first_statement || at_least_one_semicolon) {
-                return Err(ParsingError::Delimiter {
-                    msg: help_message(
-                        &tokens,
-                        cursor,
-                        "Expected Semicolon Delimiter between Statements".to_owned(),
-                    ),
-                    cursor,
-                });
-            }
-        }
-        match parse_statement(&mut tokens, cursor, Token::Semicolon) {
-            Ok((statement, new_cursor)) => {
-                cursor = new_cursor;
-
-                ast.statements.push(statement);
-                first_statement = false;
-            }
-
-            Err(err) => {
-                return Err(ParsingError::Delimiter {
-                    msg: help_message(&tokens, cursor, err.to_string()),
-                    cursor,
-                });
-            }
-        }
-        if cursor == tokens.len() - 1 {
-            break;
-        }
-    }
-
-    Ok(ast)
 }
 
 fn parse_statement(
@@ -1871,12 +1883,13 @@ mod parser_tests {
 
         let mut found_faults = false;
         let mut err_msg = "\n".to_owned();
+        let parser = Parser::new();
 
         for test in parse_tests {
             print!("(Parser) Testing: {}", test.input);
 
-            parse(test.input).unwrap();
-            let ast = match parse(test.input) {
+            parser.parse(test.input).unwrap();
+            let ast = match parser.parse(test.input) {
                 Ok(value) => value,
                 Err(err) => {
                     found_faults = true;

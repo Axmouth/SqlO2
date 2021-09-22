@@ -3,7 +3,7 @@ extern crate byteorder;
 use super::ast::*;
 use super::backend::*;
 use super::lexer::*;
-use super::parser::parse;
+use super::parser::Parser;
 
 use crate::{
     backend::MemoryCell,
@@ -504,6 +504,7 @@ impl Table {
 #[derive(PartialEq, Default)]
 pub struct MemoryBackend {
     tables: HashMap<String, Table>,
+    parser: Parser,
 }
 
 pub fn get_true_mem_cell() -> MemoryCell {
@@ -529,6 +530,7 @@ impl MemoryBackend {
     pub fn new() -> MemoryBackend {
         Self {
             tables: HashMap::new(),
+            parser: Parser::new(),
         }
     }
 
@@ -1077,7 +1079,7 @@ impl MemoryBackend {
 
     pub fn eval_query(&mut self, query: &str) -> Result<Vec<EvalResult<SqlValue>>, String> {
         let mut before = Instant::now();
-        let ast = match parse(query) {
+        let ast = match self.parser.parse(query) {
             Ok(val) => val,
             Err(err) => return Err(err.to_string()),
         };
