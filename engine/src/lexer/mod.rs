@@ -1,5 +1,5 @@
 // location of the token in source code
-#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Default)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Ord, PartialOrd, Default)]
 pub struct TokenLocation {
     pub line: usize,
     pub col: usize,
@@ -28,7 +28,7 @@ pub struct TokenContainer {
     pub loc: TokenLocation,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Cursor {
     pub pointer: usize,
     pub loc: TokenLocation,
@@ -551,7 +551,7 @@ impl Lexer {
     // 3. If any of the lexer generate a token then add the token to the
     // token slice, update the cursor and restart the process from the new
     pub fn lex(&self, source: &str) -> Result<Vec<TokenContainer>, LexingError> {
-        let mut tokens = Vec::with_capacity(100);
+        let mut tokens = Vec::with_capacity(30);
         let mut cur: Cursor = Cursor {
             pointer: 0,
             loc: TokenLocation { line: 0, col: 0 },
@@ -869,31 +869,28 @@ impl Lexer {
     // longestMatch iterates through a source string starting at the given
     // cursor to find the longest matching substring among the provided
     // options
-    pub fn longest_match(
+    pub fn longest_match<'a>(
         &self,
-        source: &str,
+        source: &'a str,
         ic: Cursor,
         options: &[String],
-        max_length: Option<usize>,
-    ) -> String {
-        let mut text_match: String = "".to_string();
+        max_length: usize,
+    ) -> &'a str {
+        let mut text_match_len = 0;
         let cur = ic;
 
-        let rest_of_text = if let Some(mut max_length) = max_length {
-            if cur.pointer + max_length > source.len() {
-                max_length = source.len() - cur.pointer;
-            }
-            source[cur.pointer..(cur.pointer + max_length)].to_ascii_lowercase()
-        } else {
-            source[cur.pointer..].to_ascii_lowercase()
-        };
+        let rest_of_text_len = source.len() - cur.pointer;
 
         for option in options {
-            if option.len() > text_match.len() && rest_of_text.starts_with(option) {
-                text_match = option.to_string();
+            if option.len() > text_match_len
+                && rest_of_text_len >= option.len()
+                && source[cur.pointer..(cur.pointer + option.len())].eq_ignore_ascii_case(option)
+            {
+                text_match_len = option.len();
             }
         }
-        source[cur.pointer..(cur.pointer + text_match.len())].to_string()
+
+        &source[cur.pointer..(cur.pointer + text_match_len)]
     }
 
     pub fn lex_symbol(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
@@ -929,18 +926,14 @@ impl Lexer {
         }
 
         // Use `ic`, not `cur`
-        let symbol_match = self.longest_match(
-            source,
-            ic.clone(),
-            &self.symbols,
-            Some(self.max_symbol_length),
-        );
+        let symbol_match =
+            self.longest_match(source, ic.clone(), &self.symbols, self.max_symbol_length);
         // Unknown character
         if symbol_match.is_empty() {
             return None;
         }
         // != is rewritten as <>: https://www.postgresql.org/docs/9.5/functions-comparison.html
-        let kind = match symbol_match.to_ascii_lowercase().as_str() {
+        let kind = match symbol_match {
             COMMA_SYMBOL => Token::Comma,
             EQUAL_SYMBOL => Token::Equal,
             NOT_EQUAL_SYMBOL | NOT_EQUAL_SYMBOL_2 => Token::NotEqual,
@@ -991,12 +984,8 @@ impl Lexer {
     pub fn lex_keyword(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
         let mut cur = ic.clone();
 
-        let keyword_match = self.longest_match(
-            source,
-            ic.clone(),
-            &self.keywords,
-            Some(self.max_keyword_length),
-        );
+        let keyword_match =
+            self.longest_match(source, ic.clone(), &self.keywords, self.max_keyword_length);
         if keyword_match.is_empty() {
             return None;
         }
@@ -1064,13 +1053,13 @@ impl Lexer {
             }
         };
 
-        if keyword_match == *TRUE_KEYWORD || keyword_match == *FALSE_KEYWORD {
+        if keyword_match == TRUE_KEYWORD || keyword_match == FALSE_KEYWORD {
             kind = Token::BoolValue {
-                value: keyword_match == *TRUE_KEYWORD,
+                value: keyword_match == TRUE_KEYWORD,
             };
         }
 
-        if keyword_match == *NULL_KEYWORD {
+        if keyword_match == NULL_KEYWORD {
             kind = Token::Null;
         }
 
