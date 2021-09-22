@@ -1,5 +1,6 @@
 target
 *flamegraph.svg
+*flamegraph*.svg
 *.data
 *.data.old
 *history.txt

@@ -1,18 +1,12 @@
-use std::{
-    borrow::{Borrow, Cow},
-    collections::HashMap,
-    convert::TryInto,
-    io::{BufRead, Read},
-    ops::Deref,
-};
+use std::{borrow::Cow, collections::HashMap, convert::TryInto, io::Read};
 
 use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt};
 
-static AUTHENTICATION_OK: &[u8] = &['R' as u8, 0, 0, 0, 8, 0, 0, 0, 0];
-static READY_FOR_QUERY: &[u8] = &['Z' as u8, 0, 0, 0, 5, 'I' as u8];
+static AUTHENTICATION_OK: &[u8] = &[b'R', 0, 0, 0, 8, 0, 0, 0, 0];
+static READY_FOR_QUERY: &[u8] = &[b'Z', 0, 0, 0, 5, b'I'];
 static SSL_REQUEST: [u8; 4] = [0x04, 0xd2, 0x16, 0x2f];
 static SSL_CLIENT_CERTIFICATE: [u8; 3] = [0x16, 0x2f, 0x04];
-static NEGATIVE: &[u8] = &['N' as u8];
+static NEGATIVE: &[u8] = &[b'N'];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {
@@ -100,7 +94,7 @@ pub struct Bind<'a> {
 
 impl<'a> DeserializableMessage<'a> for Bind<'a> {
     fn deserialize_content(bytes: &'a [u8]) -> Result<Self, DeserializationError> {
-        let mut content_split = bytes.splitn(3, |c| *c == '\0' as u8);
+        let mut content_split = bytes.splitn(3, |c| *c == b'\0');
 
         if let (Some(portal_bytes), Some(stmt_bytes), Some(mut data_bytes)) = (
             content_split.next(),
@@ -287,10 +281,10 @@ pub struct ErrorResponse<'a> {
 
 impl<'a> DeserializableMessage<'a> for ErrorResponse<'a> {
     fn deserialize_content(bytes: &'a [u8]) -> Result<Self, DeserializationError> {
-        let mut content_split = bytes.split(|c| *c == '\0' as u8);
+        let content_split = bytes.split(|c| *c == b'\0');
 
         let mut errors = vec![];
-        while let Some(e) = content_split.next() {
+        for e in content_split {
             if let Some((c, err)) = e.split_first() {
                 errors.push((*c as char, String::from_utf8_lossy(err)));
             } else {
@@ -306,11 +300,11 @@ impl<'a> DeserializableMessage<'a> for ErrorResponse<'a> {
 
 impl<'a> SerializableMessage for ErrorResponse<'_> {
     fn serialize(&self) -> Vec<u8> {
-        let mut content = vec!['E' as u8, 0, 0, 0, 0];
+        let mut content = vec![b'E', 0, 0, 0, 0];
         for (c, s) in &self.errors {
             content.push(*c as u8);
             content.append(&mut s.as_bytes().to_vec());
-            content.push('\0' as u8);
+            content.push(b'\0');
         }
         content.splice(1..4, (content.len() - 1).to_be_bytes());
         content
@@ -325,7 +319,7 @@ pub struct Execute<'a> {
 
 impl<'a> DeserializableMessage<'a> for Execute<'a> {
     fn deserialize_content(bytes: &'a [u8]) -> Result<Self, DeserializationError> {
-        let mut content_split = bytes.splitn(2, |c| *c == '\0' as u8);
+        let mut content_split = bytes.splitn(2, |c| *c == b'\0');
 
         if let (Some(portal_bytes), Some(mut row_limit_bytes)) =
             (content_split.next(), content_split.next())
@@ -383,7 +377,7 @@ pub struct ParameterStatus<'a> {
 impl<'a> DeserializableMessage<'a> for ParameterStatus<'a> {
     fn deserialize_content(bytes: &'a [u8]) -> Result<Self, DeserializationError> {
         let mut content_split = bytes
-            .split(|c| *c == '\0' as u8)
+            .split(|c| *c == b'\0')
             .map(|v| String::from_utf8_lossy(v));
 
         if let (Some(name), Some(value), None) = (
@@ -406,9 +400,9 @@ impl<'a> SerializableMessage for ParameterStatus<'a> {
         let value_bytes = self.value.as_bytes();
         let mut content = Vec::with_capacity(name_bytes.len() + value_bytes.len() + 2);
         content.append(&mut name_bytes.to_vec());
-        content.push('\0' as u8);
+        content.push(b'\0');
         content.append(&mut value_bytes.to_vec());
-        content.push('\0' as u8);
+        content.push(b'\0');
         content
     }
 }
@@ -422,7 +416,7 @@ pub struct Parse<'a> {
 
 impl<'a> DeserializableMessage<'a> for Parse<'a> {
     fn deserialize_content(bytes: &'a [u8]) -> Result<Self, DeserializationError> {
-        let mut content_split = bytes.splitn(3, |c| *c == '\0' as u8);
+        let mut content_split = bytes.splitn(3, |c| *c == b'\0');
 
         if let (Some(stmt_bytes), Some(query_bytes), Some(params_bytes)) = (
             content_split.next(),
@@ -512,7 +506,7 @@ impl<'a> DeserializableMessage<'a> for Query<'a> {
 impl<'a> SerializableMessage for Query<'a> {
     fn serialize(&self) -> Vec<u8> {
         let mut content = Vec::with_capacity(self.q.len() + 5);
-        content.push('Q' as u8);
+        content.push(b'Q');
 
         content.append(&mut self.q.len().to_be_bytes().to_vec());
         content.append(&mut self.q.as_bytes().to_vec());
@@ -581,17 +575,15 @@ pub struct StartupMessage<'a> {
 
 impl<'a> DeserializableMessage<'a> for StartupMessage<'a> {
     fn deserialize_content(bytes: &'a [u8]) -> Result<Self, DeserializationError> {
-        let mut content_split = bytes.split(|c| *c == '\0' as u8).into_iter();
+        let mut content_split = bytes.split(|c| *c == b'\0');
 
         let mut protocol = Vec::with_capacity(2);
-        match content_split.next() {
-            Some(ref mut b) => protocol.append(&mut b.to_vec()),
-            _ => {}
-        };
-        match content_split.next() {
-            Some(ref mut b) => protocol.append(&mut b.to_vec()),
-            _ => {}
-        };
+        if let Some(ref mut b) = content_split.next() {
+            protocol.append(&mut b.to_vec())
+        }
+        if let Some(ref mut b) = content_split.next() {
+            protocol.append(&mut b.to_vec())
+        }
         let mut options_list = content_split
             .filter(|v| !v.is_empty())
             .map(|v| String::from_utf8_lossy(v));
@@ -619,7 +611,7 @@ pub struct Sync {}
 
 impl DeserializableMessage<'_> for Sync {
     fn deserialize_content(bytes: &'_ [u8]) -> Result<Self, DeserializationError> {
-        if bytes.len() == 0 {
+        if bytes.is_empty() {
             return Ok(Sync {});
         }
 

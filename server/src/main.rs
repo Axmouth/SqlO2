@@ -22,7 +22,7 @@ fn main() {
 
     let listener = TcpListener::bind(("127.0.0.1", port)).unwrap();
 
-    let mut last_used_session_id = 0;
+    let mut last_used_session_id = 321;
     for stream in listener.incoming() {
         let stream = stream.unwrap();
         last_used_session_id += 1;

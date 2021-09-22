@@ -558,7 +558,7 @@ impl Lexer {
         };
 
         'lex: while cur.pointer < source.len() {
-            if let Some((token, new_cursor)) = self.lex_keyword(source, cur.clone()) {
+            if let Some((token, new_cursor)) = self.lex_keyword(source, cur) {
                 cur = new_cursor;
 
                 // Omit empty tokens for valid, but empty syntax like newlines
@@ -572,7 +572,7 @@ impl Lexer {
                             let token_cur = tokens.len() - 1;
                             tokens[token_cur] = TokenContainer {
                                 token: Token::OrderBy,
-                                loc: loc.clone(),
+                                loc: *loc,
                             };
                             continue 'lex;
                         }
@@ -586,7 +586,7 @@ impl Lexer {
                             let token_cur = tokens.len() - 1;
                             tokens[token_cur] = TokenContainer {
                                 token: Token::DoublePrecision,
-                                loc: loc.clone(),
+                                loc: *loc,
                             };
                             continue 'lex;
                         }
@@ -595,18 +595,10 @@ impl Lexer {
                     tokens.push(token);
                 }
                 continue 'lex;
-            } else if let Some((_, new_cursor)) = self.lex_comment(source, cur.clone()) {
+            } else if let Some((_, new_cursor)) = self.lex_comment(source, cur) {
                 cur = new_cursor;
                 continue 'lex;
-            } else if let Some((token, new_cursor)) = self.lex_symbol(source, cur.clone()) {
-                cur = new_cursor;
-
-                // Omit empty tokens for valid, but empty syntax like newlines
-                if token.token != Token::Empty {
-                    tokens.push(token);
-                }
-                continue 'lex;
-            } else if let Some((token, new_cursor)) = self.lex_numeric(source, cur.clone()) {
+            } else if let Some((token, new_cursor)) = self.lex_symbol(source, cur) {
                 cur = new_cursor;
 
                 // Omit empty tokens for valid, but empty syntax like newlines
@@ -614,7 +606,7 @@ impl Lexer {
                     tokens.push(token);
                 }
                 continue 'lex;
-            } else if let Some((token, new_cursor)) = self.lex_identifier(source, cur.clone()) {
+            } else if let Some((token, new_cursor)) = self.lex_numeric(source, cur) {
                 cur = new_cursor;
 
                 // Omit empty tokens for valid, but empty syntax like newlines
@@ -622,7 +614,15 @@ impl Lexer {
                     tokens.push(token);
                 }
                 continue 'lex;
-            } else if let Some((token, new_cursor)) = self.lex_string(source, cur.clone()) {
+            } else if let Some((token, new_cursor)) = self.lex_identifier(source, cur) {
+                cur = new_cursor;
+
+                // Omit empty tokens for valid, but empty syntax like newlines
+                if token.token != Token::Empty {
+                    tokens.push(token);
+                }
+                continue 'lex;
+            } else if let Some((token, new_cursor)) = self.lex_string(source, cur) {
                 cur = new_cursor;
 
                 // Omit empty tokens for valid, but empty syntax like newlines
@@ -648,7 +648,7 @@ impl Lexer {
     }
 
     pub fn lex_comment(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
-        let mut cur = ic.clone();
+        let mut cur = ic;
         if source[cur.pointer..].starts_with("/*") {
             cur.pointer += 2;
             let mut char_iter = source[cur.pointer..].chars().peekable();
@@ -693,7 +693,7 @@ impl Lexer {
     }
 
     pub fn lex_numeric(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
-        let mut cur = ic.clone();
+        let mut cur = ic;
 
         let mut period_found = false;
         let mut exp_marker_found = false;
@@ -789,7 +789,7 @@ impl Lexer {
         delimiter: char,
         kind: TokenKind,
     ) -> Option<(TokenContainer, Cursor)> {
-        let mut cur = ic.clone();
+        let mut cur = ic;
 
         if source[cur.pointer..].is_empty() {
             return None;
@@ -869,13 +869,7 @@ impl Lexer {
     // longestMatch iterates through a source string starting at the given
     // cursor to find the longest matching substring among the provided
     // options
-    pub fn longest_match<'a>(
-        &self,
-        source: &'a str,
-        ic: Cursor,
-        options: &[String],
-        max_length: usize,
-    ) -> &'a str {
+    pub fn longest_match<'a>(&self, source: &'a str, ic: Cursor, options: &[String]) -> &'a str {
         let mut text_match_len = 0;
         let cur = ic;
 
@@ -900,7 +894,7 @@ impl Lexer {
             }
             Some(value) => value,
         };
-        let mut cur = ic.clone();
+        let mut cur = ic;
 
         // Will get overwritten later if not an ignored syntax
         cur.pointer += 1;
@@ -926,8 +920,7 @@ impl Lexer {
         }
 
         // Use `ic`, not `cur`
-        let symbol_match =
-            self.longest_match(source, ic.clone(), &self.symbols, self.max_symbol_length);
+        let symbol_match = self.longest_match(source, ic, &self.symbols);
         // Unknown character
         if symbol_match.is_empty() {
             return None;
@@ -982,10 +975,9 @@ impl Lexer {
     }
 
     pub fn lex_keyword(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
-        let mut cur = ic.clone();
+        let mut cur = ic;
 
-        let keyword_match =
-            self.longest_match(source, ic.clone(), &self.keywords, self.max_keyword_length);
+        let keyword_match = self.longest_match(source, ic, &self.keywords);
         if keyword_match.is_empty() {
             return None;
         }
@@ -1074,18 +1066,15 @@ impl Lexer {
 
     pub fn lex_identifier(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
         // Handle separately if is a double-quoted identifier
-        let token_result =
-            self.lex_character_delimited(source, ic.clone(), '"', TokenKind::Identifier);
+        let token_result = self.lex_character_delimited(source, ic, '"', TokenKind::Identifier);
         if token_result.is_some() {
             return token_result;
         }
-        if let Some(res) =
-            self.lex_character_delimited(source, ic.clone(), '"', TokenKind::Identifier)
-        {
+        if let Some(res) = self.lex_character_delimited(source, ic, '"', TokenKind::Identifier) {
             return Some(res);
         }
 
-        let mut cur = ic.clone();
+        let mut cur = ic;
         let c = match get_chat_at(source, ic.pointer) {
             None => {
                 return None;
