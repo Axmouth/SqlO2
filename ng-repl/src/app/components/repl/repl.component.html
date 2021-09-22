@@ -1,6 +1,6 @@
 <div *ngFor="let item of execHistory" (click)="focusInput()">
   <div class="prompt-wrapper">
-    <div class="prompt">PostgRustQL#:&nbsp;</div>
+    <div class="prompt">SqlO2#:&nbsp;</div>
     <pre class="executed-query">{{ item?.queryString }}</pre>
   </div>
   <br />
@@ -19,7 +19,7 @@
 </div>
 
 <div class="prompt-wrapper" (click)="focusInput()">
-  <div class="prompt">PostgRustQL#:&nbsp;</div>
+  <div class="prompt">SqlO2#:&nbsp;</div>
   <textarea
     [(ngModel)]="queryString"
     (keyup.enter)="onQuerySubmit($event)"

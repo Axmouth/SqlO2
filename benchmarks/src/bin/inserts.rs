@@ -1,4 +1,4 @@
-use postgrustql::*;
+use sqlo2::*;
 
 fn main() {
     let mut db = backend_memory::MemoryBackend::new();

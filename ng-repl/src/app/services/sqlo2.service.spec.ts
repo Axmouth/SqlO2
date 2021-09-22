@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { PostgrustqlService } from './postgrustql.service';
+import { SqlO2Service } from './sqlo2.service';
 
-describe('PostgrustqlService', () => {
-  let service: PostgrustqlService;
+describe('sqlo2Service', () => {
+  let service: SqlO2Service;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(PostgrustqlService);
+    service = TestBed.inject(SqlO2Service);
   });
 
   it('should be created', () => {

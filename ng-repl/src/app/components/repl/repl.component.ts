@@ -1,5 +1,5 @@
 import { Component, OnInit, ViewChild, ElementRef, OnDestroy } from '@angular/core';
-import { PostgrustqlService } from '../../services/postgrustql.service';
+import { SqlO2Service } from '../../services/sqlo2.service';
 import { ActivatedRoute, Router, NavigationEnd } from '@angular/router';
 import { Subject } from 'rxjs';
 import { take, takeUntil } from 'rxjs/operators';
@@ -27,7 +27,7 @@ export class ReplComponent implements OnInit, OnDestroy {
   historyPosition = 0;
   current = '';
 
-  constructor(private postgrustqlService: PostgrustqlService, private route: ActivatedRoute, private router: Router) {}
+  constructor(private sqlO2Service: SqlO2Service, private route: ActivatedRoute, private router: Router) {}
 
   ngOnInit() {
     this.router.events.pipe(takeUntil(this.notifier)).subscribe(async (event) => {
@@ -115,7 +115,7 @@ export class ReplComponent implements OnInit, OnDestroy {
   async submitQuery() {
     this.canType = false;
     const queryString = this.queryString;
-    const queryResults = await this.postgrustqlService.eval(queryString.trim());
+    const queryResults = await this.sqlO2Service.eval(queryString.trim());
     const newHistoryObject: ExecutedQuery = { queryString, queryResults };
     this.execHistory.push(newHistoryObject);
     this.promptInputRef.nativeElement.scrollIntoView();

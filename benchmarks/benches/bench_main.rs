@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Benchmark, Criterion};
 
 use instant::Instant;
-use postgrustql::*;
+use sqlo2::*;
 
 fn lex_benchmark(c: &mut Criterion) {
     let lexer = lexer::Lexer::new();

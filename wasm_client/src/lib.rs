@@ -2,8 +2,8 @@
 extern crate lazy_static;
 
 use backend_memory::MemoryBackend;
-pub use postgrustql::backend_memory;
-use postgrustql::{backend::EvalResult, sql_types::SqlValue};
+pub use sqlo2::backend_memory;
+use sqlo2::{backend::EvalResult, sql_types::SqlValue};
 use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
 
