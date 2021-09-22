@@ -59,7 +59,7 @@ impl Parser {
         let mut tokens = self.lexer.lex(source)?;
 
         let mut ast = Ast {
-            statements: Vec::with_capacity(10),
+            statements: Vec::with_capacity(1),
         };
 
         let mut cursor: usize = 0;
@@ -300,7 +300,7 @@ fn parse_column_definitions(
 ) -> Result<(Vec<ColumnDefinition>, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
-    let mut column_definitions: Vec<ColumnDefinition> = Vec::with_capacity(10);
+    let mut column_definitions: Vec<ColumnDefinition> = Vec::with_capacity(5);
 
     loop {
         if cursor >= tokens.len() {
@@ -535,7 +535,7 @@ fn parse_expressions(
 ) -> Option<(Vec<Expression>, usize)> {
     let mut cursor = initial_cursor;
 
-    let mut expressions: Vec<Expression> = Vec::with_capacity(10);
+    let mut expressions: Vec<Expression> = Vec::with_capacity(5);
 
     loop {
         if cursor >= tokens.len() {
@@ -1038,7 +1038,7 @@ fn parse_select_items(
 ) -> Option<(Vec<SelectItem>, usize)> {
     let mut cursor = initial_cursor;
 
-    let mut select_items = Vec::with_capacity(10);
+    let mut select_items = Vec::with_capacity(5);
     let mut item_delims = delimiters.to_vec();
     item_delims.push(Token::As);
     let mut delimiters_plus = delimiters.to_vec();
@@ -1159,7 +1159,7 @@ fn parse_select_statement(
     }
 
     let mut select: SelectStatement = SelectStatement {
-        items: Vec::with_capacity(10),
+        items: Vec::with_capacity(5),
         from: vec![],
         where_clause: Expression::new(),
         is_distinct: distinct,
