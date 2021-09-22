@@ -23,7 +23,9 @@ fn lex_select_benchmark(c: &mut Criterion) {
 }
 
 fn parse_benchmark(c: &mut Criterion) {
-    c.bench_function("parse", |b| b.iter(|| parser::parse(black_box("
+    let parser = parser::Parser::new();
+
+    c.bench_function("parse", |b| b.iter(|| parser.parse(black_box("
     CREATE TABLE people (id INT PRIMARY KEY, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
     SELECT id, name FROM people;
     SELECT id, name FROM people where id != 3;
@@ -31,7 +33,9 @@ fn parse_benchmark(c: &mut Criterion) {
 }
 
 fn parse_select_benchmark(c: &mut Criterion) {
-    c.bench_function("parse", |b| b.iter(|| parser::parse(
+    let parser = parser::Parser::new();
+
+    c.bench_function("parse", |b| b.iter(|| parser.parse(
         black_box("SELECT id, age, role, job, position, country, address from people WHERE country = 'GR' AND age > 17 INNER LEFT JOIN ON jobs".to_owned().as_str()))));
 }
 
@@ -98,19 +102,8 @@ fn select_benchmark(c: &mut Criterion) {
     )
     .unwrap();
     for i in 0..10000 {
-        let parsed =
-            parser::parse(&format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i)).unwrap();
-        let statement;
-        match &parsed.statements[0] {
-            ast::Statement::InsertStatement(insert_statement) => {
-                statement = insert_statement;
-            }
-            _ => {
-                eprintln!("Derp..");
-                return;
-            }
-        }
-        db.insert(statement.clone()).unwrap();
+        db.eval_query(&format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i))
+            .unwrap();
     }
     let temp = db.eval_query("SELECT * FROM people;").unwrap();
     match &temp[0] {
@@ -129,18 +122,7 @@ fn select_benchmark(c: &mut Criterion) {
         "select",
         Benchmark::new("select_from_10000", move |b| {
             b.iter(|| {
-                let parsed = parser::parse(black_box("SELECT * FROM people;")).unwrap();
-                let statement;
-                match &parsed.statements[0] {
-                    ast::Statement::SelectStatement(select_statement) => {
-                        statement = select_statement;
-                    }
-                    _ => {
-                        eprintln!("Derp..");
-                        return;
-                    }
-                }
-                db.select(black_box(statement.clone())).unwrap();
+                db.eval_query(black_box("SELECT * FROM people;")).unwrap();
             })
         }),
     );
