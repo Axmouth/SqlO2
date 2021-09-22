@@ -22,9 +22,9 @@ pub fn read_startup_message(
     content.resize(len as usize - size_of::<i32>(), 0);
     stream_reader.read_exact(content.as_mut_slice())?;
 
-    if let Ok(_) = SSLRequest::deserialize_content(content.as_slice()) {
+    if SSLRequest::deserialize_content(content.as_slice()).is_ok() {
         log::debug!("SSL Request");
-        stream_writer.write_all(&['N' as u8]).unwrap();
+        stream_writer.write_all(&[b'N']).unwrap();
         stream_writer.flush().unwrap();
         return read_startup_message(stream_reader, stream_writer, content);
     }
