@@ -96,6 +96,12 @@ pub enum SqlValue {
     Type(SqlType),
 }
 
+impl Default for SqlValue {
+    fn default() -> Self {
+        SqlValue::Null
+    }
+}
+
 impl Serialize for SqlValue {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

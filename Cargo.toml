@@ -5,11 +5,11 @@ members = [
     "benchmarks",
     "repl",
     "server",
-    "test_util",
-    "test_test",
-    "wasm_client",
-    "wasm_repl",
-    "wire_protocol"
+    "test-util",
+    "test-test",
+    "wasm-client",
+    "wasm-repl",
+    "wire-protocol"
 ]
 
 [profile.bench]
