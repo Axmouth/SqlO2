@@ -93,7 +93,7 @@ impl Component for Repl {
                 self.can_type = false;
                 if let Some(input) = self.focus_ref.cast::<HtmlTextAreaElement>() {
                     self.exec_history.push(ExecutedQuery {
-                        query_string: input.value().clone(),
+                        query_string: input.value(),
                         query_results: SqlO2Service::execute(self.query_string.as_str()),
                     });
                     self.current = "".to_string();

@@ -22,28 +22,30 @@ fn main() {
     system.refresh_all();
     let rust_info = version();
 
-    println!("");
-    println!("");
+    println!();
+    println!();
     println!("SqlO2 0.0.1 Repl");
-    println!("");
+    println!();
 
     // Display system information:
     println!(
         "System:         {} {}",
-        system.name().unwrap_or("Unknown".to_string()),
-        system.os_version().unwrap_or("unknown".to_string())
+        system.name().unwrap_or_else(|| "Unknown".to_string()),
+        system.os_version().unwrap_or_else(|| "unknown".to_string())
     );
     println!(
         "Kernel          {}",
-        system.kernel_version().unwrap_or("Unknown".to_string())
+        system
+            .kernel_version()
+            .unwrap_or_else(|| "Unknown".to_string())
     );
     println!(
         "Rust version:   {}.{}.{}",
         rust_info.major, rust_info.minor, rust_info.patch
     );
 
-    println!("");
-    println!("");
+    println!();
+    println!();
 
     loop {
         match stdout().flush() {

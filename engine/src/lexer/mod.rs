@@ -1119,7 +1119,7 @@ impl Lexer {
             break;
         }
 
-        if ic.pointer >= cur.pointer + 1 {
+        if ic.pointer > cur.pointer {
             return None;
         }
 
