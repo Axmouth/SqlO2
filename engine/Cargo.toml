@@ -4,8 +4,6 @@ version = "0.1.0"
 authors = ["Axmouth <aggronfg@yahoo.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [features]
 default = []
 stdweb = [ "instant/stdweb" ]
@@ -21,3 +19,9 @@ instant = { version = "0.1", features = [ "now" ] }
 serde = { version = "1.0", features = ["derive"] }
 jemallocator = {version = "0.3", optional = true }
 mimalloc = { version = "0.1", default-features = false, optional = true }
+
+
+[dev-dependencies]
+pretty_assertions = "0.7"
+test_util = { path = "../test_util" }
+alloc_counter = "0.0.4"

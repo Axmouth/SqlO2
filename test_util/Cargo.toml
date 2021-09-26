@@ -1,8 +1,10 @@
 [package]
-name = "sqlo2_wire_protocol"
+name = "test_util"
 version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-log = "0.4"
-byteorder = "1.4"
+lazy_static = "1"
+
+[lib]
+proc-macro = true
