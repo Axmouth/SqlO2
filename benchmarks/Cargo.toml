@@ -9,6 +9,7 @@ sqlo2 = { path = "../engine" }
 criterion = "0.3"
 instant = { version = "0.1", features = [ "now" ] }
 alloc_counter = "0.0.4"
+sysinfo = "0.20"
 
 [[bench]]
 name = "bench_main"

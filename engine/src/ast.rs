@@ -192,10 +192,7 @@ impl Expression {
         Expression::Literal(LiteralExpression::String(value))
     }
     pub fn new_literal_bool(value: String) -> Expression {
-        Expression::Literal(LiteralExpression::Bool(match value.to_lowercase().as_str() {
-            "true" | "t" => true,
-            _ => false,
-        }))
+        Expression::Literal(LiteralExpression::Bool(matches!(value.to_lowercase().as_str(), "true" | "t")))
     }
     pub fn new_literal_null() -> Expression {
         Expression::Literal(LiteralExpression::Null)

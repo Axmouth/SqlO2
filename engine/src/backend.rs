@@ -13,7 +13,7 @@ pub trait Cell {
     fn as_bool(&self) -> Result<bool, &str>;
     fn equals(&self, other: Self) -> bool;
 }
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ResultColumn {
     pub col_type: SqlType,
     pub name: String,
@@ -61,7 +61,7 @@ impl std::fmt::Display for SqlType {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum EvalResult<C> {
     Select {
         results: QueryResults<C>,
@@ -83,7 +83,7 @@ pub enum EvalResult<C> {
 
 pub type ResultColumns = Vec<ResultColumn>;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default)]
 pub struct QueryResults<C> {
     pub columns: ResultColumns,
     pub rows: Vec<Vec<C>>,

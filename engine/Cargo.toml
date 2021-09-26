@@ -23,5 +23,5 @@ mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 pretty_assertions = "0.7"
-test_util = { path = "../test_util" }
+test_util = { path = "../test-util" }
 alloc_counter = "0.0.4"

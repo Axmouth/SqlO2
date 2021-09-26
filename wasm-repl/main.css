@@ -38,6 +38,11 @@ body::after {
   text-shadow: none;
 }
 
+.repl-main {
+  height: 100%;
+  width: 100%;
+}
+
 .table-header {
   color: cyan;
   text-shadow: 0 0 2px darkolivegreen;
@@ -111,7 +116,7 @@ td::selection {
   background-color: yellowgreen;
 }
 
-.results {
+.results-section {
   display: block;
 }
 

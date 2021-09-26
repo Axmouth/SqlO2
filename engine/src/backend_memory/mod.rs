@@ -226,31 +226,31 @@ impl Table {
                         }
                     }
 
-                    return Err(format!("{}: {}", value, ERR_COLUMN_DOES_NOT_EXIST));
+                    Err(format!("{}: {}", value, ERR_COLUMN_DOES_NOT_EXIST))
                 }
                 LiteralExpression::Numeric(value) => {
                     let typ = SqlType::DoublePrecision;
                     let val = SqlValue::Numeric(SqlNumeric::DoublePrecision {
                         value: value.parse::<f64>().map_err(|e| e.to_string())?,
                     });
-                    return Ok((val, "", typ));
+                    Ok((val, "", typ))
                 }
                 LiteralExpression::String(value) => {
                     let typ = SqlType::Text;
                     let val = SqlValue::Text(SqlText::Text {
                         value: value.clone(),
                     });
-                    return Ok((val, "", typ));
+                    Ok((val, "", typ))
                 }
                 LiteralExpression::Bool(value) => {
                     let typ = SqlType::Boolean;
                     let val = SqlValue::Boolean(*value);
-                    return Ok((val, "", typ));
+                    Ok((val, "", typ))
                 }
                 LiteralExpression::Null => {
                     let typ = SqlType::Null;
                     let val = SqlValue::Null;
-                    return Ok((val, "", typ));
+                    Ok((val, "", typ))
                 }
             },
             Expression::TableColumn(table_column) => {
@@ -267,10 +267,10 @@ impl Table {
                     }
                 }
 
-                return Err(format!(
+                Err(format!(
                     "{}: {}",
                     table_column.col_name, ERR_COLUMN_DOES_NOT_EXIST
-                ));
+                ))
             }
             Expression::ProcessedTableColumn(table_column) => {
                 let table_col = self
@@ -630,7 +630,7 @@ impl MemoryBackend {
                         }
                     };
 
-                    let cell = literal_to_memory_cell(&value)?.to_type(*typ)?;
+                    let cell = literal_to_memory_cell(value)?.to_type(*typ)?;
                     row.push(cell);
                 }
                 _ => {
