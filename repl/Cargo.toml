@@ -7,4 +7,6 @@ edition = "2018"
 [dependencies]
 sqlo2 = { path = "../engine" }
 prettytable-rs = "^0.8"
-rustyline = "8.2.0"
+rustc_version_runtime = "0.2"
+rustyline = "9.0"
+sysinfo = "0.20"

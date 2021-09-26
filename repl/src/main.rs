@@ -3,15 +3,47 @@ use sqlo2::{self};
 use sqlo2::backend::EvalResult;
 use sqlo2::backend_memory::*;
 
+extern crate rustc_version_runtime;
+use rustc_version_runtime::version;
+
 use rustyline::{error::ReadlineError, Editor};
 use std::io::{stdout, Write};
 use std::time::Duration;
+
+use sysinfo::{System, SystemExt};
 
 fn main() {
     let mut mb = MemoryBackend::new();
     let mut rl = Editor::<()>::new();
 
     if rl.load_history("history.txt").is_ok() {}
+
+    let mut system = System::new();
+    system.refresh_all();
+    let rust_info = version();
+
+    println!("");
+    println!("");
+    println!("SqlO2 0.0.1 Repl");
+    println!("");
+
+    // Display system information:
+    println!(
+        "System:         {} {}",
+        system.name().unwrap_or("Unknown".to_string()),
+        system.os_version().unwrap_or("unknown".to_string())
+    );
+    println!(
+        "Kernel          {}",
+        system.kernel_version().unwrap_or("Unknown".to_string())
+    );
+    println!(
+        "Rust version:   {}.{}.{}",
+        rust_info.major, rust_info.minor, rust_info.patch
+    );
+
+    println!("");
+    println!("");
 
     loop {
         match stdout().flush() {
