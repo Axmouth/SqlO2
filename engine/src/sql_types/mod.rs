@@ -409,7 +409,7 @@ impl SqlValue {
     pub fn from_token(token: &Token) -> Result<Self, SqlTypeError> {
         match token {
             Token::StringValue { value } => Ok(SqlValue::Text(SqlText::Text {
-                value: value.clone(),
+                value: value.to_string(),
             })),
             Token::NumericValue { value } => Ok(SqlValue::Numeric(SqlNumeric::parse(value)?)),
             Token::BoolValue { value } => Ok(SqlValue::Boolean(*value)),

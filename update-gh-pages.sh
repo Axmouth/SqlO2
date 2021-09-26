@@ -1,6 +1,5 @@
 cargo install trunk --locked
 cd wasm-repl
-ls -l
 trunk build --release
 cd ..
 

@@ -529,13 +529,13 @@ pub fn get_true_mem_cell() -> MemoryCell {
 pub fn get_false_mem_cell() -> MemoryCell {
     MemoryCell { bytes: vec![0] }
 }
-pub fn get_true_lex_token() -> TokenContainer {
+pub fn get_true_lex_token() -> TokenContainer<'static> {
     TokenContainer {
         token: Token::BoolValue { value: true },
         loc: TokenLocation { line: 0, col: 0 },
     }
 }
-pub fn get_false_lex_token() -> TokenContainer {
+pub fn get_false_lex_token() -> TokenContainer<'static> {
     TokenContainer {
         token: Token::BoolValue { value: false },
         loc: TokenLocation { line: 0, col: 0 },

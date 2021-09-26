@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 // location of the token in source code
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Ord, PartialOrd, Default)]
 pub struct TokenLocation {
@@ -23,8 +25,8 @@ pub enum TokenKind {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct TokenContainer {
-    pub token: Token,
+pub struct TokenContainer<'a> {
+    pub token: Token<'a>,
     pub loc: TokenLocation,
 }
 
@@ -35,7 +37,7 @@ pub struct Cursor {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub enum Token {
+pub enum Token<'a> {
     // Keywords
     As,
     From,
@@ -124,9 +126,9 @@ pub enum Token {
     Dot,
 
     // Values
-    IdentifierValue { value: String },
-    StringValue { value: String },
-    NumericValue { value: String },
+    IdentifierValue { value: Cow<'a, str> },
+    StringValue { value: Cow<'a, str> },
+    NumericValue { value: Cow<'a, str> },
     BoolValue { value: bool },
 
     // Default
@@ -136,7 +138,7 @@ pub enum Token {
     Comment,
 }
 
-impl Token {
+impl<'a> Token<'_> {
     pub fn binding_power(&self) -> u32 {
         match self {
             Token::And => 1,
@@ -401,7 +403,7 @@ pub const BITWISE_SHIFT_RIGHT_SYMBOL: Symbol = ">>";
 pub const TYPE_CAST_SYMBOL: Symbol = "::";
 pub const DOT_SYMBOL: Symbol = ".";
 
-impl TokenContainer {
+impl TokenContainer<'_> {
     #[inline]
     pub fn equals(&self, other: &Self) -> bool {
         self.token == other.token
@@ -413,7 +415,7 @@ impl TokenContainer {
     }
 }
 
-pub type LexerFn = fn(&Lexer, &str, Cursor) -> Option<(TokenContainer, Cursor)>;
+pub type LexerFn<'a> = fn(&'a Lexer, &'a str, Cursor) -> Option<(TokenContainer<'a>, Cursor)>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Lexer {
@@ -550,7 +552,7 @@ impl Lexer {
     //
     // 3. If any of the lexer generate a token then add the token to the
     // token slice, update the cursor and restart the process from the new
-    pub fn lex(&self, source: &str) -> Result<Vec<TokenContainer>, LexingError> {
+    pub fn lex<'a>(&'a self, source: &'a str) -> Result<Vec<TokenContainer<'a>>, LexingError> {
         let mut tokens = Vec::with_capacity(30);
         let mut cur: Cursor = Cursor {
             pointer: 0,
@@ -692,7 +694,11 @@ impl Lexer {
         None
     }
 
-    pub fn lex_numeric(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
+    pub fn lex_numeric<'a>(
+        &self,
+        source: &'a str,
+        ic: Cursor,
+    ) -> Option<(TokenContainer<'a>, Cursor)> {
         let mut cur = ic;
 
         let mut period_found = false;
@@ -772,7 +778,7 @@ impl Lexer {
             TokenContainer {
                 loc: ic.loc,
                 token: Token::NumericValue {
-                    value: source[ic.pointer..cur.pointer].to_owned(),
+                    value: Cow::Borrowed(&source[ic.pointer..cur.pointer]),
                 },
             },
             cur,
@@ -824,9 +830,13 @@ impl Lexer {
                             TokenContainer {
                                 loc: ic.loc,
                                 token: if kind == TokenKind::String {
-                                    Token::StringValue { value }
+                                    Token::StringValue {
+                                        value: Cow::Owned(value),
+                                    }
                                 } else {
-                                    Token::IdentifierValue { value }
+                                    Token::IdentifierValue {
+                                        value: Cow::Owned(value),
+                                    }
                                 },
                             },
                             cur,
@@ -838,9 +848,13 @@ impl Lexer {
                                 TokenContainer {
                                     loc: ic.loc,
                                     token: if kind == TokenKind::String {
-                                        Token::StringValue { value }
+                                        Token::StringValue {
+                                            value: Cow::Owned(value),
+                                        }
                                     } else {
-                                        Token::IdentifierValue { value }
+                                        Token::IdentifierValue {
+                                            value: Cow::Owned(value),
+                                        }
                                     },
                                 },
                                 cur,
@@ -1064,7 +1078,11 @@ impl Lexer {
         ))
     }
 
-    pub fn lex_identifier(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
+    pub fn lex_identifier<'a>(
+        &'a self,
+        source: &'a str,
+        ic: Cursor,
+    ) -> Option<(TokenContainer<'a>, Cursor)> {
         // Handle separately if is a double-quoted identifier
         let token_result = self.lex_character_delimited(source, ic, '"', TokenKind::Identifier);
         if token_result.is_some() {
@@ -1090,12 +1108,9 @@ impl Lexer {
         cur.pointer += 1;
         cur.loc.col += 1;
 
-        let mut value: String = format!("{}", c);
-
         for c in source[cur.pointer..].chars() {
             // Other characters count too, big ignoring non-ascii for now
             if is_char_valid_for_identifier(c) {
-                value.push(c);
                 cur.pointer += 1;
                 cur.loc.col += 1;
                 continue;
@@ -1104,7 +1119,7 @@ impl Lexer {
             break;
         }
 
-        if value.is_empty() {
+        if ic.pointer >= cur.pointer + 1 {
             return None;
         }
 
@@ -1112,7 +1127,9 @@ impl Lexer {
             TokenContainer {
                 // Unquoted identifiers are case-insensitive
                 loc: ic.loc,
-                token: Token::IdentifierValue { value },
+                token: Token::IdentifierValue {
+                    value: Cow::Borrowed(&source[ic.pointer..cur.pointer]),
+                },
             },
             cur,
         ))
@@ -1160,9 +1177,9 @@ mod lexer_tests {
     use super::super::lexer::*;
     use test_util::test_case;
 
-    struct LexerTest {
+    struct LexerTest<'a> {
         expected_result: bool,
-        expected_value: Token,
+        expected_value: Token<'a>,
         value: &'static str,
     }
 
@@ -1173,106 +1190,106 @@ mod lexer_tests {
         expected_result: true,
         value: "105",
         expected_value: Token::NumericValue {
-            value: "105".to_owned(),
+            value: Cow::Borrowed("105"),
         },
-    })]
+          })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "105 ",
         expected_value: Token::NumericValue {
-            value: "105".to_owned(),
+            value: Cow::Borrowed("105"),
         },
-    })]
+          })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "123.",
         expected_value: Token::NumericValue {
-            value: "123.".to_owned(),
+            value: Cow::Borrowed("123."),
         },
-    } )]
+          } )]
         #[test_case(LexerTest {
         expected_result: true,
         value: "123.145",
         expected_value: Token::NumericValue {
-            value: "123.145".to_owned(),
+            value: Cow::Borrowed("123.145"),
         },
-    } )]
+           } )]
         #[test_case(LexerTest {
         expected_result: true,
         value: "1e5",
         expected_value: Token::NumericValue {
-            value: "1e5".to_owned(),
+            value: Cow::Borrowed("1e5"),
         },
-    } )]
+          } )]
         #[test_case(LexerTest {
         expected_result: true,
         value: "1.e21",
         expected_value: Token::NumericValue {
-            value: "1.e21".to_owned(),
+            value: Cow::Borrowed("1.e21"),
         },
-    } )]
+           } )]
         #[test_case(LexerTest {
         expected_result: true,
         value: "1.1e2",
         expected_value: Token::NumericValue {
-            value: "1.1e2".to_owned(),
+            value: Cow::Borrowed("1.1e2"),
         },
-    } )]
+          } )]
         #[test_case(LexerTest {
         expected_result: true,
         value: "1.1e-2",
         expected_value: Token::NumericValue {
-            value: "1.1e-2".to_owned(),
+            value: Cow::Borrowed("1.1e-2"),
         },
-    } )]
+         } )]
         #[test_case(LexerTest {
         expected_result: true,
         value: "1.1e+2",
         expected_value: Token::NumericValue {
-            value: "1.1e+2".to_owned(),
+            value: Cow::Borrowed("1.1e+2"),
         },
-    } )]
+        } )]
         #[test_case(LexerTest {
         expected_result: true,
         value: "1e-1",
         expected_value: Token::NumericValue {
-            value: "1e-1".to_owned(),
+            value: Cow::Borrowed("1e-1"),
         },
-    } )]
+        } )]
         #[test_case(LexerTest {
         expected_result: true,
         value: ".1",
         expected_value: Token::NumericValue {
-            value: ".1".to_owned(),
+            value: Cow::Borrowed(".1"),
         },
-    } )]
+        } )]
         #[test_case(LexerTest {
         expected_result: true,
         value: "4.",
         expected_value: Token::NumericValue {
-            value: "4.".to_owned(),
+            value: Cow::Borrowed("4."),
         },
-    } )]
+        } )]
         #[test_case(LexerTest {
         expected_result: false,
         value: "e4",
         expected_value: Token::Empty,
-    } )]
+        } )]
         #[test_case(LexerTest {
         expected_result: false,
         value: "1..",
         expected_value: Token::Empty,
-    } )]
+        } )]
         #[test_case(LexerTest {
         expected_result: false,
         value: "1ee4",
         expected_value: Token::Empty,
-    } )]
+        } )]
         #[test_case(LexerTest {
         expected_result: false,
         value: " 1",
         expected_value: Token::Empty,
-    })]
+        })]
         fn lexer_num_test(test: LexerTest) {
             let lexer = Lexer::new();
             let result = lexer.lex_numeric(
@@ -1301,42 +1318,42 @@ mod lexer_tests {
         expected_result: true,
         value: "'abc'",
         expected_value: Token::StringValue {
-            value: "abc".to_owned(),
+            value: Cow::Borrowed("abc"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "'a'",
         expected_value: Token::StringValue {
-            value: "a".to_owned(),
+            value: Cow::Borrowed("a"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "'a b'",
         expected_value: Token::StringValue {
-            value: "a b".to_owned(),
+            value: Cow::Borrowed("a b"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "'a b  c '",
         expected_value: Token::StringValue {
-            value: "a b  c ".to_owned(),
+            value: Cow::Borrowed("a b  c "),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "'a b '''' c'",
         expected_value: Token::StringValue {
-            value: "a b '' c".to_owned(),
+            value: Cow::Borrowed("a b '' c"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "'a''b'",
         expected_value: Token::StringValue {
-            value: "a'b".to_owned(),
+            value: Cow::Borrowed("a'b"),
         },
     })]
         #[test_case(LexerTest {
@@ -1428,63 +1445,63 @@ mod lexer_tests {
         expected_result: true,
         value: "a",
         expected_value: Token::IdentifierValue {
-            value: "a".to_owned(),
+            value: Cow::Borrowed("a"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "abc",
         expected_value: Token::IdentifierValue {
-            value: "abc".to_owned(),
+            value: Cow::Borrowed("abc"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "abc ",
         expected_value: Token::IdentifierValue {
-            value: "abc".to_owned(),
+            value: Cow::Borrowed("abc"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "abc ",
         expected_value: Token::IdentifierValue {
-            value: "abc".to_owned(),
+            value: Cow::Borrowed("abc"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "a9$",
         expected_value: Token::IdentifierValue {
-            value: "a9$".to_owned(),
+            value: Cow::Borrowed("a9$"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "userName",
         expected_value: Token::IdentifierValue {
-            value: "userName".to_owned(),
+            value: Cow::Borrowed("userName"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "\"userName\"",
         expected_value: Token::IdentifierValue {
-            value: "userName".to_owned(),
+            value: Cow::Borrowed("userName"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "indexed_value",
         expected_value: Token::IdentifierValue {
-            value: "indexed_value".to_owned(),
+            value: Cow::Borrowed("indexed_value"),
         },
     })]
         #[test_case(LexerTest {
         expected_result: true,
         value: "unique_values",
         expected_value: Token::IdentifierValue {
-            value: "unique_values".to_owned(),
+            value: Cow::Borrowed("unique_values"),
         },
     })]
         #[test_case(LexerTest {
@@ -1592,10 +1609,10 @@ mod lexer_tests {
         use super::test_case;
         use super::*;
 
-        struct LexTest {
+        struct LexTest<'a> {
             valid: bool,
             input: &'static str,
-            tokens: Vec<TokenContainer>,
+            tokens: Vec<TokenContainer<'a>>,
         }
 
         #[test_case(LexTest {
@@ -1609,11 +1626,11 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 7, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "a".to_owned(),
+                    value: Cow::Borrowed("a"),
                 },
             },
         ],
-    })]
+        })]
         #[test_case(LexTest {
         valid: true,
         input: "select true",
@@ -1627,7 +1644,7 @@ mod lexer_tests {
                 token: Token::BoolValue { value: true },
             },
         ],
-    })]
+        })]
         #[test_case(LexTest {
         valid: true,
         input: "select 1",
@@ -1639,11 +1656,11 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 7, line: 0 },
                 token: Token::NumericValue {
-                    value: "1".to_owned(),
+                    value: Cow::Borrowed("1"),
                 },
             },
         ],
-    })]
+        })]
         #[test_case(LexTest {
         valid: true,
         input: "select 'foo' || 'bar';",
@@ -1655,7 +1672,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 7, line: 0 },
                 token: Token::StringValue {
-                    value: "foo".to_owned(),
+                    value: Cow::Borrowed("foo"),
                 },
             },
             TokenContainer {
@@ -1665,7 +1682,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 16, line: 0 },
                 token: Token::StringValue {
-                    value: "bar".to_owned(),
+                    value: Cow::Borrowed("bar"),
                 },
             },
             TokenContainer {
@@ -1673,7 +1690,7 @@ mod lexer_tests {
                 token: Token::Semicolon,
             },
         ],
-    })]
+        })]
         #[test_case(LexTest {
         valid: true,
         input: "CREATE TABLE u (id INT, name TEXT)",
@@ -1689,7 +1706,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 13, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "u".to_owned(),
+                    value: Cow::Borrowed("u"),
                 },
             },
             TokenContainer {
@@ -1699,7 +1716,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 16, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "id".to_owned(),
+                    value: Cow::Borrowed("id"),
                 },
             },
             TokenContainer {
@@ -1713,7 +1730,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 24, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "name".to_owned(),
+                    value: Cow::Borrowed("name"),
                 },
             },
             TokenContainer {
@@ -1725,7 +1742,7 @@ mod lexer_tests {
                 token: Token::RightParenthesis,
             },
         ],
-    })]
+        })]
         #[test_case(LexTest {
         valid: true,
         input: "insert into users values (545, 232)",
@@ -1741,7 +1758,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 12, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "users".to_owned(),
+                    value: Cow::Borrowed("users"),
                 },
             },
             TokenContainer {
@@ -1755,7 +1772,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 26, line: 0 },
                 token: Token::NumericValue {
-                    value: "545".to_owned(),
+                    value: Cow::Borrowed("545"),
                 },
             },
             TokenContainer {
@@ -1765,7 +1782,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 32, line: 0 },
                 token: Token::NumericValue {
-                    value: "232".to_owned(),
+                    value: Cow::Borrowed("232"),
                 },
             },
             TokenContainer {
@@ -1773,7 +1790,7 @@ mod lexer_tests {
                 token: Token::RightParenthesis,
             },
         ],
-    })]
+        })]
         #[test_case(LexTest {
         valid: true,
         input: "SELECT id FROM users;",
@@ -1785,7 +1802,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 7, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "id".to_owned(),
+                    value: Cow::Borrowed("id"),
                 },
             },
             TokenContainer {
@@ -1795,7 +1812,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 15, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "users".to_owned(),
+                    value: Cow::Borrowed("users"),
                 },
             },
             TokenContainer {
@@ -1803,7 +1820,7 @@ mod lexer_tests {
                 token: Token::Semicolon,
             },
         ],
-    })]
+        })]
         #[test_case(LexTest {
         valid: true,
         input: "SELECT id, name FROM users;",
@@ -1815,7 +1832,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 7, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "id".to_owned(),
+                    value: Cow::Borrowed("id"),
                 },
             },
             TokenContainer {
@@ -1825,7 +1842,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 11, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "name".to_owned(),
+                    value: Cow::Borrowed("name"),
                 },
             },
             TokenContainer {
@@ -1835,7 +1852,7 @@ mod lexer_tests {
             TokenContainer {
                 loc: TokenLocation { col: 21, line: 0 },
                 token: Token::IdentifierValue {
-                    value: "users".to_owned(),
+                    value: Cow::Borrowed("users"),
                 },
             },
             TokenContainer {
@@ -1843,7 +1860,7 @@ mod lexer_tests {
                 token: Token::Semicolon,
             },
         ],
-    })]
+        })]
         fn lexer_whole_test(test: LexTest) {
             let lexer = Lexer::new();
             let result = lexer.lex(test.input);
@@ -1868,59 +1885,58 @@ mod lexer_tests {
         #[global_allocator]
         static A: AllocCounterSystem = AllocCounterSystem;
 
-        struct LexAllocTest {
+        struct LexAllocTest<'a> {
             valid: bool,
             input: &'static str,
             allocations: usize,
-            tokens: Vec<TokenContainer>,
+            tokens: Vec<TokenContainer<'a>>,
         }
 
         #[test_case(LexAllocTest {
-        valid: true,
-        input: "SELECT id, name FROM users;",
-        allocations: 50,
-        tokens: vec![
-            TokenContainer {
-                loc: TokenLocation { col: 0, line: 0 },
-                token: Token::Select,
-            },
-            TokenContainer {
-                loc: TokenLocation { col: 7, line: 0 },
-                token: Token::IdentifierValue {
-                    value: "id".to_owned(),
+            valid: true,
+            input: "SELECT id, name FROM users;",
+            allocations: 3,
+            tokens: vec![
+                TokenContainer {
+                    loc: TokenLocation { col: 0, line: 0 },
+                    token: Token::Select,
                 },
-            },
-            TokenContainer {
-                loc: TokenLocation { col: 9, line: 0 },
-                token: Token::Comma,
-            },
-            TokenContainer {
-                loc: TokenLocation { col: 11, line: 0 },
-                token: Token::IdentifierValue {
-                    value: "name".to_owned(),
+                TokenContainer {
+                    loc: TokenLocation { col: 7, line: 0 },
+                    token: Token::IdentifierValue {
+                        value: Cow::Borrowed("id"),
+                    },
                 },
-            },
-            TokenContainer {
-                loc: TokenLocation { col: 16, line: 0 },
-                token: Token::From,
-            },
-            TokenContainer {
-                loc: TokenLocation { col: 21, line: 0 },
-                token: Token::IdentifierValue {
-                    value: "users".to_owned(),
+                TokenContainer {
+                    loc: TokenLocation { col: 9, line: 0 },
+                    token: Token::Comma,
                 },
-            },
-            TokenContainer {
-                loc: TokenLocation { col: 26, line: 0 },
-                token: Token::Semicolon,
-            },
-        ],
-    })]
+                TokenContainer {
+                    loc: TokenLocation { col: 11, line: 0 },
+                    token: Token::IdentifierValue {
+                        value: Cow::Borrowed("name"),
+                    },
+                },
+                TokenContainer {
+                    loc: TokenLocation { col: 16, line: 0 },
+                    token: Token::From,
+                },
+                TokenContainer {
+                    loc: TokenLocation { col: 21, line: 0 },
+                    token: Token::IdentifierValue {
+                        value: Cow::Borrowed("users"),
+                    },
+                },
+                TokenContainer {
+                    loc: TokenLocation { col: 26, line: 0 },
+                    token: Token::Semicolon,
+                },
+            ],
+        })]
         fn lexer_whole_alloc_test(test: LexAllocTest) {
-            let ((allocations, reallocations, deallocations), result) = count_alloc(|| {
-                let lexer = Lexer::new();
-                lexer.lex(test.input)
-            });
+            let lexer = Lexer::new();
+            let ((allocations, reallocations, deallocations), result) =
+                count_alloc(|| lexer.lex(test.input));
 
             if test.valid && result.is_ok() {
                 let tokens = result.expect("Expected a valid result");

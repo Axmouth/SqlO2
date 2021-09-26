@@ -9,7 +9,7 @@ fn lex_benchmark(c: &mut Criterion) {
         CREATE TABLE people (id INT PRIMARY KEY, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
         SELECT id, name FROM people;
         SELECT id, name FROM people where id != 3;
-        SELECT id, name FROM people where name = 'Rachel';".to_owned().as_str()))));
+        SELECT id, name FROM people where name = 'Rachel';"))));
 }
 
 fn lex_select_benchmark(c: &mut Criterion) {
@@ -19,7 +19,7 @@ fn lex_select_benchmark(c: &mut Criterion) {
         SELECT id, name FROM people where id != 3;
         SELECT id, name FROM people where name = 'Rachel';
         SELECT id, age, role, job, position, country, address from people WHERE country = 'GR' AND age > 17
-        SELECT id, age, role, job, position, country, address from people WHERE country = 'GR' AND age > 17 INNER LEFT JOIN ON jobs".to_owned().as_str()))));
+        SELECT id, age, role, job, position, country, address from people WHERE country = 'GR' AND age > 17 INNER LEFT JOIN ON jobs"))));
 }
 
 fn parse_benchmark(c: &mut Criterion) {

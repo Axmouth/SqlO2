@@ -7,7 +7,7 @@ use lazy_static;
 use std::iter::*;
 
 lazy_static! {
-    static ref BINARY_OPERATORS: Vec<Token> = vec![
+    static ref BINARY_OPERATORS: Vec<Token<'static>> = vec![
         Token::And,
         Token::Or,
         Token::Equal,
@@ -30,7 +30,7 @@ lazy_static! {
         Token::BitwiseShiftRight,
         Token::TypeCast,
     ];
-    static ref UNARY_OPERATORS: Vec<Token> = vec![
+    static ref UNARY_OPERATORS: Vec<Token<'static>> = vec![
         Token::Minus,
         Token::Not,
         Token::FactorialPrefix,
@@ -40,7 +40,7 @@ lazy_static! {
         Token::CubeRoot,
         Token::BitwiseNot,
     ];
-    static ref UNARY_POSTFIX_OPERATORS: Vec<Token> = vec![Token::Factorial];
+    static ref UNARY_POSTFIX_OPERATORS: Vec<Token<'static>> = vec![Token::Factorial];
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
@@ -139,7 +139,7 @@ impl From<LexingError> for ParsingError {
 
 #[inline]
 fn expect_token<'a>(
-    tokens: &mut impl Iterator<Item = &'a TokenContainer>,
+    tokens: &mut impl Iterator<Item = &'a TokenContainer<'a>>,
     _cursor: usize,
     token: Token,
 ) -> bool {
@@ -363,7 +363,7 @@ fn parse_column_definitions(
         }
 
         column_definitions.push(ColumnDefinition {
-            name: col_name.clone(),
+            name: col_name.to_string(),
             data_type: SqlType::from_token(col_type.clone())?,
             is_primary_key,
         });
@@ -425,7 +425,13 @@ fn parse_create_table_statement(
     }
     cursor += 1;
 
-    Ok((CreateTableStatement { name, cols }, cursor))
+    Ok((
+        CreateTableStatement {
+            name: name.to_string(),
+            cols,
+        },
+        cursor,
+    ))
 }
 
 fn parse_create_index_statement(
@@ -522,9 +528,9 @@ fn parse_create_index_statement(
         CreateIndexStatement {
             is_primary_key: false,
             is_unique,
-            name,
+            name: name.to_string(),
             expression,
-            table,
+            table: table.to_string(),
         },
         cursor,
     ))
@@ -873,8 +879,8 @@ fn parse_literal_expression(
                 }
                 Some((
                     Expression::TableColumn(TableColumn {
-                        col_name,
-                        table_name,
+                        col_name: col_name.to_string(),
+                        table_name: table_name.map(|x| x.to_string()),
                     }),
                     cursor,
                 ))
@@ -976,7 +982,7 @@ fn parse_insert_statement(
 
     Ok((
         InsertStatement {
-            table: table_name.clone(),
+            table: table_name.to_string(),
             values,
         },
         cursor,
@@ -1028,7 +1034,12 @@ fn parse_drop_table_statement(
         });
     }
 
-    Ok((DropTableStatement { name }, cursor))
+    Ok((
+        DropTableStatement {
+            name: name.to_string(),
+        },
+        cursor,
+    ))
 }
 
 fn parse_select_items(
@@ -1108,7 +1119,7 @@ fn parse_select_items(
                 loc: _,
             }) = tokens.get(cursor)
             {
-                select_item.as_clause = Some(value.clone());
+                select_item.as_clause = Some(value.to_string());
                 cursor += 1;
             } else if found_as {
                 let x = help_message(tokens, cursor, "Expected identifier after AS".to_owned());
@@ -1598,8 +1609,8 @@ fn parse_table_column(
                 }
                 Some((
                     TableColumn {
-                        col_name,
-                        table_name,
+                        col_name: col_name.to_string(),
+                        table_name: table_name.map(|s| s.to_string()),
                     },
                     cursor,
                 ))
@@ -1693,8 +1704,8 @@ fn parse_table(
         cursor = new_cursor;
         return Ok((
             RowDataSource::Table {
-                table_name,
-                as_clause,
+                table_name: table_name.to_string(),
+                as_clause: as_clause.map(|s| s.to_string()),
                 joins,
             },
             cursor,
@@ -1734,7 +1745,7 @@ fn parse_table(
                 return Ok((
                     RowDataSource::SubSelect {
                         select,
-                        as_clause,
+                        as_clause: as_clause.to_string(),
                         joins,
                     },
                     cursor,

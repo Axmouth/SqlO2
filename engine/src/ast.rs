@@ -259,9 +259,9 @@ impl LiteralExpression {
 
     pub fn from_token(token: &Token) -> Option<LiteralExpression> {
         match token {
-            Token::StringValue { value } => Some(LiteralExpression::String(value.clone())),
-            Token::IdentifierValue { value } => Some(LiteralExpression::Identifier(value.clone())),
-            Token::NumericValue { value } => Some(LiteralExpression::Numeric(value.clone())),
+            Token::StringValue { value } => Some(LiteralExpression::String(value.to_string())),
+            Token::IdentifierValue { value } => Some(LiteralExpression::Identifier(value.to_string())),
+            Token::NumericValue { value } => Some(LiteralExpression::Numeric(value.to_string())),
             Token::BoolValue { value } => Some(LiteralExpression::Bool(*value)),
             Token::Null => Some(LiteralExpression::Null),
             _ => None,
@@ -441,7 +441,7 @@ impl UnaryExpression {
     }
 }
 
-impl Token {
+impl Token<'_> {
     pub fn generate_code(&self) -> String {
         match self {
             Token::And => "AND".to_string(),
@@ -477,7 +477,7 @@ impl Token {
             Token::Minus => MINUS_SYMBOL.to_string(),
             Token::NotEqual => NOT_EQUAL_SYMBOL.to_string(),
             Token::Null => NULL_KEYWORD.to_string(),
-            Token::NumericValue { value } => value.clone(),
+            Token::NumericValue { value } => value.to_string(),
             Token::On => ON_KEYWORD.to_string(),
             Token::Or => OR_KEYWORD.to_string(),
             Token::Not => NOT_KEYWORD.to_string(),
