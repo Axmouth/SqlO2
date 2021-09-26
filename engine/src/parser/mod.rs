@@ -111,6 +111,7 @@ pub enum ParsingError {
     General { msg: String, cursor: usize },
     Lexing { msg: String, loc: TokenLocation },
     Delimiter { msg: String, cursor: usize },
+    Internal { msg: String },
 }
 
 impl std::fmt::Display for ParsingError {
@@ -122,6 +123,7 @@ impl std::fmt::Display for ParsingError {
                 ParsingError::General { msg, cursor: _ } => msg.clone(),
                 ParsingError::Lexing { msg, loc: _ } => msg.clone(),
                 ParsingError::Delimiter { msg, cursor: _ } => msg.clone(),
+                ParsingError::Internal { msg } => msg.clone(),
             }
         )
     }
@@ -362,7 +364,7 @@ fn parse_column_definitions(
 
         column_definitions.push(ColumnDefinition {
             name: col_name.clone(),
-            data_type: col_type.clone(),
+            data_type: SqlType::from_token(col_type.clone())?,
             is_primary_key,
         });
     }
@@ -708,7 +710,7 @@ fn parse_expression(
         if let Some(operand) = nested_un_ops.pop() {
             inner_exp = Expression::Unary(UnaryExpression {
                 first: Box::from(inner_exp),
-                operand,
+                operand: Operand::from_token(&operand)?,
             });
         } else {
             return None;
@@ -716,7 +718,7 @@ fn parse_expression(
         while let Some(operand) = nested_un_ops.pop() {
             inner_exp = Expression::Unary(UnaryExpression {
                 first: Box::from(inner_exp),
-                operand,
+                operand: Operand::from_token(&operand)?,
             });
         }
         expression = inner_exp;
@@ -742,7 +744,7 @@ fn parse_expression(
         cursor += 1;
         expression = Expression::Unary(UnaryExpression {
             first: Box::from(expression),
-            operand,
+            operand: Operand::from_token(&operand)?,
         });
     }
 
@@ -774,7 +776,7 @@ fn parse_expression(
             if cursor < tokens.len() && tokens[cursor].token.is_datatype() {
                 expression = Expression::Cast {
                     data: Box::new(expression),
-                    typ: SqlType::from_token(tokens[cursor].token.clone()).ok()?,
+                    typ: SqlType::from_token(tokens[cursor].clone()).ok()?,
                 };
                 cursor += 1;
                 continue;
@@ -814,7 +816,7 @@ fn parse_expression(
         expression = Expression::Binary(BinaryExpression {
             first: Box::from(expression),
             second: Box::from(second_expression),
-            operand,
+            operand: Operand::from_token(&operand)?,
         });
         cursor = new_cursor;
         last_cursor = cursor;
@@ -830,7 +832,7 @@ fn parse_expression(
         cursor += 1;
         expression = Expression::Unary(UnaryExpression {
             first: Box::from(expression),
-            operand,
+            operand: Operand::from_token(&operand)?,
         });
     }
 
@@ -883,9 +885,7 @@ fn parse_literal_expression(
             | Token::Null => {
                 cursor += 1;
                 Some((
-                    Expression::Literal(LiteralExpression {
-                        literal: tok.token.clone(),
-                    }),
+                    Expression::Literal(LiteralExpression::from_token(&tok.token)?),
                     cursor,
                 ))
             }
@@ -1513,7 +1513,7 @@ fn parse_joins(
             }
         };
         cursor = new_cursor;
-        let operand = if let Some(TokenContainer { token, loc: _ }) = tokens.get(cursor) {
+        let operand_token = if let Some(TokenContainer { token, loc: _ }) = tokens.get(cursor) {
             cursor += 1;
             if BINARY_OPERATORS.contains(token) {
                 token.clone()
@@ -1539,6 +1539,15 @@ fn parse_joins(
             }
         };
         cursor = new_cursor;
+
+        let operand = if let Some(o) = Operand::from_token(&operand_token) {
+            o
+        } else {
+            return Err(ParsingError::General {
+                msg: "Failed to parse binary operator in join expression".to_string(),
+                cursor,
+            });
+        };
 
         let join = JoinClause {
             kind,
@@ -1769,16 +1778,8 @@ mod parser_tests {
                     statements: vec![Statement::InsertStatement(InsertStatement {
                         table: "users".to_owned(),
                         values: vec![
-                            Expression::Literal(LiteralExpression {
-                                literal: Token::NumericValue {
-                                    value: "105".to_owned(),
-                                },
-                            }),
-                            Expression::Literal(LiteralExpression {
-                                literal: Token::StringValue {
-                                    value: "George".to_owned(),
-                                },
-                            }),
+                            Expression::Literal(LiteralExpression::Numeric("105".to_owned())),
+                            Expression::Literal(LiteralExpression::String("George".to_owned())),
                         ],
                     })],
                 },
@@ -1791,18 +1792,12 @@ mod parser_tests {
                         cols: vec![
                             ColumnDefinition {
                                 name: "id".to_owned(),
-                                data_type: TokenContainer {
-                                    loc: TokenLocation { col: 23, line: 0 },
-                                    token: Token::Int,
-                                },
+                                data_type: SqlType::Int,
                                 is_primary_key: false,
                             },
                             ColumnDefinition {
                                 name: "name".to_owned(),
-                                data_type: TokenContainer {
-                                    loc: TokenLocation { col: 33, line: 0 },
-                                    token: Token::Text,
-                                },
+                                data_type: SqlType::Int,
                                 is_primary_key: false,
                             },
                         ],

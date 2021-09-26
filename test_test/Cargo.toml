@@ -1,0 +1,8 @@
+[package]
+name = "test_test"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+test_util = { path = "../test_util" }
+pretty_assertions = "0.7"

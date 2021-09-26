@@ -1,12 +1,21 @@
-use yew::prelude::*;
+use sqlo2::{backend::EvalResult, sql_types::SqlValue};
+
+use yew::web_sys::HtmlInputElement as InputElement;
+use yew::{
+    classes, html, Component, ComponentLink, Context, FocusEvent, Html, NodeRef, TargetCast,
+};
+use yew::{events::KeyboardEvent, Classes};
 
 #[derive(Debug, Clone)]
 pub(crate) enum Msg {
     AddOne,
 }
 
-#[derive(Debug, Clone, Default)]
-struct ExecutedQuery {}
+#[derive(Debug, Clone)]
+struct ExecutedQuery {
+    query_string: String,
+    query_results: Result<Vec<EvalResult<SqlValue>>, String>,
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct Repl {
@@ -55,12 +64,79 @@ impl Component for Repl {
         false
     }
 
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
-            <div>
-                <button onclick=self.link.callback(|_| Msg::AddOne)>{ "+1" }</button>
-                <p>{ self.value }</p>
-            </div>
+        { for self.exec_history.iter().map(|item| {
+            html! {
+                <>
+                <div onclick="focusInput()">
+                    <div class="prompt-wrapper">
+                        <div class="prompt">{ "SqlO2#:&nbsp;" }</div>
+                        <pre class="executed-query">{{ item.query_string }}</pre>
+                    </div>
+                    <br />
+                    {
+                        if let Ok(results) = item.query_results {
+                            html!{
+                                <>
+                                    <div class="results">
+                                        { for results.iter().map(|r|
+                                            html!{
+                                                <div>
+                                                    <app-results-table /*[results]="results" *ngIf="results?.rows"*/ class="results-table"></app-results-table>
+                                                </div>
+                                            })
+                                        }
+                                    </div>
+                                    <div class="ok">
+                                        <div>{"ok!"}</div>
+                                    </div>
+                                </>
+                            }
+                        } else if let Err(err) = item.query_results {
+                            html!{
+                                <div class="failed">
+                                    <div>{"fail.."}</div>
+                                    <div>{"Error:"} { err }</div>
+                                </div>
+                            }
+
+                        } else {
+                            html!{
+                                <div class="failed"/>
+                            }
+                        }
+                    }
+                    </div>
+
+                    <div class="prompt-wrapper" onclick="focusInput()">
+                    <div class="prompt">{"SqlO2#:&nbsp;"}</div>
+                    <textarea
+                    /*
+                        [(ngModel)]="queryString"
+                        (keyup.enter)="onQuerySubmit($event)"
+                        (keyup.arrowup)="onHistoryUp($event)"
+                        (keyup.arrowdown)="onHistoryDown($event)"
+                        (keyup)="autoGrow($event)"
+                        class="terminal-input"
+                        [cdkTextareaAutosize]="false"
+                        #promptInput="cdkTextareaAutosize"
+                        #promptInputRef
+                        cdkTrapFocus
+                        [cdkTrapFocusAutoCapture]="true"
+                        */
+                    ></textarea>
+                    </div>
+                    </>
+
+        }})
+
+
+        }
         }
     }
+
+    fn rendered(&mut self, _first_render: bool) {}
+
+    fn destroy(&mut self) {}
 }

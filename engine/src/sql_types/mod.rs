@@ -2,6 +2,8 @@ use byteorder::{BigEndian, ReadBytesExt};
 use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 
+use crate::lexer::TokenContainer;
+use crate::parser::ParsingError;
 use crate::{
     backend::{Cell, MemoryCell, ERR_INVALID_DATA_TYPE},
     lexer::Token,
@@ -25,8 +27,8 @@ pub enum SqlType {
 
 impl SqlType {
     #[inline]
-    pub fn from_token(token: Token) -> Result<Self, SqlTypeError> {
-        match token {
+    pub fn from_token(token_container: TokenContainer) -> Result<Self, ParsingError> {
+        match token_container.token {
             Token::SmallInt => Ok(SqlType::SmallInt),
             Token::Int => Ok(SqlType::Int),
             Token::BigInt => Ok(SqlType::BigInt),
@@ -36,9 +38,9 @@ impl SqlType {
             Token::Text => Ok(SqlType::Text),
             Token::Char => Ok(SqlType::Char),
             Token::Bool => Ok(SqlType::Boolean),
-            _ => Err(SqlTypeError::ConversionError(
-                ERR_INVALID_DATA_TYPE.to_string(),
-            )),
+            _ => Err(ParsingError::Internal {
+                msg: ERR_INVALID_DATA_TYPE.to_string(),
+            }),
         }
     }
 

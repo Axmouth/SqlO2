@@ -1158,6 +1158,7 @@ fn is_char_valid_for_identifier(c: char) -> bool {
 #[cfg(test)]
 mod lexer_tests {
     use super::super::lexer::*;
+    use test_util::test_case;
 
     struct LexerTest {
         expected_result: bool,
@@ -1165,775 +1166,777 @@ mod lexer_tests {
         value: &'static str,
     }
 
-    fn run_lexer_tests(lex_fn: LexerFn, tests: Vec<LexerTest>, lexer_name: &str) {
-        let lexer = Lexer::new();
-        let mut found_faults = false;
-        let mut error_msg: String = "\n".to_owned();
-        for test in tests {
-            let lex_result = lex_fn(
-                &lexer,
+    mod lex_numeric_tests {
+        use super::test_case;
+        use super::*;
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "105",
+        expected_value: Token::NumericValue {
+            value: "105".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "105 ",
+        expected_value: Token::NumericValue {
+            value: "105".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "123.",
+        expected_value: Token::NumericValue {
+            value: "123.".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "123.145",
+        expected_value: Token::NumericValue {
+            value: "123.145".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "1e5",
+        expected_value: Token::NumericValue {
+            value: "1e5".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "1.e21",
+        expected_value: Token::NumericValue {
+            value: "1.e21".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "1.1e2",
+        expected_value: Token::NumericValue {
+            value: "1.1e2".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "1.1e-2",
+        expected_value: Token::NumericValue {
+            value: "1.1e-2".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "1.1e+2",
+        expected_value: Token::NumericValue {
+            value: "1.1e+2".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "1e-1",
+        expected_value: Token::NumericValue {
+            value: "1e-1".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: ".1",
+        expected_value: Token::NumericValue {
+            value: ".1".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "4.",
+        expected_value: Token::NumericValue {
+            value: "4.".to_owned(),
+        },
+    } )]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "e4",
+        expected_value: Token::Empty,
+    } )]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "1..",
+        expected_value: Token::Empty,
+    } )]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "1ee4",
+        expected_value: Token::Empty,
+    } )]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: " 1",
+        expected_value: Token::Empty,
+    })]
+        fn lexer_num_test(test: LexerTest) {
+            let lexer = Lexer::new();
+            let result = lexer.lex_numeric(
                 test.value,
                 Cursor {
                     pointer: 0,
                     loc: TokenLocation { col: 0, line: 0 },
                 },
             );
-            let produced_result;
-            match lex_result {
-                Some((res, _cur)) => {
-                    produced_result = true;
-                    if res.token != test.expected_value {
-                        found_faults = true;
-                        error_msg.push_str(
-                            format!(
-                                "({}): Expected to find value `{:?}`\
-    for following value `{}` but got `{:?}` instead\n\n",
-                                lexer_name, test.expected_value, test.value, res.token
-                            )
-                            .as_str(),
-                        );
-                    }
-                }
-                None => {
-                    produced_result = false;
-                }
-            }
 
-            if produced_result != test.expected_result {
-                found_faults = true;
-                if test.expected_result {
-                    error_msg.push_str(
-                        format!(
-                            "({}): Expected to find a result for following value,\
- but it didn't `{}`\n\n",
-                            lexer_name, test.value
-                        )
-                        .as_str(),
-                    );
-                } else {
-                    error_msg.push_str(
-                        format!(
-                            "({}): Expected to fail finding a result for following value,\
- but it returned one `{}`\n\n",
-                            lexer_name, test.value
-                        )
-                        .as_str(),
-                    );
-                }
+            if test.expected_result && result.is_some() {
+                let (token_c, _) = result.expect("Expected a token");
+                assert_eq!(test.expected_value, token_c.token);
+            } else if !test.expected_result && result.is_some() {
+                panic!("Expected no token, got {:?}", result);
+            } else if test.expected_result && result.is_none() {
+                panic!("Expected a token from {}", test.value);
             }
         }
-
-        if found_faults {
-            panic!("{}", error_msg);
-        }
     }
 
-    #[test]
-    fn test_token_lex_numeric() {
-        let numeric_tests = vec![
-            // true
-            LexerTest {
-                expected_result: true,
-                value: "105",
-                expected_value: Token::NumericValue {
-                    value: "105".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "105 ",
-                expected_value: Token::NumericValue {
-                    value: "105".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "123.",
-                expected_value: Token::NumericValue {
-                    value: "123.".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "123.145",
-                expected_value: Token::NumericValue {
-                    value: "123.145".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "1e5",
-                expected_value: Token::NumericValue {
-                    value: "1e5".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "1.e21",
-                expected_value: Token::NumericValue {
-                    value: "1.e21".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "1.1e2",
-                expected_value: Token::NumericValue {
-                    value: "1.1e2".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "1.1e-2",
-                expected_value: Token::NumericValue {
-                    value: "1.1e-2".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "1.1e+2",
-                expected_value: Token::NumericValue {
-                    value: "1.1e+2".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "1e-1",
-                expected_value: Token::NumericValue {
-                    value: "1e-1".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: ".1",
-                expected_value: Token::NumericValue {
-                    value: ".1".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "4.",
-                expected_value: Token::NumericValue {
-                    value: "4.".to_owned(),
-                },
-            },
-            // false
-            LexerTest {
-                expected_result: false,
-                value: "e4",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: "1..",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: "1ee4",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: " 1",
-                expected_value: Token::Empty,
-            },
-        ];
-
-        run_lexer_tests(Lexer::lex_numeric, numeric_tests, "lex_numeric");
-    }
-
-    #[test]
-    fn test_token_lex_string() {
-        let string_tests = vec![
-            // true
-            LexerTest {
-                expected_result: true,
-                value: "'abc'",
-                expected_value: Token::StringValue {
-                    value: "abc".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "'a'",
-                expected_value: Token::StringValue {
-                    value: "a".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "'a b'",
-                expected_value: Token::StringValue {
-                    value: "a b".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "'a b  c '",
-                expected_value: Token::StringValue {
-                    value: "a b  c ".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "'a b '''' c'",
-                expected_value: Token::StringValue {
-                    value: "a b '' c".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "'a''b'",
-                expected_value: Token::StringValue {
-                    value: "a'b".to_owned(),
-                },
-            },
-            // false
-            LexerTest {
-                expected_result: false,
-                value: "a",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: "",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: "'",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: " 'bpp'",
-                expected_value: Token::Empty,
-            },
-        ];
-
-        run_lexer_tests(Lexer::lex_string, string_tests, "lex_string");
-    }
-
-    #[test]
-    fn test_token_lex_symbol() {
-        let symbol_tests = vec![
-            // true
-            LexerTest {
-                expected_result: true,
-                value: "= ",
-                expected_value: Token::Equal,
-            },
-            LexerTest {
-                expected_result: true,
-                value: "||",
-                expected_value: Token::Concat,
-            },
-            LexerTest {
-                expected_result: true,
-                value: ",",
-                expected_value: Token::Comma,
-            },
-            // false
-            LexerTest {
-                expected_result: false,
-                value: "a",
-                expected_value: Token::Empty,
-            },
-        ];
-
-        run_lexer_tests(Lexer::lex_symbol, symbol_tests, "lex_symbol");
-    }
-
-    #[test]
-    fn test_token_lex_identifier() {
-        let identifier_tests = vec![
-            // true
-            LexerTest {
-                expected_result: true,
-                value: "a",
-                expected_value: Token::IdentifierValue {
-                    value: "a".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "abc",
-                expected_value: Token::IdentifierValue {
-                    value: "abc".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "abc ",
-                expected_value: Token::IdentifierValue {
-                    value: "abc".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "abc ",
-                expected_value: Token::IdentifierValue {
-                    value: "abc".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "a9$",
-                expected_value: Token::IdentifierValue {
-                    value: "a9$".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "userName",
-                expected_value: Token::IdentifierValue {
-                    value: "userName".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "\"userName\"",
-                expected_value: Token::IdentifierValue {
-                    value: "userName".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "indexed_value",
-                expected_value: Token::IdentifierValue {
-                    value: "indexed_value".to_owned(),
-                },
-            },
-            LexerTest {
-                expected_result: true,
-                value: "unique_values",
-                expected_value: Token::IdentifierValue {
-                    value: "unique_values".to_owned(),
-                },
-            },
-            // false
-            LexerTest {
-                expected_result: false,
-                value: "\"",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: "_sddfdff",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: "9dfdfd",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: " abc",
-                expected_value: Token::Empty,
-            },
-        ];
-
-        run_lexer_tests(Lexer::lex_identifier, identifier_tests, "lex_identifier");
-    }
-
-    #[test]
-    fn test_token_lex_keyword() {
-        let keyword_tests = vec![
-            // true
-            LexerTest {
-                expected_result: true,
-                value: "select ",
-                expected_value: Token::Select,
-            },
-            LexerTest {
-                expected_result: true,
-                value: "from",
-                expected_value: Token::From,
-            },
-            LexerTest {
-                expected_result: true,
-                value: "as",
-                expected_value: Token::As,
-            },
-            LexerTest {
-                expected_result: true,
-                value: "SELECT",
-                expected_value: Token::Select,
-            },
-            LexerTest {
-                expected_result: true,
-                value: "into",
-                expected_value: Token::Into,
-            },
-            // false
-            LexerTest {
-                expected_result: false,
-                value: " from",
-                expected_value: Token::Empty,
-            },
-            LexerTest {
-                expected_result: false,
-                value: "fdfd",
-                expected_value: Token::Empty,
-            },
-        ];
-
-        run_lexer_tests(Lexer::lex_keyword, keyword_tests, "lex_keyword");
-    }
-
-    struct LexTest {
-        valid: bool,
-        input: &'static str,
-        tokens: Vec<TokenContainer>,
-    }
-
-    #[test]
-    fn test_lex() {
-        let lex_tests = vec![
-            LexTest {
-                valid: true,
-                input: "select a",
-                tokens: vec![
-                    TokenContainer {
-                        loc: TokenLocation { col: 0, line: 0 },
-                        token: Token::Select,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 7, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "a".to_owned(),
-                        },
-                    },
-                ],
-            },
-            LexTest {
-                valid: true,
-                input: "select true",
-                tokens: vec![
-                    TokenContainer {
-                        loc: TokenLocation { col: 0, line: 0 },
-                        token: Token::Select,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 7, line: 0 },
-                        token: Token::BoolValue { value: true },
-                    },
-                ],
-            },
-            LexTest {
-                valid: true,
-                input: "select 1",
-                tokens: vec![
-                    TokenContainer {
-                        loc: TokenLocation { col: 0, line: 0 },
-                        token: Token::Select,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 7, line: 0 },
-                        token: Token::NumericValue {
-                            value: "1".to_owned(),
-                        },
-                    },
-                ],
-            },
-            LexTest {
-                valid: true,
-                input: "select 'foo' || 'bar';",
-                tokens: vec![
-                    TokenContainer {
-                        loc: TokenLocation { col: 0, line: 0 },
-                        token: Token::Select,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 7, line: 0 },
-                        token: Token::StringValue {
-                            value: "foo".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 13, line: 0 },
-                        token: Token::Concat,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 16, line: 0 },
-                        token: Token::StringValue {
-                            value: "bar".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 21, line: 0 },
-                        token: Token::Semicolon,
-                    },
-                ],
-            },
-            LexTest {
-                valid: true,
-                input: "CREATE TABLE u (id INT, name TEXT)",
-                tokens: vec![
-                    TokenContainer {
-                        loc: TokenLocation { col: 0, line: 0 },
-                        token: Token::Create,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 7, line: 0 },
-                        token: Token::Table,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 13, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "u".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 15, line: 0 },
-                        token: Token::LeftParenthesis,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 16, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "id".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 19, line: 0 },
-                        token: Token::Int,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 22, line: 0 },
-                        token: Token::Comma,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 24, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "name".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 29, line: 0 },
-                        token: Token::Text,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 33, line: 0 },
-                        token: Token::RightParenthesis,
-                    },
-                ],
-            },
-            LexTest {
-                valid: true,
-                input: "insert into users values (545, 232)",
-                tokens: vec![
-                    TokenContainer {
-                        loc: TokenLocation { col: 0, line: 0 },
-                        token: Token::Insert,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 7, line: 0 },
-                        token: Token::Into,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 12, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "users".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 18, line: 0 },
-                        token: Token::Values,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 25, line: 0 },
-                        token: Token::LeftParenthesis,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 26, line: 0 },
-                        token: Token::NumericValue {
-                            value: "545".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 30, line: 0 },
-                        token: Token::Comma,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 32, line: 0 },
-                        token: Token::NumericValue {
-                            value: "232".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 36, line: 0 },
-                        token: Token::RightParenthesis,
-                    },
-                ],
-            },
-            LexTest {
-                valid: true,
-                input: "SELECT id FROM users;",
-                tokens: vec![
-                    TokenContainer {
-                        loc: TokenLocation { col: 0, line: 0 },
-                        token: Token::Select,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 7, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "id".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 10, line: 0 },
-                        token: Token::From,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 15, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "users".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 20, line: 0 },
-                        token: Token::Semicolon,
-                    },
-                ],
-            },
-            LexTest {
-                valid: true,
-                input: "SELECT id, name FROM users;",
-                tokens: vec![
-                    TokenContainer {
-                        loc: TokenLocation { col: 0, line: 0 },
-                        token: Token::Select,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 7, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "id".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 9, line: 0 },
-                        token: Token::Comma,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 11, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "name".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 16, line: 0 },
-                        token: Token::From,
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 21, line: 0 },
-                        token: Token::IdentifierValue {
-                            value: "users".to_owned(),
-                        },
-                    },
-                    TokenContainer {
-                        loc: TokenLocation { col: 26, line: 0 },
-                        token: Token::Semicolon,
-                    },
-                ],
-            },
-        ];
-
-        let mut found_faults = false;
-        let mut err_msg = "\n".to_owned();
-
-        for test in lex_tests {
+    mod lex_symbol_string {
+        use super::test_case;
+        use super::*;
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "'abc'",
+        expected_value: Token::StringValue {
+            value: "abc".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "'a'",
+        expected_value: Token::StringValue {
+            value: "a".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "'a b'",
+        expected_value: Token::StringValue {
+            value: "a b".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "'a b  c '",
+        expected_value: Token::StringValue {
+            value: "a b  c ".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "'a b '''' c'",
+        expected_value: Token::StringValue {
+            value: "a b '' c".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "'a''b'",
+        expected_value: Token::StringValue {
+            value: "a'b".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "a",
+        expected_value: Token::Empty,
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "",
+        expected_value: Token::Empty,
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "'",
+        expected_value: Token::Empty,
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: " 'bpp'",
+        expected_value: Token::Empty,
+    })]
+        fn lexer_string_test(test: LexerTest) {
             let lexer = Lexer::new();
-            let lex_result = lexer.lex(test.input);
+            let result = lexer.lex_string(
+                test.value,
+                Cursor {
+                    pointer: 0,
+                    loc: TokenLocation { col: 0, line: 0 },
+                },
+            );
 
-            match lex_result {
-                Ok(result) => {
-                    if !test.valid {
-                        found_faults = true;
-                        err_msg.push_str(
-                            &format!(
-                                "For Input `{}` a failure was expected, but it passed\n\n",
-                                test.input
-                            )
-                            .to_owned(),
-                        );
-                    }
-                    if result.len() != test.tokens.len() {
-                        found_faults = true;
-                        err_msg.push_str(
-                            &format!(
-                                "For Input `{}` a result with `{}` tokens was expected, but one with `{}` was received\n\n",
-                                test.input,
-                                test.tokens.len(),
-                                result.len(),
-                            )
-                            .to_owned(),
-                        );
-                    } else {
-                        for i in 0..test.tokens.len() {
-                            let test_token = &result[i];
-                            let expected_token = &test.tokens[i];
+            if test.expected_result && result.is_some() {
+                let (token_c, _) = result.expect("Expected a token");
+                assert_eq!(test.expected_value, token_c.token);
+            } else if !test.expected_result && result.is_some() {
+                panic!("Expected no token, got {:?}", result);
+            } else if test.expected_result && result.is_none() {
+                panic!("Expected a token from {}", test.value);
+            }
+        }
+    }
 
-                            if test_token.token != expected_token.token {
-                                found_faults = true;
-                                err_msg.push_str(
-                                &format!(
-                                    "For Input `{}` the token at position {} was expected to have a kind of `{:?}`\
-, but one with kind `{:?}` was received\n\n",
-                                    test.input,
-                                    i,
-                                    expected_token.token,
-                                    test_token.token
-                                )
-                                .to_owned(),
-                            );
-                            }
+    mod lex_symbol_tests {
+        use super::test_case;
+        use super::*;
 
-                            if test_token.token != expected_token.token {
-                                found_faults = true;
-                                err_msg.push_str(
-                                &format!(
-                                    "For Input `{}` the token at position {} was expected to have a value of `{:?}`\
-, but one with value `{:?}` was received\n\n",
-                                    test.input,
-                                    i,
-                                    expected_token.token,
-                                    test_token.token
-                                )
-                                .to_owned(),
-                            );
-                            }
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "= ",
+        expected_value: Token::Equal,
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "||",
+        expected_value: Token::Concat,
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: ",",
+        expected_value: Token::Comma,
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "a",
+        expected_value: Token::Empty,
+    })]
+        fn lexer_symbol_test(test: LexerTest) {
+            let lexer = Lexer::new();
+            let result = lexer.lex_symbol(
+                test.value,
+                Cursor {
+                    pointer: 0,
+                    loc: TokenLocation { col: 0, line: 0 },
+                },
+            );
 
-                            if test_token.loc != expected_token.loc {
-                                found_faults = true;
-                                err_msg.push_str(
-                                &format!(
-                                    "For Input `{}` the token at position {} was expected to have a location of `{}:{}`\
-, but one with location `{}:{}` was received\n\n",
-                                    test.input,
-                                    i,
-                                    expected_token.loc.col,
-                                    expected_token.loc.line,
-                                    test_token.loc.col,
-                                    test_token.loc.line,
-                                )
-                                .to_owned(),
-                            );
-                            }
-                        }
-                    }
-                }
-                Err(err) => {
-                    found_faults = true;
-                    if test.valid {
-                        err_msg.push_str(err.to_string().as_str());
-                    }
-                }
+            if test.expected_result && result.is_some() {
+                let (token_c, _) = result.expect("Expected a token");
+                assert_eq!(test.expected_value, token_c.token);
+            } else if !test.expected_result && result.is_some() {
+                panic!("Expected no token, got {:?}", result);
+            } else if test.expected_result && result.is_none() {
+                panic!("Expected a token from {}", test.value);
             }
         }
 
-        if found_faults {
-            panic!("{}", err_msg);
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "a",
+        expected_value: Token::IdentifierValue {
+            value: "a".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "abc",
+        expected_value: Token::IdentifierValue {
+            value: "abc".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "abc ",
+        expected_value: Token::IdentifierValue {
+            value: "abc".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "abc ",
+        expected_value: Token::IdentifierValue {
+            value: "abc".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "a9$",
+        expected_value: Token::IdentifierValue {
+            value: "a9$".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "userName",
+        expected_value: Token::IdentifierValue {
+            value: "userName".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "\"userName\"",
+        expected_value: Token::IdentifierValue {
+            value: "userName".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "indexed_value",
+        expected_value: Token::IdentifierValue {
+            value: "indexed_value".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "unique_values",
+        expected_value: Token::IdentifierValue {
+            value: "unique_values".to_owned(),
+        },
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "\"",
+        expected_value: Token::Empty,
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "_sddfdff",
+        expected_value: Token::Empty,
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "9dfdfd",
+        expected_value: Token::Empty,
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: " abc",
+        expected_value: Token::Empty,
+    })]
+        fn lexer_identifier_test(test: LexerTest) {
+            let lexer = Lexer::new();
+            let result = lexer.lex_identifier(
+                test.value,
+                Cursor {
+                    pointer: 0,
+                    loc: TokenLocation { col: 0, line: 0 },
+                },
+            );
+
+            if test.expected_result && result.is_some() {
+                let (token_c, _) = result.expect("Expected a token");
+                assert_eq!(test.expected_value, token_c.token);
+            } else if !test.expected_result && result.is_some() {
+                panic!("Expected no token, got {:?}", result);
+            } else if test.expected_result && result.is_none() {
+                panic!("Expected a token from {}", test.value);
+            }
+        }
+    }
+
+    mod lex_keyword_tests {
+        use super::test_case;
+        use super::*;
+
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "select ",
+        expected_value: Token::Select,
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "from",
+        expected_value: Token::From,
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "as",
+        expected_value: Token::As,
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "SELECT",
+        expected_value: Token::Select,
+    })]
+        #[test_case(LexerTest {
+        expected_result: true,
+        value: "into",
+        expected_value: Token::Into,
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: " from",
+        expected_value: Token::Empty,
+    })]
+        #[test_case(LexerTest {
+        expected_result: false,
+        value: "fdfd",
+        expected_value: Token::Empty,
+    })]
+        fn lexer_keyword_test(test: LexerTest) {
+            let lexer = Lexer::new();
+            let result = lexer.lex_keyword(
+                test.value,
+                Cursor {
+                    pointer: 0,
+                    loc: TokenLocation { col: 0, line: 0 },
+                },
+            );
+
+            if test.expected_result && result.is_some() {
+                let (token_c, _) = result.expect("Expected a token");
+                assert_eq!(test.expected_value, token_c.token);
+            } else if !test.expected_result && result.is_some() {
+                panic!("Expected no token, got {:?}", result);
+            } else if test.expected_result && result.is_none() {
+                panic!("Expected a token from {}", test.value);
+            }
+        }
+    }
+
+    mod lexer_tests {
+        use super::test_case;
+        use super::*;
+
+        struct LexTest {
+            valid: bool,
+            input: &'static str,
+            tokens: Vec<TokenContainer>,
+        }
+
+        #[test_case(LexTest {
+        valid: true,
+        input: "select a",
+        tokens: vec![
+            TokenContainer {
+                loc: TokenLocation { col: 0, line: 0 },
+                token: Token::Select,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 7, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "a".to_owned(),
+                },
+            },
+        ],
+    })]
+        #[test_case(LexTest {
+        valid: true,
+        input: "select true",
+        tokens: vec![
+            TokenContainer {
+                loc: TokenLocation { col: 0, line: 0 },
+                token: Token::Select,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 7, line: 0 },
+                token: Token::BoolValue { value: true },
+            },
+        ],
+    })]
+        #[test_case(LexTest {
+        valid: true,
+        input: "select 1",
+        tokens: vec![
+            TokenContainer {
+                loc: TokenLocation { col: 0, line: 0 },
+                token: Token::Select,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 7, line: 0 },
+                token: Token::NumericValue {
+                    value: "1".to_owned(),
+                },
+            },
+        ],
+    })]
+        #[test_case(LexTest {
+        valid: true,
+        input: "select 'foo' || 'bar';",
+        tokens: vec![
+            TokenContainer {
+                loc: TokenLocation { col: 0, line: 0 },
+                token: Token::Select,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 7, line: 0 },
+                token: Token::StringValue {
+                    value: "foo".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 13, line: 0 },
+                token: Token::Concat,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 16, line: 0 },
+                token: Token::StringValue {
+                    value: "bar".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 21, line: 0 },
+                token: Token::Semicolon,
+            },
+        ],
+    })]
+        #[test_case(LexTest {
+        valid: true,
+        input: "CREATE TABLE u (id INT, name TEXT)",
+        tokens: vec![
+            TokenContainer {
+                loc: TokenLocation { col: 0, line: 0 },
+                token: Token::Create,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 7, line: 0 },
+                token: Token::Table,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 13, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "u".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 15, line: 0 },
+                token: Token::LeftParenthesis,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 16, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "id".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 19, line: 0 },
+                token: Token::Int,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 22, line: 0 },
+                token: Token::Comma,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 24, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "name".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 29, line: 0 },
+                token: Token::Text,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 33, line: 0 },
+                token: Token::RightParenthesis,
+            },
+        ],
+    })]
+        #[test_case(LexTest {
+        valid: true,
+        input: "insert into users values (545, 232)",
+        tokens: vec![
+            TokenContainer {
+                loc: TokenLocation { col: 0, line: 0 },
+                token: Token::Insert,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 7, line: 0 },
+                token: Token::Into,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 12, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "users".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 18, line: 0 },
+                token: Token::Values,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 25, line: 0 },
+                token: Token::LeftParenthesis,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 26, line: 0 },
+                token: Token::NumericValue {
+                    value: "545".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 30, line: 0 },
+                token: Token::Comma,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 32, line: 0 },
+                token: Token::NumericValue {
+                    value: "232".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 36, line: 0 },
+                token: Token::RightParenthesis,
+            },
+        ],
+    })]
+        #[test_case(LexTest {
+        valid: true,
+        input: "SELECT id FROM users;",
+        tokens: vec![
+            TokenContainer {
+                loc: TokenLocation { col: 0, line: 0 },
+                token: Token::Select,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 7, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "id".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 10, line: 0 },
+                token: Token::From,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 15, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "users".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 20, line: 0 },
+                token: Token::Semicolon,
+            },
+        ],
+    })]
+        #[test_case(LexTest {
+        valid: true,
+        input: "SELECT id, name FROM users;",
+        tokens: vec![
+            TokenContainer {
+                loc: TokenLocation { col: 0, line: 0 },
+                token: Token::Select,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 7, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "id".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 9, line: 0 },
+                token: Token::Comma,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 11, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "name".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 16, line: 0 },
+                token: Token::From,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 21, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "users".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 26, line: 0 },
+                token: Token::Semicolon,
+            },
+        ],
+    })]
+        fn lexer_whole_test(test: LexTest) {
+            let lexer = Lexer::new();
+            let result = lexer.lex(test.input);
+
+            if test.valid && result.is_ok() {
+                let tokens = result.expect("Expected a valid result");
+                assert_eq!(test.tokens, tokens);
+            } else if !test.valid && result.is_ok() {
+                panic!("Expected no valid result, got {:?}", result);
+            } else if test.valid && result.is_err() {
+                panic!("Expected a valid result from {}", test.input);
+            }
+        }
+    }
+
+    mod alloc_tests {
+        use super::test_case;
+        use super::*;
+
+        use alloc_counter::{count_alloc, AllocCounterSystem};
+
+        #[global_allocator]
+        static A: AllocCounterSystem = AllocCounterSystem;
+
+        struct LexAllocTest {
+            valid: bool,
+            input: &'static str,
+            allocations: usize,
+            tokens: Vec<TokenContainer>,
+        }
+
+        #[test_case(LexAllocTest {
+        valid: true,
+        input: "SELECT id, name FROM users;",
+        allocations: 50,
+        tokens: vec![
+            TokenContainer {
+                loc: TokenLocation { col: 0, line: 0 },
+                token: Token::Select,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 7, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "id".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 9, line: 0 },
+                token: Token::Comma,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 11, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "name".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 16, line: 0 },
+                token: Token::From,
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 21, line: 0 },
+                token: Token::IdentifierValue {
+                    value: "users".to_owned(),
+                },
+            },
+            TokenContainer {
+                loc: TokenLocation { col: 26, line: 0 },
+                token: Token::Semicolon,
+            },
+        ],
+    })]
+        fn lexer_whole_alloc_test(test: LexAllocTest) {
+            let ((allocations, reallocations, deallocations), result) = count_alloc(|| {
+                let lexer = Lexer::new();
+                lexer.lex(test.input)
+            });
+
+            if test.valid && result.is_ok() {
+                let tokens = result.expect("Expected a valid result");
+                assert_eq!(test.tokens, tokens);
+            } else if !test.valid && result.is_ok() {
+                panic!("Expected no valid result, got {:?}", result);
+            } else if test.valid && result.is_err() {
+                panic!("Expected a valid result from {}", test.input);
+            }
+
+            if allocations > test.allocations {
+                panic!(
+                    "Expected maximum {} allocations, got {}",
+                    test.allocations, allocations
+                );
+            }
         }
     }
 }
