@@ -25,7 +25,7 @@ jobs:
       - name: Run tests
         uses: icepuma/rust-action@master
         with:
-          args: ccargo test --workspace
+          args: cargo test --workspace
 
       - name: Check for clippy issues
         uses: icepuma/rust-action@master
