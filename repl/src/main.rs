@@ -10,9 +10,11 @@ use rustyline::{error::ReadlineError, Editor};
 use std::io::{stdout, Write};
 use std::time::Duration;
 
-use sysinfo::{get_current_pid, System, SystemExt};
+use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
 
 fn main() {
+    const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
     let mut mb = MemoryBackend::new();
     let mut rl = Editor::<()>::new();
 
@@ -23,28 +25,32 @@ fn main() {
     let rust_info = version();
 
     println!();
-    println!();
-    println!("SqlO2 0.0.1 Repl");
+    println!("SqlO2 {} Repl", VERSION);
     println!();
 
     // Display system information:
     println!(
-        "System:         {} {}",
+        "System:            {} {}",
         system.name().unwrap_or_else(|| "Unknown".to_string()),
         system.os_version().unwrap_or_else(|| "unknown".to_string())
     );
     println!(
-        "Kernel          {}",
+        "Kernel             {}",
         system
             .kernel_version()
             .unwrap_or_else(|| "Unknown".to_string())
     );
     println!(
-        "Rust version:   {}.{}.{}",
+        "Rust version:      {}.{}.{}",
         rust_info.major, rust_info.minor, rust_info.patch
     );
+    if let Ok(current_pid) = get_current_pid() {
+        let current_process_opt = system.process(current_pid);
+        if let Some(current_process) = current_process_opt {
+            println!("Memory usage(kb):  {}", current_process.memory());
+        }
+    }
 
-    println!();
     println!();
 
     loop {
