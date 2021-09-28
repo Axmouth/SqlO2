@@ -68,7 +68,6 @@ impl Component for Repl {
             }
         }
 
-
         Self {
             link,
             exec_history,
@@ -287,9 +286,7 @@ static DEFAULT_QUERIES: &[&str] = &[
     "SELECT id, name as charName FROM characters WHERE name != 'Rachel' AND id < 5;",
     "SELECT name FROM characters ORDER BY name ASC",
     "SELECT DISTINCT (id / 2)::int FROM characters",
-     "SELECT id::text || ' ' || name AS name_with_id FROM characters WHERE id > 1 ORDER BY id DESC LIMIT 4 OFFSET 5;",
+    "SELECT id::text || ' ' || name AS name_with_id FROM characters WHERE id > 1 ORDER BY id DESC LIMIT 4 OFFSET 5;",
     "CREATE TABLE character_roles (character_id INT, role_name TEXT); INSERT INTO character_roles VALUES (1, 'Wave Controller'); INSERT INTO character_roles VALUES (2, 'Light Bearer'); INSERT INTO character_roles VALUES (3, 'Spear Bearer'); INSERT INTO character_roles VALUES (4, 'Light Bearer'); INSERT INTO character_roles VALUES (1, 'Fisherman'); INSERT INTO character_roles VALUES (4, 'Spear Bearer');",
-    
     "SELECT * FROM characters INNER JOIN character_roles ON characters.id=character_roles.character_id WHERE id != 2 ORDER BY id;",
 ];
-

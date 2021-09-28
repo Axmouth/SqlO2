@@ -192,7 +192,10 @@ impl Expression {
         Expression::Literal(LiteralExpression::String(value))
     }
     pub fn new_literal_bool(value: String) -> Expression {
-        Expression::Literal(LiteralExpression::Bool(matches!(value.to_lowercase().as_str(), "true" | "t")))
+        Expression::Literal(LiteralExpression::Bool(matches!(
+            value.to_lowercase().as_str(),
+            "true" | "t"
+        )))
     }
     pub fn new_literal_null() -> Expression {
         Expression::Literal(LiteralExpression::Null)
@@ -205,7 +208,9 @@ impl Expression {
             Expression::Unary(value) => value.generate_code(),
             // Expression::SubSelect(value) => value.generate_code(),
             Expression::TableColumn(value) => Ok(value.col_name.clone()),
-            Expression::Cast { data, typ } => data.generate_code().map(|s| format!("CAST({} AS {})", s, typ.to_string())),
+            Expression::Cast { data, typ } => data
+                .generate_code()
+                .map(|s| format!("CAST({} AS {})", s, typ.to_string())),
             Expression::Empty => Ok("".to_string()),
             _ => Err("Unknown Expression Kind".to_string()),
         }
@@ -249,7 +254,6 @@ impl LiteralExpression {
             LiteralExpression::Numeric(value) => Ok(value.clone()),
             LiteralExpression::Bool(value) => Ok(if *value {
                 TRUE_KEYWORD.to_string()
-
             } else {
                 FALSE_KEYWORD.to_string()
             }),
@@ -260,7 +264,9 @@ impl LiteralExpression {
     pub fn from_token(token: &Token) -> Option<LiteralExpression> {
         match token {
             Token::StringValue { value } => Some(LiteralExpression::String(value.to_string())),
-            Token::IdentifierValue { value } => Some(LiteralExpression::Identifier(value.to_string())),
+            Token::IdentifierValue { value } => {
+                Some(LiteralExpression::Identifier(value.to_string()))
+            }
             Token::NumericValue { value } => Some(LiteralExpression::Numeric(value.to_string())),
             Token::BoolValue { value } => Some(LiteralExpression::Bool(*value)),
             Token::Null => Some(LiteralExpression::Null),
@@ -314,7 +320,6 @@ pub enum Operand {
 }
 
 impl Operand {
-
     pub fn generate_code(&self) -> String {
         match self {
             Operand::Add => PLUS_SYMBOL,
@@ -332,7 +337,7 @@ impl Operand {
             Operand::LessThanOrEqual => LESS_THAN_OR_EQUAL_SYMBOL,
             Operand::Not => NOT_KEYWORD,
             Operand::SquareRoot => SQUARE_ROOT_SYMBOL,
-            Operand::CubeRoot =>    CUBE_ROOT_SYMBOL,
+            Operand::CubeRoot => CUBE_ROOT_SYMBOL,
             Operand::Factorial => FACTORIAL_SYMBOL,
             Operand::FactorialPrefix => FACTORIAL_PREFIX_SYMBOL,
             Operand::AbsoluteValue => ABS_SYMBOL,
@@ -357,7 +362,8 @@ impl Operand {
             Operand::BitwiseShiftLeft => BITWISE_SHIFT_LEFT_SYMBOL,
             Operand::BitwiseShiftRight => BITWISE_SHIFT_RIGHT_SYMBOL,
             Operand::BitwiseShiftRightZeroFill => ">>",
-        }.to_string()
+        }
+        .to_string()
     }
 
     pub fn from_token(token: &Token) -> Option<Operand> {
@@ -782,7 +788,6 @@ mod ast_tests {
                                             })),
                                     })),
                                 }),
-                                        
                         }],
                         from: vec![RowDataSource::Table {
                             table_name: "characters".to_string(),
@@ -825,7 +830,7 @@ mod ast_tests {
                             joins: vec![
                                 JoinClause {
                                     kind: JoinKind::Inner,
-                                    source: 
+                                    source:
                                         RowDataSource::Table {
                                             table_name: String::from("character_roles"),
                                             as_clause: None,

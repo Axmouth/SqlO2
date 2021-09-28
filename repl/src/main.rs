@@ -10,7 +10,7 @@ use rustyline::{error::ReadlineError, Editor};
 use std::io::{stdout, Write};
 use std::time::Duration;
 
-use sysinfo::{System, SystemExt};
+use sysinfo::{get_current_pid, System, SystemExt};
 
 fn main() {
     let mut mb = MemoryBackend::new();
