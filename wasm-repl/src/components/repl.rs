@@ -245,7 +245,7 @@ impl Component for Repl {
                         oninput=self.link.callback(|e: InputData| Msg::QueryInputValue(e.value))
                         onkeyup=keyup
                         onkeydown=keydown
-                        rows=2
+                        rows=1
                         autofocus=true
                         ref={self.focus_ref.clone()}
                         value={self.query_string.clone()}
@@ -258,6 +258,7 @@ impl Component for Repl {
 
     fn rendered(&mut self, _first_render: bool) {
         if let Some(input) = self.focus_ref.cast::<HtmlTextAreaElement>() {
+            input.set_rows((input.scroll_height() / 18) as u32);
             let _ = input.focus().is_ok();
             input.scroll_into_view();
         }

@@ -135,6 +135,7 @@ td::selection {
   align-self: flex-start;
   font: 0.8rem Inconsolata, monospace;
   text-shadow: 0 0 2px #c8c8c8;
+  line-height: 18px;
 }
 
 .executed-query {
