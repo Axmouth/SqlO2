@@ -60,10 +60,17 @@ impl Component for Repl {
             if let Some(Some(true)) = q.default {
                 for sql in DEFAULT_QUERIES {
                     exec_history.push(ExecutedQuery {
-                        query_string: sql.to_string(),
                         query_results: SqlO2Service::execute(*sql),
+                        query_string: sql.to_string(),
                     });
                 }
+                history_position = DEFAULT_QUERIES.len();
+            }
+            if let Some(Some(sql)) = q.q {
+                exec_history.push(ExecutedQuery {
+                    query_results: SqlO2Service::execute(&sql),
+                    query_string: sql,
+                });
                 history_position = DEFAULT_QUERIES.len();
             }
         }
