@@ -5,6 +5,7 @@ use super::backend::*;
 use super::lexer::*;
 use super::parser::Parser;
 
+use crate::parser::ParsingError;
 use crate::sql_types::SqlNumeric;
 use crate::sql_types::SqlText;
 use crate::{
@@ -548,6 +549,9 @@ impl MemoryBackend {
             tables: HashMap::new(),
             parser: Parser::new(),
         }
+    }
+    pub fn parse<'a>(&'a self, sql: &'a str) -> Result<Ast, ParsingError> {
+        self.parser.parse(sql)
     }
 
     pub fn create_table(&mut self, create_statement: CreateTableStatement) -> Result<bool, String> {
@@ -1224,5 +1228,144 @@ pub fn literal_to_memory_cell(literal: &LiteralExpression) -> Result<SqlValue, S
             Ok(val)
         }
         _ => Err("Unsupported literal type".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod eval_query {
+        use super::*;
+        use instant::Duration;
+        use pretty_assertions::assert_eq;
+        use test_util::test_case;
+
+        #[test_case(
+            "Select 1",
+            Ok(vec![EvalResult::Select {
+                results: QueryResults {
+                    columns: vec![ResultColumn {
+                        col_type: SqlType::DoublePrecision,
+                        name: "".to_string(),
+                    }],
+                    rows: vec![vec![SqlValue::Numeric(SqlNumeric::DoublePrecision {
+                        value: 1.0,
+                    })]]
+                },
+                time: std::time::Duration::new(0, 0),
+            }])
+        )]
+        fn eval_query_test(query: &str, expected: Result<Vec<EvalResult<SqlValue>>, String>) {
+            let mut db = MemoryBackend::new();
+
+            let result = db.eval_query(query);
+
+            assert_eq!(result, expected);
+        }
+
+        #[test_case(
+            &[
+            "CREATE TABLE test (id INT, name TEXT, age INT);",
+            "INSERT INTO test VALUES (1, 'John', 20);"
+            ],
+            vec![
+                Ok(
+                    vec![
+                        EvalResult::CreateTable {
+                            success: true,
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),
+                Ok(
+                    vec![
+                        EvalResult::Insert {
+                            success: true,
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),]
+        )]
+        #[test_case(
+            &[
+            "CREATE TABLE test (id INT, name TEXT, age INT);",
+            "INSERT INTO test VALUES (1, 'John', 20);",
+            "SELECT * FROM test WHERE id = 1;"
+            ],
+            vec![
+                Ok(
+                    vec![
+                        EvalResult::CreateTable {
+                            success: true,
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),
+                Ok(
+                    vec![
+                        EvalResult::Insert {
+                            success: true,
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),
+                Ok(
+                    vec![
+                        EvalResult::Select {
+                            results: QueryResults {
+                                columns: vec![
+                                    ResultColumn {
+                                        col_type: SqlType::Int,
+                                        name: "id".to_string(),
+                                    },
+                                    ResultColumn {
+                                        col_type: SqlType::Text,
+                                        name: "name".to_string(),
+                                    },
+                                    ResultColumn {
+                                        col_type: SqlType::Int,
+                                        name: "age".to_string(),
+                                    },
+                                ],
+                                rows: vec![
+                                    vec![
+                                        SqlValue::Numeric(
+                                            SqlNumeric::Int {
+                                                value: 1,
+                                            },
+                                        ),
+                                        SqlValue::Text(
+                                            SqlText::Text {
+                                                value: "John".to_string(),
+                                            },
+                                        ),
+                                        SqlValue::Numeric(
+                                            SqlNumeric::Int {
+                                                value: 20,
+                                            },
+                                        ),
+                                    ],
+                                ],
+                            },
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),
+            ]
+        )]
+        fn eval_queries_test(
+            queries: &[&str],
+            expected: Vec<Result<Vec<EvalResult<SqlValue>>, String>>,
+        ) {
+            let mut db = MemoryBackend::new();
+
+            let results = queries
+                .iter()
+                .map(|query| db.eval_query(query))
+                .collect::<Vec<_>>();
+
+            assert_eq!(results, expected);
+        }
     }
 }

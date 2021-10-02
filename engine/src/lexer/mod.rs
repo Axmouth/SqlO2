@@ -403,6 +403,94 @@ pub const BITWISE_SHIFT_RIGHT_SYMBOL: Symbol = ">>";
 pub const TYPE_CAST_SYMBOL: Symbol = "::";
 pub const DOT_SYMBOL: Symbol = ".";
 
+// Syntax that should be kept
+static SYMBOLS: &[&str] = &[
+    COMMA_SYMBOL,
+    NOT_EQUAL_SYMBOL,
+    NOT_EQUAL_SYMBOL_2,
+    LESS_THAN_OR_EQUAL_SYMBOL,
+    GREATER_THAN_OR_EQUAL_SYMBOL,
+    EQUAL_SYMBOL,
+    LEFT_PARENTHESIS_SYMBOL,
+    RIGHT_PARENTHESIS_SYMBOL,
+    SEMICOLON_SYMBOL,
+    PLUS_SYMBOL,
+    MINUS_SYMBOL,
+    ASTERISK_SYMBOL,
+    SLASH_SYMBOL,
+    BITWISE_SHIFT_LEFT_SYMBOL,
+    BITWISE_SHIFT_RIGHT_SYMBOL,
+    LESS_THAN_SYMBOL,
+    GREATER_THAN_SYMBOL,
+    CONCAT_SYMBOL,
+    MODULO_SYMBOL,
+    EXPONENTIATION_SYMBOL,
+    CUBE_ROOT_SYMBOL,
+    SQUARE_ROOT_SYMBOL,
+    FACTORIAL_SYMBOL,
+    FACTORIAL_PREFIX_SYMBOL,
+    ABS_SYMBOL,
+    BITWISE_AND_SYMBOL,
+    BITWISE_OR_SYMBOL,
+    BITWISE_XOR_SYMBOL,
+    BITWISE_NOT_SYMBOL,
+    TYPE_CAST_SYMBOL,
+    DOT_SYMBOL,
+];
+
+static KEYWORDS: &[&str] = &[
+    SELECT_KEYWORD,
+    INSERT_KEYWORD,
+    VALUES_KEYWORD,
+    TABLE_KEYWORD,
+    CREATE_KEYWORD,
+    DROP_KEYWORD,
+    WHERE_KEYWORD,
+    FROM_KEYWORD,
+    TEXT_KEYWORD,
+    BOOL_KEYWORD,
+    AND_KEYWORD,
+    ORDER_KEYWORD,
+    OR_KEYWORD,
+    DESC_KEYWORD,
+    ASC_KEYWORD,
+    AS_KEYWORD,
+    TRUE_KEYWORD,
+    FALSE_KEYWORD,
+    JOIN_KEYWORD,
+    INNER_KEYWORD,
+    LEFT_KEYWORD,
+    RIGHT_KEYWORD,
+    OUTER_KEYWORD,
+    FULL_KEYWORD,
+    IS_KEYWORD,
+    LIMIT_KEYWORD,
+    OFFSET_KEYWORD,
+    BY_KEYWORD,
+    DISTINCT_KEYWORD,
+    INTO_KEYWORD,
+    INT_KEYWORD,
+    BIGINT_KEYWORD,
+    SMALLINT_KEYWORD,
+    REAL_KEYWORD,
+    DOUBLE_KEYWORD,
+    PRECISION_KEYWORD,
+    VARCHAR_KEYWORD,
+    CHAR_KEYWORD,
+    UNIQUE_KEYWORD,
+    INDEX_KEYWORD,
+    ON_KEYWORD,
+    PRIMARY_KEYWORD,
+    KEY_KEYWORD,
+    NULL_KEYWORD,
+    ALTER_KEYWORD,
+    DELETE_KEYWORD,
+    UPDATE_KEYWORD,
+    CONSTRAINT_KEYWORD,
+    FOREIGN_KEYWORD,
+    LIKE_KEYWORD,
+];
+
 impl TokenContainer<'_> {
     #[inline]
     pub fn equals(&self, other: &Self) -> bool {
@@ -419,102 +507,14 @@ pub type LexerFn<'a> = fn(&'a Lexer, &'a str, Cursor) -> Option<(TokenContainer<
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Lexer {
-    // Syntax that should be kept
-    symbols: Vec<String>,
-    keywords: Vec<String>,
     max_keyword_length: usize,
     max_symbol_length: usize,
 }
 
 impl Lexer {
     pub fn new() -> Self {
-        let symbols = vec![
-            COMMA_SYMBOL.to_string(),
-            NOT_EQUAL_SYMBOL.to_string(),
-            NOT_EQUAL_SYMBOL_2.to_string(),
-            LESS_THAN_OR_EQUAL_SYMBOL.to_string(),
-            GREATER_THAN_OR_EQUAL_SYMBOL.to_string(),
-            EQUAL_SYMBOL.to_string(),
-            LEFT_PARENTHESIS_SYMBOL.to_string(),
-            RIGHT_PARENTHESIS_SYMBOL.to_string(),
-            SEMICOLON_SYMBOL.to_string(),
-            PLUS_SYMBOL.to_string(),
-            MINUS_SYMBOL.to_string(),
-            ASTERISK_SYMBOL.to_string(),
-            SLASH_SYMBOL.to_string(),
-            BITWISE_SHIFT_LEFT_SYMBOL.to_string(),
-            BITWISE_SHIFT_RIGHT_SYMBOL.to_string(),
-            LESS_THAN_SYMBOL.to_string(),
-            GREATER_THAN_SYMBOL.to_string(),
-            CONCAT_SYMBOL.to_string(),
-            MODULO_SYMBOL.to_string(),
-            EXPONENTIATION_SYMBOL.to_string(),
-            CUBE_ROOT_SYMBOL.to_string(),
-            SQUARE_ROOT_SYMBOL.to_string(),
-            FACTORIAL_SYMBOL.to_string(),
-            FACTORIAL_PREFIX_SYMBOL.to_string(),
-            ABS_SYMBOL.to_string(),
-            BITWISE_AND_SYMBOL.to_string(),
-            BITWISE_OR_SYMBOL.to_string(),
-            BITWISE_XOR_SYMBOL.to_string(),
-            BITWISE_NOT_SYMBOL.to_string(),
-            TYPE_CAST_SYMBOL.to_string(),
-            DOT_SYMBOL.to_string(),
-        ];
-        let keywords = vec![
-            SELECT_KEYWORD.to_string(),
-            INSERT_KEYWORD.to_string(),
-            VALUES_KEYWORD.to_string(),
-            TABLE_KEYWORD.to_string(),
-            CREATE_KEYWORD.to_string(),
-            DROP_KEYWORD.to_string(),
-            WHERE_KEYWORD.to_string(),
-            FROM_KEYWORD.to_string(),
-            TEXT_KEYWORD.to_string(),
-            BOOL_KEYWORD.to_string(),
-            AND_KEYWORD.to_string(),
-            ORDER_KEYWORD.to_string(),
-            OR_KEYWORD.to_string(),
-            DESC_KEYWORD.to_string(),
-            ASC_KEYWORD.to_string(),
-            AS_KEYWORD.to_string(),
-            TRUE_KEYWORD.to_string(),
-            FALSE_KEYWORD.to_string(),
-            JOIN_KEYWORD.to_string(),
-            INNER_KEYWORD.to_string(),
-            LEFT_KEYWORD.to_string(),
-            RIGHT_KEYWORD.to_string(),
-            OUTER_KEYWORD.to_string(),
-            FULL_KEYWORD.to_string(),
-            IS_KEYWORD.to_string(),
-            LIMIT_KEYWORD.to_string(),
-            OFFSET_KEYWORD.to_string(),
-            BY_KEYWORD.to_string(),
-            DISTINCT_KEYWORD.to_string(),
-            INTO_KEYWORD.to_string(),
-            INT_KEYWORD.to_string(),
-            BIGINT_KEYWORD.to_string(),
-            SMALLINT_KEYWORD.to_string(),
-            REAL_KEYWORD.to_string(),
-            DOUBLE_KEYWORD.to_string(),
-            PRECISION_KEYWORD.to_string(),
-            VARCHAR_KEYWORD.to_string(),
-            CHAR_KEYWORD.to_string(),
-            UNIQUE_KEYWORD.to_string(),
-            INDEX_KEYWORD.to_string(),
-            ON_KEYWORD.to_string(),
-            PRIMARY_KEYWORD.to_string(),
-            KEY_KEYWORD.to_string(),
-            NULL_KEYWORD.to_string(),
-            ALTER_KEYWORD.to_string(),
-            DELETE_KEYWORD.to_string(),
-            UPDATE_KEYWORD.to_string(),
-            CONSTRAINT_KEYWORD.to_string(),
-            FOREIGN_KEYWORD.to_string(),
-            LIKE_KEYWORD.to_string(),
-        ];
         let max_symbol_length =
-            symbols.iter().fold(
+            SYMBOLS.iter().fold(
                 0,
                 |acc, item| {
                     if item.len() > acc {
@@ -525,7 +525,7 @@ impl Lexer {
                 },
             );
         let max_keyword_length =
-            keywords.iter().fold(
+            KEYWORDS.iter().fold(
                 0,
                 |acc, item| {
                     if item.len() > acc {
@@ -536,8 +536,6 @@ impl Lexer {
                 },
             );
         Lexer {
-            symbols,
-            keywords,
             max_symbol_length,
             max_keyword_length,
         }
@@ -883,7 +881,7 @@ impl Lexer {
     // longestMatch iterates through a source string starting at the given
     // cursor to find the longest matching substring among the provided
     // options
-    pub fn longest_match<'a>(&self, source: &'a str, ic: Cursor, options: &[String]) -> &'a str {
+    pub fn longest_match<'a>(&self, source: &'a str, ic: Cursor, options: &[&str]) -> &'a str {
         let mut text_match_len = 0;
         let cur = ic;
 
@@ -934,7 +932,7 @@ impl Lexer {
         }
 
         // Use `ic`, not `cur`
-        let symbol_match = self.longest_match(source, ic, &self.symbols);
+        let symbol_match = self.longest_match(source, ic, SYMBOLS);
         // Unknown character
         if symbol_match.is_empty() {
             return None;
@@ -991,7 +989,7 @@ impl Lexer {
     pub fn lex_keyword(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
         let mut cur = ic;
 
-        let keyword_match = self.longest_match(source, ic, &self.keywords);
+        let keyword_match = self.longest_match(source, ic, KEYWORDS);
         if keyword_match.is_empty() {
             return None;
         }

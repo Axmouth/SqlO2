@@ -61,7 +61,7 @@ impl std::fmt::Display for SqlType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum EvalResult<C> {
     Select {
         results: QueryResults<C>,
@@ -79,6 +79,45 @@ pub enum EvalResult<C> {
         success: bool,
         time: Duration,
     },
+}
+
+impl<C> PartialEq for EvalResult<C>
+where
+    C: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                EvalResult::Select { results, time: _ },
+                EvalResult::Select {
+                    results: other_results,
+                    time: _,
+                },
+            ) => results == other_results,
+            (
+                EvalResult::Insert { success, time: _ },
+                EvalResult::Insert {
+                    success: other_success,
+                    time: _,
+                },
+            ) => success == other_success,
+            (
+                EvalResult::CreateTable { success, time: _ },
+                EvalResult::CreateTable {
+                    success: other_success,
+                    time: _,
+                },
+            ) => success == other_success,
+            (
+                EvalResult::DropTable { success, time: _ },
+                EvalResult::DropTable {
+                    success: other_success,
+                    time: _,
+                },
+            ) => success == other_success,
+            _ => false,
+        }
+    }
 }
 
 pub type ResultColumns = Vec<ResultColumn>;

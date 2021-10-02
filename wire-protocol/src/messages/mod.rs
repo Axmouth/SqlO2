@@ -409,9 +409,9 @@ impl<'a> SerializableMessage for ParameterStatus<'a> {
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Parse<'a> {
-    stmt: Cow<'a, str>,
-    query: Cow<'a, str>,
-    paramoid: Vec<i32>,
+    pub stmt: Cow<'a, str>,
+    pub query: Cow<'a, str>,
+    pub paramoid: Vec<i32>,
 }
 
 impl<'a> DeserializableMessage<'a> for Parse<'a> {
@@ -493,7 +493,7 @@ pub struct PortalSuspended {}
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Query<'a> {
-    q: Cow<'a, str>,
+    pub q: Cow<'a, str>,
 }
 
 impl<'a> DeserializableMessage<'a> for Query<'a> {
@@ -537,14 +537,14 @@ impl SerializableMessage for ReadyForQuery {
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct RowDescription<'a> {
-    numfields: i16,
-    col: Cow<'a, str>,
-    tableoid: i32,
-    colno: i16,
-    typeoid: i32,
-    typelen: i16,
-    typemod: i32,
-    format: i16,
+    pub numfields: i16,
+    pub col: Cow<'a, str>,
+    pub tableoid: i32,
+    pub colno: i16,
+    pub typeoid: i32,
+    pub typelen: i16,
+    pub typemod: i32,
+    pub format: i16,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]

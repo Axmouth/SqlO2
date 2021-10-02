@@ -5,6 +5,7 @@ edition = "2018"
 
 [dependencies]
 sqlo2_wire_protocol = { path = "../wire-protocol" }
+sqlo2 = { path = "../engine" }
 byteorder = "1.4"
 log = "0.4"
 env_logger = "0.9"

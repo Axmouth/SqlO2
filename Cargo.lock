@@ -1134,6 +1134,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "log",
+ "sqlo2",
  "sqlo2_wire_protocol",
 ]
 

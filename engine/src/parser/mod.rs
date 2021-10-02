@@ -4,44 +4,42 @@ use super::ast::*;
 use super::lexer::*;
 
 use lazy_static;
-use std::iter::*;
 
-lazy_static! {
-    static ref BINARY_OPERATORS: Vec<Token<'static>> = vec![
-        Token::And,
-        Token::Or,
-        Token::Equal,
-        Token::NotEqual,
-        Token::Concat,
-        Token::Plus,
-        Token::Minus,
-        Token::Asterisk,
-        Token::Slash,
-        Token::LessThan,
-        Token::LessThanOrEqual,
-        Token::GreaterThan,
-        Token::GreaterThanOrEqual,
-        Token::Modulo,
-        Token::Exponentiation,
-        Token::BitwiseAnd,
-        Token::BitwiseOr,
-        Token::BitwiseXor,
-        Token::BitwiseShiftLeft,
-        Token::BitwiseShiftRight,
-        Token::TypeCast,
-    ];
-    static ref UNARY_OPERATORS: Vec<Token<'static>> = vec![
-        Token::Minus,
-        Token::Not,
-        Token::FactorialPrefix,
-        Token::SquareRoot,
-        Token::CubeRoot,
-        Token::AbsoluteValue,
-        Token::CubeRoot,
-        Token::BitwiseNot,
-    ];
-    static ref UNARY_POSTFIX_OPERATORS: Vec<Token<'static>> = vec![Token::Factorial];
-}
+lazy_static! {}
+static BINARY_OPERATORS: &[Token<'static>] = &[
+    Token::And,
+    Token::Or,
+    Token::Equal,
+    Token::NotEqual,
+    Token::Concat,
+    Token::Plus,
+    Token::Minus,
+    Token::Asterisk,
+    Token::Slash,
+    Token::LessThan,
+    Token::LessThanOrEqual,
+    Token::GreaterThan,
+    Token::GreaterThanOrEqual,
+    Token::Modulo,
+    Token::Exponentiation,
+    Token::BitwiseAnd,
+    Token::BitwiseOr,
+    Token::BitwiseXor,
+    Token::BitwiseShiftLeft,
+    Token::BitwiseShiftRight,
+    Token::TypeCast,
+];
+static UNARY_OPERATORS: &[Token<'static>] = &[
+    Token::Minus,
+    Token::Not,
+    Token::FactorialPrefix,
+    Token::SquareRoot,
+    Token::CubeRoot,
+    Token::AbsoluteValue,
+    Token::CubeRoot,
+    Token::BitwiseNot,
+];
+static UNARY_POSTFIX_OPERATORS: &[Token<'static>] = &[Token::Factorial];
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Parser {
@@ -55,8 +53,8 @@ impl Parser {
         }
     }
 
-    pub fn parse(&self, source: &str) -> Result<Ast, ParsingError> {
-        let mut tokens = self.lexer.lex(source)?;
+    pub fn parse<'a>(&'a self, source: &'a str) -> Result<Ast, ParsingError> {
+        let tokens = self.lexer.lex(source)?;
 
         let mut ast = Ast {
             statements: Vec::with_capacity(1),
@@ -67,22 +65,22 @@ impl Parser {
         while cursor < tokens.len() {
             if !first_statement {
                 let mut at_least_one_semicolon = false;
-                while expect_token(&mut tokens[cursor..].iter(), cursor, Token::Semicolon) {
+                while expect_token(&tokens, cursor, Token::Semicolon) {
                     cursor += 1;
                     at_least_one_semicolon = true;
                 }
                 if !(first_statement || at_least_one_semicolon) {
                     return Err(ParsingError::Delimiter {
                         msg: help_message(
-                            &tokens,
+                            tokens.get(cursor),
                             cursor,
-                            "Expected Semicolon Delimiter between Statements".to_owned(),
+                            "Expected Semicolon Delimiter between Statements",
                         ),
                         cursor,
                     });
                 }
             }
-            match parse_statement(&mut tokens, cursor, Token::Semicolon) {
+            match parse_statement(&tokens, cursor, Token::Semicolon) {
                 Ok((statement, new_cursor)) => {
                     cursor = new_cursor;
 
@@ -91,10 +89,7 @@ impl Parser {
                 }
 
                 Err(err) => {
-                    return Err(ParsingError::Delimiter {
-                        msg: help_message(&tokens, cursor, err.to_string()),
-                        cursor,
-                    });
+                    return Err(err);
                 }
             }
             if cursor == tokens.len() - 1 {
@@ -106,7 +101,7 @@ impl Parser {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ParsingError {
     General { msg: String, cursor: usize },
     Lexing { msg: String, loc: TokenLocation },
@@ -138,12 +133,8 @@ impl From<LexingError> for ParsingError {
 }
 
 #[inline]
-fn expect_token<'a>(
-    tokens: &mut impl Iterator<Item = &'a TokenContainer<'a>>,
-    _cursor: usize,
-    token: Token,
-) -> bool {
-    let current_token = match tokens.next() {
+fn expect_token<'a>(tokens: &[TokenContainer], cursor: usize, token: Token) -> bool {
+    let current_token = match tokens.get(cursor) {
         Some(value) => value,
         None => {
             return false;
@@ -153,24 +144,19 @@ fn expect_token<'a>(
 }
 
 #[inline]
-fn help_message(tokens: &[TokenContainer], cursor: usize, msg: String) -> String {
-    let token: TokenContainer;
-    if cursor == 0 {
-        token = tokens[0].clone();
-    } else if cursor + 1 < tokens.len() {
-        token = tokens[cursor].clone();
+fn help_message(token: Option<&TokenContainer>, cursor: usize, msg: &str) -> String {
+    if let Some(token) = token {
+        format!(
+            "[{}, {}]: {}, got {:?}",
+            token.loc.line, token.loc.col, msg, token.token,
+        )
     } else {
-        token = tokens[cursor - 1].clone();
+        format!("Token {} : {}", cursor, msg)
     }
-
-    format!(
-        "[{}, {}]: {}, got {:?}",
-        token.loc.line, token.loc.col, msg, token.token,
-    )
 }
 
-fn parse_statement(
-    tokens: &mut Vec<TokenContainer>,
+fn parse_statement<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     delimiter: Token,
 ) -> Result<(Statement, usize), ParsingError> {
@@ -196,21 +182,17 @@ fn parse_statement(
                     Err(err) => Err(err),
                 }
             }
-            Token::Delete => Err(ParsingError::General {
-                msg: "Delete not implemented".to_string(),
-                cursor,
+            Token::Delete => Err(ParsingError::Internal {
+                msg: help_message(tokens.get(cursor), cursor, "Delete not implemented"),
             }),
-            Token::Update => Err(ParsingError::General {
-                msg: "Update not implemented".to_string(),
-                cursor,
+            Token::Update => Err(ParsingError::Internal {
+                msg: help_message(tokens.get(cursor), cursor, "Update not implemented"),
             }),
-            Token::Alter => Err(ParsingError::General {
-                msg: "Alter not implemented".to_string(),
-                cursor,
+            Token::Alter => Err(ParsingError::Internal {
+                msg: help_message(tokens.get(cursor), cursor, "Alter not implemented"),
             }),
-            Token::IdentifierValue { value: _ } => Err(ParsingError::General {
-                msg: "Assignment not implemented".to_string(),
-                cursor,
+            Token::IdentifierValue { value: _ } => Err(ParsingError::Internal {
+                msg: help_message(tokens.get(cursor), cursor, "Assignment not implemented"),
             }),
             Token::Create => {
                 if let Some(first_token) = tokens.get(cursor + 1) {
@@ -242,16 +224,28 @@ fn parse_statement(
                                 token: Token::Constraint,
                                 loc: _,
                             }) => Err(ParsingError::General {
-                                msg: "Create constraint not implemented".to_string(),
+                                msg: help_message(
+                                    tokens.get(cursor),
+                                    cursor,
+                                    "Create constraint not implemented",
+                                ),
                                 cursor,
                             }),
                             _ => Err(ParsingError::General {
-                                msg: "Invalid Create Statement".to_string(),
+                                msg: help_message(
+                                    tokens.get(cursor),
+                                    cursor,
+                                    "Invalid Create Statement",
+                                ),
                                 cursor,
                             }),
                         },
                         Token::Constraint => Err(ParsingError::General {
-                            msg: "Create constraint not implemented".to_string(),
+                            msg: help_message(
+                                tokens.get(cursor),
+                                cursor,
+                                "Create constraint not implemented",
+                            ),
                             cursor,
                         }),
                         Token::Table => {
@@ -264,13 +258,17 @@ fn parse_statement(
                             }
                         }
                         _ => Err(ParsingError::General {
-                            msg: "Invalid Create Statement".to_string(),
+                            msg: help_message(
+                                tokens.get(cursor),
+                                cursor,
+                                "Invalid Create Statement",
+                            ),
                             cursor,
                         }),
                     }
                 } else {
                     Err(ParsingError::General {
-                        msg: "Invalid Create Statement".to_string(),
+                        msg: help_message(tokens.get(cursor), cursor, "Invalid Create Statement"),
                         cursor,
                     })
                 }
@@ -283,20 +281,20 @@ fn parse_statement(
                 }
             }
             _ => Err(ParsingError::General {
-                msg: help_message(tokens, cursor, "Expected a valid statement".to_string()),
+                msg: help_message(tokens.get(cursor), cursor, "Expected a valid statement"),
                 cursor,
             }),
         }
     } else {
         Err(ParsingError::General {
-            msg: help_message(tokens, cursor, "Expected a valid statement".to_string()),
+            msg: help_message(tokens.get(cursor), cursor, "Expected a valid statement"),
             cursor,
         })
     }
 }
 
-fn parse_column_definitions(
-    tokens: &[TokenContainer],
+fn parse_column_definitions<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     delimiter: Token,
 ) -> Result<(Vec<ColumnDefinition>, usize), ParsingError> {
@@ -307,7 +305,7 @@ fn parse_column_definitions(
     loop {
         if cursor >= tokens.len() {
             return Err(ParsingError::General {
-                msg: "Unexpected end of file.".to_string(),
+                msg: help_message(tokens.get(cursor), cursor, "Unexpected end of file."),
                 cursor,
             });
         }
@@ -322,7 +320,7 @@ fn parse_column_definitions(
         if !column_definitions.is_empty() {
             if tokens[cursor].token != Token::Comma {
                 return Err(ParsingError::General {
-                    msg: help_message(tokens, cursor, "Expected Comma".to_owned()),
+                    msg: help_message(tokens.get(cursor), cursor, "Expected Comma"),
                     cursor,
                 });
             }
@@ -334,7 +332,7 @@ fn parse_column_definitions(
             Token::IdentifierValue { value } => value,
             _ => {
                 return Err(ParsingError::General {
-                    msg: help_message(tokens, cursor, "Expected Column Name".to_owned()),
+                    msg: help_message(tokens.get(cursor), cursor, "Expected Column Name"),
                     cursor,
                 });
             }
@@ -344,7 +342,7 @@ fn parse_column_definitions(
         // Look for a column type
         if !tokens[cursor].token.is_datatype() {
             return Err(ParsingError::General {
-                msg: help_message(tokens, cursor, "Expected Column Type".to_owned()),
+                msg: help_message(tokens.get(cursor), cursor, "Expected Column Type"),
                 cursor,
             });
         }
@@ -364,7 +362,7 @@ fn parse_column_definitions(
 
         column_definitions.push(ColumnDefinition {
             name: col_name.to_string(),
-            data_type: SqlType::from_token(col_type.clone())?,
+            data_type: SqlType::from_token(&col_type)?,
             is_primary_key,
         });
     }
@@ -372,35 +370,35 @@ fn parse_column_definitions(
     Ok((column_definitions, cursor))
 }
 
-fn parse_create_table_statement(
-    tokens: &mut Vec<TokenContainer>,
+fn parse_create_table_statement<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     _: Token,
 ) -> Result<(CreateTableStatement, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
-    if !expect_token(&mut tokens[cursor..].iter(), cursor, Token::Create) {
+    if !expect_token(&tokens, cursor, Token::Create) {
         return Err(ParsingError::General {
-            msg: "Not a create table statement".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Not a create table statement"),
             cursor,
         });
     }
     cursor += 1;
 
-    if !expect_token(&mut tokens[cursor..].iter(), cursor, Token::Table) {
+    if !expect_token(&tokens, cursor, Token::Table) {
         return Err(ParsingError::General {
-            msg: "Expected table keyword".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Expected table keyword"),
             cursor,
         });
     }
     cursor += 1;
 
-    let curr_token = tokens[cursor].token.clone();
+    let curr_token = &tokens[cursor].token;
     let name = match curr_token {
         Token::IdentifierValue { value } => value,
         _ => {
             return Err(ParsingError::General {
-                msg: help_message(tokens, cursor, "Expected Table Name".to_owned()),
+                msg: help_message(tokens.get(cursor), cursor, "Expected Table Name"),
                 cursor,
             });
         }
@@ -408,7 +406,7 @@ fn parse_create_table_statement(
     cursor += 1;
     if tokens[cursor].token != Token::LeftParenthesis {
         return Err(ParsingError::General {
-            msg: help_message(tokens, cursor, "Expected Left Parenthesis".to_owned()),
+            msg: help_message(tokens.get(cursor), cursor, "Expected Left Parenthesis"),
             cursor,
         });
     }
@@ -419,7 +417,7 @@ fn parse_create_table_statement(
 
     if tokens[cursor].token != Token::RightParenthesis {
         return Err(ParsingError::General {
-            msg: help_message(tokens, cursor, "Expected Right Parenthesis".to_owned()),
+            msg: help_message(tokens.get(cursor), cursor, "Expected Right Parenthesis"),
             cursor,
         });
     }
@@ -434,8 +432,8 @@ fn parse_create_table_statement(
     ))
 }
 
-fn parse_create_index_statement(
-    tokens: &mut Vec<TokenContainer>,
+fn parse_create_index_statement<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     delimiter: Token,
 ) -> Result<(CreateIndexStatement, usize), ParsingError> {
@@ -448,7 +446,7 @@ fn parse_create_index_statement(
         cursor += 1;
     } else {
         return Err(ParsingError::General {
-            msg: "Not a create index statement".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Not a create index statement"),
             cursor,
         });
     }
@@ -469,7 +467,7 @@ fn parse_create_index_statement(
         cursor += 1;
     } else {
         return Err(ParsingError::General {
-            msg: "Not a create index statement".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Not a create index statement"),
             cursor,
         });
     }
@@ -480,10 +478,10 @@ fn parse_create_index_statement(
     }) = tokens.get(cursor)
     {
         cursor += 1;
-        name = value.clone();
+        name = value;
     } else {
         return Err(ParsingError::General {
-            msg: "Expected index name".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Expected index name"),
             cursor,
         });
     }
@@ -495,7 +493,7 @@ fn parse_create_index_statement(
         cursor += 1;
     } else {
         return Err(ParsingError::General {
-            msg: "Expected on keyword".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Expected on keyword"),
             cursor,
         });
     }
@@ -506,19 +504,19 @@ fn parse_create_index_statement(
     }) = tokens.get(cursor)
     {
         cursor += 1;
-        table = value.clone();
+        table = value;
     } else {
         return Err(ParsingError::General {
-            msg: "Expected table name".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Expected table name"),
             cursor,
         });
     }
     let (expression, cursor) = match parse_expression(tokens, cursor, &[delimiter], 0, true, false)
     {
-        Some(value) => value,
-        None => {
+        Ok(value) => value,
+        Err(_) => {
             return Err(ParsingError::General {
-                msg: "Expected index expressions".to_string(),
+                msg: help_message(tokens.get(cursor), cursor, "Expected index expressions"),
                 cursor,
             });
         }
@@ -540,30 +538,34 @@ fn parse_expressions(
     tokens: &[TokenContainer],
     initial_cursor: usize,
     delimiters: &[Token],
-) -> Option<(Vec<Expression>, usize)> {
+) -> Result<(Vec<Expression>, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
     let mut expressions: Vec<Expression> = Vec::with_capacity(5);
 
     loop {
         if cursor >= tokens.len() {
-            return None;
+            return Err(ParsingError::General {
+                msg: help_message(tokens.get(cursor), cursor, "Expected expression"),
+                cursor,
+            });
         }
 
         // Look for delimiter
         let current_token = &tokens[cursor];
         for delimiter in delimiters {
             if delimiter == &current_token.token {
-                return Some((expressions, cursor));
+                return Ok((expressions, cursor));
             }
         }
 
         // Look for comma
         if !expressions.is_empty() {
-            let mut tokens_iter = tokens[cursor..].iter();
-            if !expect_token(&mut tokens_iter, cursor, Token::Comma) {
-                help_message(tokens, cursor, "Expected Comma".to_owned());
-                return None;
+            if !expect_token(&tokens, cursor, Token::Comma) {
+                return Err(ParsingError::General {
+                    msg: help_message(tokens.get(cursor), cursor, "Expected Comma"),
+                    cursor,
+                });
             }
 
             cursor += 1;
@@ -571,7 +573,7 @@ fn parse_expressions(
 
         // Look for expression
         let (expression, new_cursor);
-        if let Some((expression_, new_cursor_)) = parse_expression(
+        if let Ok((expression_, new_cursor_)) = parse_expression(
             tokens,
             cursor,
             &[Token::Comma, Token::RightParenthesis],
@@ -582,22 +584,24 @@ fn parse_expressions(
             expression = expression_;
             new_cursor = new_cursor_;
         } else {
-            help_message(tokens, cursor, "Expected expression".to_owned());
-            return None;
+            return Err(ParsingError::General {
+                msg: help_message(tokens.get(cursor), cursor, "Expected expression"),
+                cursor,
+            });
         }
         cursor = new_cursor;
         expressions.push(expression);
     }
 }
 
-fn parse_expression(
-    tokens: &[TokenContainer],
+fn parse_expression<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     delimiters: &[Token],
     min_binding_power: u32,
     is_top_level: bool,
     takes_as_clause: bool,
-) -> Option<(Expression, usize)> {
+) -> Result<(Expression, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
     let mut expression;
@@ -615,7 +619,7 @@ fn parse_expression(
         }) = tokens.get(cursor)
         {
             let (select_statement, new_cursor) =
-                parse_select_statement(tokens, cursor, Token::RightParenthesis).ok()?;
+                parse_select_statement(tokens, cursor, Token::RightParenthesis)?;
             expression = Expression::SubSelect(Box::new(select_statement));
             cursor = new_cursor;
         } else {
@@ -627,18 +631,19 @@ fn parse_expression(
                 true,
                 false,
             ) {
-                Some((expression_, cursor_)) => {
+                Ok((expression_, cursor_)) => {
                     expression = expression_;
                     cursor = cursor_;
                 }
-                None => {
-                    let x = help_message(
-                        tokens,
+                Err(_) => {
+                    return Err(ParsingError::General {
+                        msg: help_message(
+                            tokens.get(cursor),
+                            cursor,
+                            "Expected expression after opening parenthesis",
+                        ),
                         cursor,
-                        "Expected expression after opening parenthesis".to_string(),
-                    );
-                    println!("{}", x);
-                    return None;
+                    });
                 }
             };
         }
@@ -650,9 +655,10 @@ fn parse_expression(
         {
             cursor += 1;
         } else {
-            let x = help_message(tokens, cursor, "Expected closing parenthesis".to_owned());
-            println!("{}", x);
-            return None;
+            return Err(ParsingError::General {
+                msg: help_message(tokens.get(cursor), cursor, "Expected closing parenthesis"),
+                cursor,
+            });
         }
     } else if cursor < tokens.len() && UNARY_OPERATORS.contains(&tokens[cursor].token) {
         let operand;
@@ -669,7 +675,7 @@ fn parse_expression(
                 break;
             }
         }
-        if let Some((expression_, cursor_)) = parse_literal_expression(tokens, cursor) {
+        if let Ok((expression_, cursor_)) = parse_literal_expression(tokens, cursor) {
             inner_exp = expression_;
             cursor = cursor_;
         } else if let Some(TokenContainer {
@@ -678,7 +684,7 @@ fn parse_expression(
         }) = tokens.get(cursor)
         {
             cursor += 1;
-            if let Some((expression_, cursor_)) = parse_expression(
+            if let Ok((expression_, cursor_)) = parse_expression(
                 tokens,
                 cursor,
                 &[Token::RightParenthesis],
@@ -689,13 +695,14 @@ fn parse_expression(
                 inner_exp = expression_;
                 cursor = cursor_;
             } else {
-                let x = help_message(
-                    tokens,
+                return Err(ParsingError::General {
+                    msg: help_message(
+                        tokens.get(cursor),
+                        cursor,
+                        "Expected expression after opening parenthesis",
+                    ),
                     cursor,
-                    "Expected expression after opening parenthesis".to_string(),
-                );
-                println!("{}", x);
-                return None;
+                });
             }
 
             if let Some(TokenContainer {
@@ -705,36 +712,42 @@ fn parse_expression(
             {
                 cursor += 1;
             } else {
-                let x = help_message(tokens, cursor, "Expected closing parenthesis".to_owned());
-                println!("{}", x);
-                return None;
+                return Err(ParsingError::General {
+                    msg: help_message(tokens.get(cursor), cursor, "Expected closing parenthesis"),
+                    cursor,
+                });
             }
         } else {
-            return None;
+            return Err(ParsingError::General {
+                msg: help_message(
+                    tokens.get(cursor),
+                    cursor,
+                    "Expected expression after unary operator",
+                ),
+                cursor,
+            });
         }
 
         if let Some(operand) = nested_un_ops.pop() {
             inner_exp = Expression::Unary(UnaryExpression {
                 first: Box::from(inner_exp),
-                operand: Operand::from_token(&operand)?,
+                operand: Operand::from_token(operand)?,
             });
         } else {
-            return None;
+            return Err(ParsingError::General {
+                msg: help_message(tokens.get(cursor), cursor, "Expected unary operator"),
+                cursor,
+            });
         }
         while let Some(operand) = nested_un_ops.pop() {
             inner_exp = Expression::Unary(UnaryExpression {
                 first: Box::from(inner_exp),
-                operand: Operand::from_token(&operand)?,
+                operand: Operand::from_token(operand)?,
             });
         }
         expression = inner_exp;
     } else {
-        let (first_expression, new_cursor) = match parse_literal_expression(tokens, cursor) {
-            None => {
-                return None;
-            }
-            Some(value) => value,
-        };
+        let (first_expression, new_cursor) = parse_literal_expression(tokens, cursor)?;
         expression = first_expression;
         cursor = new_cursor;
     }
@@ -750,7 +763,7 @@ fn parse_expression(
         cursor += 1;
         expression = Expression::Unary(UnaryExpression {
             first: Box::from(expression),
-            operand: Operand::from_token(&operand)?,
+            operand: Operand::from_token(operand)?,
         });
     }
 
@@ -782,20 +795,22 @@ fn parse_expression(
             if cursor < tokens.len() && tokens[cursor].token.is_datatype() {
                 expression = Expression::Cast {
                     data: Box::new(expression),
-                    typ: SqlType::from_token(tokens[cursor].clone()).ok()?,
+                    typ: SqlType::from_token(&tokens[cursor])?,
                 };
                 cursor += 1;
                 continue;
             } else {
-                let x = help_message(tokens, cursor, "Expected type for type cast".to_owned());
-                println!("{}", x);
-                return None;
+                return Err(ParsingError::General {
+                    msg: help_message(tokens.get(cursor), cursor, "Expected type for type cast"),
+                    cursor,
+                });
             }
         }
         if operand == Token::Empty {
-            let x = help_message(tokens, cursor, "Expected binary operator".to_owned());
-            println!("{}", x);
-            return None;
+            return Err(ParsingError::General {
+                msg: help_message(tokens.get(cursor), cursor, "Expected binary operator"),
+                cursor,
+            });
         }
 
         let binding_power = operand.binding_power();
@@ -812,17 +827,18 @@ fn parse_expression(
             false,
             takes_as_clause,
         ) {
-            None => {
-                let x = help_message(tokens, cursor, "Expected right operand".to_owned());
-                println!("{}", x);
-                return None;
+            Err(_) => {
+                return Err(ParsingError::General {
+                    msg: format!("Expected expression after binary operator {:?}", operand),
+                    cursor,
+                });
             }
-            Some(value) => value,
+            Ok(value) => value,
         };
         expression = Expression::Binary(BinaryExpression {
             first: Box::from(expression),
             second: Box::from(second_expression),
-            operand: Operand::from_token(&operand)?,
+            operand: Operand::from_token(operand)?,
         });
         cursor = new_cursor;
         last_cursor = cursor;
@@ -838,17 +854,17 @@ fn parse_expression(
         cursor += 1;
         expression = Expression::Unary(UnaryExpression {
             first: Box::from(expression),
-            operand: Operand::from_token(&operand)?,
+            operand: Operand::from_token(operand)?,
         });
     }
 
-    Some((expression, cursor))
+    Ok((expression, cursor))
 }
 
-fn parse_literal_expression(
-    tokens: &[TokenContainer],
+fn parse_literal_expression<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
-) -> Option<(Expression, usize)> {
+) -> Result<(Expression, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
     if let Some(tok) = tokens.get(cursor) {
@@ -857,7 +873,7 @@ fn parse_literal_expression(
                 value: ref first_identifier,
             } => {
                 cursor += 1;
-                let mut col_name = first_identifier.clone();
+                let mut col_name = first_identifier;
                 let mut table_name = None;
                 if let Some(TokenContainer {
                     token: Token::Dot,
@@ -872,12 +888,19 @@ fn parse_literal_expression(
                     {
                         cursor += 1;
                         table_name = Some(col_name);
-                        col_name = value.clone();
+                        col_name = value;
                     } else {
-                        return None;
+                        return Err(ParsingError::General {
+                            msg: help_message(
+                                tokens.get(cursor),
+                                cursor,
+                                "Expected identifier after dot",
+                            ),
+                            cursor,
+                        });
                     }
                 }
-                Some((
+                Ok((
                     Expression::TableColumn(TableColumn {
                         col_name: col_name.to_string(),
                         table_name: table_name.map(|x| x.to_string()),
@@ -890,38 +913,44 @@ fn parse_literal_expression(
             | Token::BoolValue { value: _ }
             | Token::Null => {
                 cursor += 1;
-                Some((
+                Ok((
                     Expression::Literal(LiteralExpression::from_token(&tok.token)?),
                     cursor,
                 ))
             }
-            _ => None,
+            _ => Err(ParsingError::General {
+                msg: help_message(tokens.get(cursor), cursor, "Expected literal"),
+                cursor,
+            }),
         }
     } else {
-        None
+        Err(ParsingError::General {
+            msg: help_message(tokens.get(cursor), cursor, "Expected literal expression"),
+            cursor,
+        })
     }
 }
 
-fn parse_insert_statement(
-    tokens: &mut Vec<TokenContainer>,
+fn parse_insert_statement<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     _: Token,
 ) -> Result<(InsertStatement, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
     // Look for INSERT
-    if !expect_token(&mut tokens[cursor..].iter(), cursor, Token::Insert) {
+    if !expect_token(&tokens, cursor, Token::Insert) {
         return Err(ParsingError::General {
-            msg: "Not an insert statement".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Not an insert statement"),
             cursor,
         });
     }
     cursor += 1;
 
     // Look for INTO
-    if !expect_token(&mut tokens[cursor..].iter(), cursor, Token::Into) {
+    if !expect_token(&tokens, cursor, Token::Into) {
         return Err(ParsingError::General {
-            msg: help_message(tokens, cursor, "Expected INTO".to_owned()),
+            msg: help_message(tokens.get(cursor), cursor, "Expected INTO"),
             cursor,
         });
     }
@@ -931,7 +960,7 @@ fn parse_insert_statement(
         Token::IdentifierValue { value } => value,
         _ => {
             return Err(ParsingError::General {
-                msg: help_message(tokens, cursor, "Expected Table Name".to_owned()),
+                msg: help_message(tokens.get(cursor), cursor, "Expected Table Name"),
                 cursor,
             });
         }
@@ -941,9 +970,9 @@ fn parse_insert_statement(
 
     // Look for VALUES
     if tokens[cursor].token != Token::Values {
-        help_message(tokens, cursor, "Expected VALUES".to_owned());
+        help_message(tokens.get(cursor), cursor, "Expected VALUES");
         return Err(ParsingError::General {
-            msg: help_message(tokens, cursor, "Expected VALUES".to_owned()),
+            msg: help_message(tokens.get(cursor), cursor, "Expected VALUES"),
             cursor,
         });
     }
@@ -952,7 +981,7 @@ fn parse_insert_statement(
     // Look for left parenthesis
     if tokens[cursor].token != Token::LeftParenthesis {
         return Err(ParsingError::General {
-            msg: help_message(tokens, cursor, "Expected Left Parenthesis".to_owned()),
+            msg: help_message(tokens.get(cursor), cursor, "Expected Left Parenthesis"),
             cursor,
         });
     }
@@ -960,13 +989,13 @@ fn parse_insert_statement(
 
     // Look for expression list
     let (values, new_cursor) = match parse_expressions(tokens, cursor, &[Token::RightParenthesis]) {
-        None => {
+        Err(_) => {
             return Err(ParsingError::General {
-                msg: help_message(tokens, cursor, "Expected value expressions".to_owned()),
+                msg: help_message(tokens.get(cursor), cursor, "Expected value expressions"),
                 cursor,
             });
         }
-        Some(value) => value,
+        Ok(value) => value,
     };
 
     cursor = new_cursor;
@@ -974,7 +1003,7 @@ fn parse_insert_statement(
     // Look for right parenthesis
     if tokens[cursor].token != Token::RightParenthesis {
         return Err(ParsingError::General {
-            msg: help_message(tokens, cursor, "Expected Right Parenthesis".to_owned()),
+            msg: help_message(tokens.get(cursor), cursor, "Expected Right Parenthesis"),
             cursor,
         });
     }
@@ -989,8 +1018,8 @@ fn parse_insert_statement(
     ))
 }
 
-fn parse_drop_table_statement(
-    tokens: &mut Vec<TokenContainer>,
+fn parse_drop_table_statement<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     _: Token,
 ) -> Result<(DropTableStatement, usize), ParsingError> {
@@ -1003,7 +1032,7 @@ fn parse_drop_table_statement(
         cursor += 1;
     } else {
         return Err(ParsingError::General {
-            msg: "Not a drop table statement".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Not a drop table statement"),
             cursor,
         });
     }
@@ -1015,7 +1044,7 @@ fn parse_drop_table_statement(
         cursor += 1;
     } else {
         return Err(ParsingError::General {
-            msg: "Not a drop table statement".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Not a drop table statement"),
             cursor,
         });
     }
@@ -1026,10 +1055,10 @@ fn parse_drop_table_statement(
     }) = tokens.get(cursor)
     {
         cursor += 1;
-        name = value.clone();
+        name = value;
     } else {
         return Err(ParsingError::General {
-            msg: "Not a drop table statement".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Not a drop table statement"),
             cursor,
         });
     }
@@ -1042,11 +1071,11 @@ fn parse_drop_table_statement(
     ))
 }
 
-fn parse_select_items(
-    tokens: &[TokenContainer],
+fn parse_select_items<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     delimiters: &[Token],
-) -> Option<(Vec<SelectItem>, usize)> {
+) -> Result<(Vec<SelectItem>, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
     let mut select_items = Vec::with_capacity(5);
@@ -1058,9 +1087,12 @@ fn parse_select_items(
 
     'outer: loop {
         if cursor == tokens.len() {
-            return Some((select_items, cursor - 1));
+            return Ok((select_items, cursor - 1));
         } else if cursor > tokens.len() {
-            return None;
+            return Err(ParsingError::General {
+                msg: help_message(tokens.get(cursor), cursor, "Unexpected end of tokens"),
+                cursor,
+            });
         }
 
         let current_token = &tokens[cursor];
@@ -1072,8 +1104,10 @@ fn parse_select_items(
 
         if !select_items.is_empty() {
             if tokens[cursor].token != Token::Comma {
-                help_message(tokens, cursor, "Expected comma".to_owned());
-                return None;
+                return Err(ParsingError::General {
+                    msg: help_message(tokens.get(cursor), cursor, "Expected comma"),
+                    cursor,
+                });
             }
 
             cursor += 1;
@@ -1095,12 +1129,13 @@ fn parse_select_items(
         } else {
             let (expression, new_cursor) =
                 match parse_expression(tokens, cursor, &delimiters_plus, 0, true, true) {
-                    None => {
-                        let x = help_message(tokens, cursor, "Expected expression".to_owned());
-                        println!("{}", x);
-                        return None;
+                    Err(_) => {
+                        return Err(ParsingError::General {
+                            msg: help_message(tokens.get(cursor), cursor, "Expected expression"),
+                            cursor,
+                        });
                     }
-                    Some(value) => value,
+                    Ok(value) => value,
                 };
             cursor = new_cursor;
             select_item.expression = expression;
@@ -1122,20 +1157,21 @@ fn parse_select_items(
                 select_item.as_clause = Some(value.to_string());
                 cursor += 1;
             } else if found_as {
-                let x = help_message(tokens, cursor, "Expected identifier after AS".to_owned());
-                println!("{}", x);
-                return None;
+                return Err(ParsingError::General {
+                    msg: help_message(tokens.get(cursor), cursor, "Expected identifier after AS"),
+                    cursor,
+                });
             }
         }
 
         select_items.push(select_item);
     }
 
-    Some((select_items, cursor))
+    Ok((select_items, cursor))
 }
 
-fn parse_select_statement(
-    tokens: &[TokenContainer],
+fn parse_select_statement<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     delimiter: Token,
 ) -> Result<(SelectStatement, usize), ParsingError> {
@@ -1148,12 +1184,12 @@ fn parse_select_statement(
     {
     } else if let Some(TokenContainer { token: _, loc: _ }) = tokens.get(cursor) {
         return Err(ParsingError::General {
-            msg: "Not a Select statement".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Not a Select statement"),
             cursor,
         });
     } else {
         return Err(ParsingError::General {
-            msg: "Reached end".to_string(),
+            msg: help_message(tokens.get(cursor), cursor, "Reached end"),
             cursor,
         });
     }
@@ -1190,13 +1226,13 @@ fn parse_select_statement(
             delimiter.clone(),
         ],
     ) {
-        None => {
+        Err(_) => {
             return Err(ParsingError::General {
-                msg: "Expected select items".to_string(),
+                msg: help_message(tokens.get(cursor), cursor, "Expected select items"),
                 cursor,
             });
         }
-        Some(value) => value,
+        Ok(value) => value,
     };
 
     cursor = new_cursor;
@@ -1213,7 +1249,7 @@ fn parse_select_statement(
         let (tables, new_cursor) = parse_tables(
             tokens,
             cursor,
-            &vec![
+            &[
                 Token::Inner,
                 Token::Left,
                 Token::Right,
@@ -1234,7 +1270,7 @@ fn parse_select_statement(
     let (joins, new_cursor) = parse_joins(
         tokens,
         cursor,
-        &vec![
+        &[
             Token::Where,
             Token::OrderBy,
             Token::Limit,
@@ -1263,13 +1299,13 @@ fn parse_select_statement(
             true,
             false,
         ) {
-            None => {
+            Err(_) => {
                 return Err(ParsingError::General {
-                    msg: help_message(tokens, cursor, "Expected WHERE conditionals".to_owned()),
+                    msg: help_message(tokens.get(cursor), cursor, "Expected WHERE conditionals"),
                     cursor,
                 });
             }
-            Some(value) => value,
+            Ok(value) => value,
         };
 
         cursor = new_cursor;
@@ -1297,13 +1333,13 @@ fn parse_select_statement(
             true,
             true,
         ) {
-            None => {
+            Err(_) => {
                 return Err(ParsingError::General {
-                    msg: help_message(tokens, cursor, "Expected WHERE conditionals".to_owned()),
+                    msg: help_message(tokens.get(cursor), cursor, "Expected WHERE conditionals"),
                     cursor,
                 });
             }
-            Some(value) => value,
+            Ok(value) => value,
         };
         cursor = new_cursor;
         let mut order_by_clause = OrderByClause { asc: true, exp };
@@ -1351,13 +1387,17 @@ fn parse_select_statement(
             };
             if limit.is_sign_negative() {
                 return Err(ParsingError::General {
-                    msg: "Limit must not be negative".to_string(),
+                    msg: help_message(tokens.get(cursor), cursor, "Limit must not be negative"),
                     cursor,
                 });
             }
             if limit.is_nan() || limit.is_infinite() {
                 return Err(ParsingError::General {
-                    msg: "Limit cannot be interpreted as a whole number".to_string(),
+                    msg: help_message(
+                        tokens.get(cursor),
+                        cursor,
+                        "Limit cannot be interpreted as a whole number",
+                    ),
                     cursor,
                 });
             }
@@ -1389,13 +1429,17 @@ fn parse_select_statement(
             };
             if offset.is_sign_negative() {
                 return Err(ParsingError::General {
-                    msg: "Offset must not be negative".to_string(),
+                    msg: help_message(tokens.get(cursor), cursor, "Offset must not be negative"),
                     cursor,
                 });
             }
             if offset.is_nan() || offset.is_infinite() {
                 return Err(ParsingError::General {
-                    msg: "Offset cannot be interpreted as a whole number".to_string(),
+                    msg: help_message(
+                        tokens.get(cursor),
+                        cursor,
+                        "Offset cannot be interpreted as a whole number",
+                    ),
                     cursor,
                 });
             }
@@ -1406,8 +1450,8 @@ fn parse_select_statement(
     Ok((select, cursor))
 }
 
-fn parse_joins(
-    tokens: &[TokenContainer],
+fn parse_joins<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     delimiters: &[Token],
 ) -> Result<(Vec<JoinClause>, usize), ParsingError> {
@@ -1475,7 +1519,11 @@ fn parse_joins(
                 kind = JoinKind::FullOuter;
             } else {
                 return Err(ParsingError::General {
-                    msg: "Expected OUTER keyword after FULL".to_string(),
+                    msg: help_message(
+                        tokens.get(cursor),
+                        cursor,
+                        "Expected OUTER keyword after FULL",
+                    ),
                     cursor,
                 });
             }
@@ -1484,7 +1532,7 @@ fn parse_joins(
                 break;
             }
             return Err(ParsingError::General {
-                msg: "Failed to parse join clause".to_string(),
+                msg: help_message(tokens.get(cursor), cursor, "Failed to parse join clause"),
                 cursor,
             });
         }
@@ -1496,7 +1544,7 @@ fn parse_joins(
             cursor += 1;
         } else {
             return Err(ParsingError::General {
-                msg: "No join keyword after inner".to_string(),
+                msg: help_message(tokens.get(cursor), cursor, "No join keyword after inner"),
                 cursor,
             });
         }
@@ -1510,15 +1558,23 @@ fn parse_joins(
             cursor += 1;
         } else {
             return Err(ParsingError::General {
-                msg: "No On keyword in join expression".to_string(),
+                msg: help_message(
+                    tokens.get(cursor),
+                    cursor,
+                    "No On keyword in join expression",
+                ),
                 cursor,
             });
         }
         let (col1, new_cursor) = match parse_table_column(tokens, cursor) {
-            Some(val) => val,
-            None => {
+            Ok(val) => val,
+            Err(_) => {
                 return Err(ParsingError::General {
-                    msg: "Failed to parse column in join expression".to_string(),
+                    msg: help_message(
+                        tokens.get(cursor),
+                        cursor,
+                        "Failed to parse column in join expression",
+                    ),
                     cursor,
                 });
             }
@@ -1530,32 +1586,48 @@ fn parse_joins(
                 token.clone()
             } else {
                 return Err(ParsingError::General {
-                    msg: "No binary operator in join expression".to_string(),
+                    msg: help_message(
+                        tokens.get(cursor),
+                        cursor,
+                        "No binary operator in join expression",
+                    ),
                     cursor,
                 });
             }
         } else {
             return Err(ParsingError::General {
-                msg: "No binary operator in join expression".to_string(),
+                msg: help_message(
+                    tokens.get(cursor),
+                    cursor,
+                    "No binary operator in join expression",
+                ),
                 cursor,
             });
         };
         let (col2, new_cursor) = match parse_table_column(tokens, cursor) {
-            Some(val) => val,
-            None => {
+            Ok(val) => val,
+            Err(_) => {
                 return Err(ParsingError::General {
-                    msg: "Failed to parse column in join expression".to_string(),
+                    msg: help_message(
+                        tokens.get(cursor),
+                        cursor,
+                        "Failed to parse column in join expression",
+                    ),
                     cursor,
                 });
             }
         };
         cursor = new_cursor;
 
-        let operand = if let Some(o) = Operand::from_token(&operand_token) {
+        let operand = if let Ok(o) = Operand::from_token(operand_token) {
             o
         } else {
             return Err(ParsingError::General {
-                msg: "Failed to parse binary operator in join expression".to_string(),
+                msg: help_message(
+                    tokens.get(cursor),
+                    cursor,
+                    "Failed to parse binary operator in join expression",
+                ),
                 cursor,
             });
         };
@@ -1578,7 +1650,7 @@ fn parse_joins(
 fn parse_table_column(
     tokens: &[TokenContainer],
     initial_cursor: usize,
-) -> Option<(TableColumn, usize)> {
+) -> Result<(TableColumn, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
     if let Some(tok) = tokens.get(cursor) {
@@ -1587,7 +1659,7 @@ fn parse_table_column(
                 value: ref first_identifier,
             } => {
                 cursor += 1;
-                let mut col_name = first_identifier.clone();
+                let mut col_name = first_identifier;
                 let mut table_name = None;
                 if let Some(TokenContainer {
                     token: Token::Dot,
@@ -1602,12 +1674,19 @@ fn parse_table_column(
                     {
                         cursor += 1;
                         table_name = Some(col_name);
-                        col_name = value.clone();
+                        col_name = value;
                     } else {
-                        return None;
+                        return Err(ParsingError::General {
+                            msg: help_message(
+                                tokens.get(cursor),
+                                cursor,
+                                "Failed to parse table name in column",
+                            ),
+                            cursor,
+                        });
                     }
                 }
-                Some((
+                Ok((
                     TableColumn {
                         col_name: col_name.to_string(),
                         table_name: table_name.map(|s| s.to_string()),
@@ -1615,15 +1694,21 @@ fn parse_table_column(
                     cursor,
                 ))
             }
-            _ => None,
+            _ => Err(ParsingError::General {
+                msg: help_message(Some(tok), cursor, "Failed to parse column"),
+                cursor,
+            }),
         }
     } else {
-        None
+        Err(ParsingError::General {
+            msg: help_message(None, cursor, "Failed to parse column"),
+            cursor,
+        })
     }
 }
 
-fn parse_tables(
-    tokens: &[TokenContainer],
+fn parse_tables<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     delimiters: &[Token],
 ) -> Result<(Vec<RowDataSource>, usize), ParsingError> {
@@ -1654,7 +1739,7 @@ fn parse_tables(
             }
         } else {
             return Err(ParsingError::General {
-                msg: "Failed to parse table".to_string(),
+                msg: help_message(tokens.get(cursor), cursor, "Failed to parse table"),
                 cursor,
             });
         }
@@ -1663,8 +1748,8 @@ fn parse_tables(
     Ok((tables, cursor))
 }
 
-fn parse_table(
-    tokens: &[TokenContainer],
+fn parse_table<'a>(
+    tokens: &'a [TokenContainer],
     initial_cursor: usize,
     delimiters: &[Token],
 ) -> Result<(RowDataSource, usize), ParsingError> {
@@ -1677,7 +1762,7 @@ fn parse_table(
     {
         cursor += 1;
         let mut as_clause = None;
-        let table_name = value.clone();
+        let table_name = value;
         let mut found_as = false;
         if let Some(TokenContainer {
             token: Token::As,
@@ -1693,10 +1778,14 @@ fn parse_table(
         }) = tokens.get(cursor)
         {
             cursor += 1;
-            as_clause = Some(value.clone());
+            as_clause = Some(value);
         } else if found_as {
             return Err(ParsingError::General {
-                msg: "Failed to parse as clause after AS".to_string(),
+                msg: help_message(
+                    tokens.get(cursor),
+                    cursor,
+                    "Failed to parse as clause after AS",
+                ),
                 cursor,
             });
         }
@@ -1739,7 +1828,7 @@ fn parse_table(
             }) = tokens.get(cursor)
             {
                 cursor += 1;
-                let as_clause = value.clone();
+                let as_clause = value;
                 let (joins, new_cursor) = parse_joins(tokens, cursor, delimiters)?;
                 cursor = new_cursor;
                 return Ok((
@@ -1752,7 +1841,11 @@ fn parse_table(
                 ));
             } else if found_as {
                 return Err(ParsingError::General {
-                    msg: "Failed to parse as clause after AS".to_string(),
+                    msg: help_message(
+                        tokens.get(cursor),
+                        cursor,
+                        "Failed to parse as clause after AS",
+                    ),
                     cursor,
                 });
             } else if let Some(TokenContainer { token, loc: _ }) = tokens.get(cursor) {
@@ -1765,7 +1858,7 @@ fn parse_table(
     }
 
     Err(ParsingError::General {
-        msg: "Failed to parse a source table".to_string(),
+        msg: help_message(tokens.get(cursor), cursor, "Failed to parse a source table"),
         cursor,
     })
 }
@@ -1787,7 +1880,7 @@ mod parser_tests {
                 input: "INSERT INTO users VALUES (105, 'George');",
                 ast: Ast {
                     statements: vec![Statement::InsertStatement(InsertStatement {
-                        table: "users".to_owned(),
+                        table: "users".to_string(),
                         values: vec![
                             Expression::Literal(LiteralExpression::Numeric("105".to_owned())),
                             Expression::Literal(LiteralExpression::String("George".to_owned())),
@@ -1802,12 +1895,12 @@ mod parser_tests {
                         name: "users".to_owned(),
                         cols: vec![
                             ColumnDefinition {
-                                name: "id".to_owned(),
+                                name: "id".to_string(),
                                 data_type: SqlType::Int,
                                 is_primary_key: false,
                             },
                             ColumnDefinition {
-                                name: "name".to_owned(),
+                                name: "name".to_string(),
                                 data_type: SqlType::Int,
                                 is_primary_key: false,
                             },
@@ -1824,15 +1917,15 @@ mod parser_tests {
                                 asterisk: false,
                                 as_clause: None,
                                 expression: Expression::TableColumn(TableColumn {
-                                    col_name: "id".to_owned(),
+                                    col_name: "id".to_string(),
                                     table_name: None,
                                 }),
                             },
                             SelectItem {
                                 asterisk: false,
-                                as_clause: Some("fullname".to_owned()),
+                                as_clause: Some("fullname".to_string()),
                                 expression: Expression::TableColumn(TableColumn {
-                                    col_name: "name".to_owned(),
+                                    col_name: "name".to_string(),
                                     table_name: None,
                                 }),
                             },
@@ -1859,7 +1952,7 @@ mod parser_tests {
                                 asterisk: false,
                                 as_clause: None,
                                 expression: Expression::TableColumn(TableColumn {
-                                    col_name: "id".to_owned(),
+                                    col_name: "id".to_string(),
                                     table_name: None,
                                 }),
                             },
@@ -1867,7 +1960,7 @@ mod parser_tests {
                                 asterisk: false,
                                 as_clause: Some("fullname".to_owned()),
                                 expression: Expression::TableColumn(TableColumn {
-                                    col_name: "name".to_owned(),
+                                    col_name: "name".to_string(),
                                     table_name: None,
                                 }),
                             },

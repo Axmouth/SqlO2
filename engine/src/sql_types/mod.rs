@@ -27,7 +27,7 @@ pub enum SqlType {
 
 impl SqlType {
     #[inline]
-    pub fn from_token(token_container: TokenContainer) -> Result<Self, ParsingError> {
+    pub fn from_token<'a>(token_container: &'a TokenContainer) -> Result<Self, ParsingError> {
         match token_container.token {
             Token::SmallInt => Ok(SqlType::SmallInt),
             Token::Int => Ok(SqlType::Int),

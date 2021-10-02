@@ -1,4 +1,4 @@
-use crate::sql_types::SqlType;
+use crate::{parser::ParsingError, sql_types::SqlType};
 
 use super::lexer::*;
 
@@ -261,16 +261,18 @@ impl LiteralExpression {
         }
     }
 
-    pub fn from_token(token: &Token) -> Option<LiteralExpression> {
+    pub fn from_token<'a>(token: &'a Token) -> Result<LiteralExpression, ParsingError> {
         match token {
-            Token::StringValue { value } => Some(LiteralExpression::String(value.to_string())),
+            Token::StringValue { value } => Ok(LiteralExpression::String(value.to_string())),
             Token::IdentifierValue { value } => {
-                Some(LiteralExpression::Identifier(value.to_string()))
+                Ok(LiteralExpression::Identifier(value.to_string()))
             }
-            Token::NumericValue { value } => Some(LiteralExpression::Numeric(value.to_string())),
-            Token::BoolValue { value } => Some(LiteralExpression::Bool(*value)),
-            Token::Null => Some(LiteralExpression::Null),
-            _ => None,
+            Token::NumericValue { value } => Ok(LiteralExpression::Numeric(value.to_string())),
+            Token::BoolValue { value } => Ok(LiteralExpression::Bool(*value)),
+            Token::Null => Ok(LiteralExpression::Null),
+            _ => Err(ParsingError::Internal {
+                msg: "Unexpected token".to_string(),
+            }),
         }
     }
 }
@@ -366,49 +368,51 @@ impl Operand {
         .to_string()
     }
 
-    pub fn from_token(token: &Token) -> Option<Operand> {
+    pub fn from_token<'a>(token: Token) -> Result<Operand, ParsingError> {
         match token {
-            Token::Plus => Some(Operand::Add),
-            Token::Minus => Some(Operand::Subtract),
-            Token::Asterisk => Some(Operand::Multiply),
-            Token::Slash => Some(Operand::Divide),
-            Token::Modulo => Some(Operand::Modulo),
-            Token::And => Some(Operand::And),
-            Token::Or => Some(Operand::Or),
-            Token::Equal => Some(Operand::Equal),
-            Token::NotEqual => Some(Operand::NotEqual),
-            Token::GreaterThan => Some(Operand::GreaterThan),
-            Token::GreaterThanOrEqual => Some(Operand::GreaterThanOrEqual),
-            Token::LessThan => Some(Operand::LessThan),
-            Token::LessThanOrEqual => Some(Operand::LessThanOrEqual),
-            Token::Not => Some(Operand::Not),
-            Token::SquareRoot => Some(Operand::SquareRoot),
-            Token::CubeRoot => Some(Operand::CubeRoot),
-            Token::Factorial => Some(Operand::Factorial),
-            Token::FactorialPrefix => Some(Operand::FactorialPrefix),
-            Token::AbsoluteValue => Some(Operand::AbsoluteValue),
-            Token::Exponentiation => Some(Operand::Exponentiation),
-            Token::Concat => Some(Operand::Concat),
-            Token::Is => Some(Operand::Is),
-            // Token::IsNot => Some(Operand::IsNot),
-            // Token::In => Some(Operand::In),
-            // Token::NotIn => Some(Operand::NotIn),
-            Token::Like => Some(Operand::Like),
-            // Token::NotLike => Some(Operand::NotLike),
-            // Token::Between => Some(Operand::Between),
-            // Token::NotBetween => Some(Operand::NotBetween),
-            // Token::Exists => Some(Operand::Exists),
-            // Token::NotExists => Some(Operand::NotExists),
-            // Token::Null => Some(Operand::Null),
-            // Token::NotNull => Some(Operand::NotNull),
-            Token::BitwiseAnd => Some(Operand::BitwiseAnd),
-            Token::BitwiseOr => Some(Operand::BitwiseOr),
-            Token::BitwiseXor => Some(Operand::BitwiseXor),
-            Token::BitwiseNot => Some(Operand::BitwiseNot),
-            Token::BitwiseShiftLeft => Some(Operand::BitwiseShiftLeft),
-            Token::BitwiseShiftRight => Some(Operand::BitwiseShiftRight),
-            // Token::BitwiseShiftRightZeroFill => Some(Operand::BitwiseShiftRightZeroFill),
-            _ => None,
+            Token::Plus => Ok(Operand::Add),
+            Token::Minus => Ok(Operand::Subtract),
+            Token::Asterisk => Ok(Operand::Multiply),
+            Token::Slash => Ok(Operand::Divide),
+            Token::Modulo => Ok(Operand::Modulo),
+            Token::And => Ok(Operand::And),
+            Token::Or => Ok(Operand::Or),
+            Token::Equal => Ok(Operand::Equal),
+            Token::NotEqual => Ok(Operand::NotEqual),
+            Token::GreaterThan => Ok(Operand::GreaterThan),
+            Token::GreaterThanOrEqual => Ok(Operand::GreaterThanOrEqual),
+            Token::LessThan => Ok(Operand::LessThan),
+            Token::LessThanOrEqual => Ok(Operand::LessThanOrEqual),
+            Token::Not => Ok(Operand::Not),
+            Token::SquareRoot => Ok(Operand::SquareRoot),
+            Token::CubeRoot => Ok(Operand::CubeRoot),
+            Token::Factorial => Ok(Operand::Factorial),
+            Token::FactorialPrefix => Ok(Operand::FactorialPrefix),
+            Token::AbsoluteValue => Ok(Operand::AbsoluteValue),
+            Token::Exponentiation => Ok(Operand::Exponentiation),
+            Token::Concat => Ok(Operand::Concat),
+            Token::Is => Ok(Operand::Is),
+            // Token::IsNot => Ok(Operand::IsNot),
+            // Token::In => Ok(Operand::In),
+            // Token::NotIn => Ok(Operand::NotIn),
+            Token::Like => Ok(Operand::Like),
+            // Token::NotLike => Ok(Operand::NotLike),
+            // Token::Between => Ok(Operand::Between),
+            // Token::NotBetween => Ok(Operand::NotBetween),
+            // Token::Exists => Ok(Operand::Exists),
+            // Token::NotExists => Ok(Operand::NotExists),
+            // Token::Null => Ok(Operand::Null),
+            // Token::NotNull => Ok(Operand::NotNull),
+            Token::BitwiseAnd => Ok(Operand::BitwiseAnd),
+            Token::BitwiseOr => Ok(Operand::BitwiseOr),
+            Token::BitwiseXor => Ok(Operand::BitwiseXor),
+            Token::BitwiseNot => Ok(Operand::BitwiseNot),
+            Token::BitwiseShiftLeft => Ok(Operand::BitwiseShiftLeft),
+            Token::BitwiseShiftRight => Ok(Operand::BitwiseShiftRight),
+            // Token::BitwiseShiftRightZeroFill => Ok(Operand::BitwiseShiftRightZeroFill),
+            _ => Err(ParsingError::Internal {
+                msg: format!("Unrecognized token: {:?}", token),
+            }),
         }
     }
 }
