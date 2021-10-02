@@ -31,8 +31,3 @@ jobs:
         uses: icepuma/rust-action@master
         with:
           args: cargo clippy -- -Dwarnings
-
-      - name: Check formatting
-        uses: icepuma/rust-action@master
-        with:
-          args: cargo test --workspace
