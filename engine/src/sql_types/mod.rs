@@ -26,6 +26,48 @@ pub enum SqlType {
     Type,
 }
 
+impl TryFrom<&Token<'_>> for SqlType {
+    type Error = ParsingError;
+
+    fn try_from(token: &Token) -> Result<Self, Self::Error> {
+        match token {
+            Token::SmallInt => Ok(SqlType::SmallInt),
+            Token::Int => Ok(SqlType::Int),
+            Token::BigInt => Ok(SqlType::BigInt),
+            Token::Real => Ok(SqlType::Real),
+            Token::DoublePrecision => Ok(SqlType::DoublePrecision),
+            Token::Varchar => Ok(SqlType::VarChar),
+            Token::Text => Ok(SqlType::Text),
+            Token::Char => Ok(SqlType::Char),
+            Token::Bool => Ok(SqlType::Boolean),
+            _ => Err(ParsingError::Internal {
+                msg: ERR_INVALID_DATA_TYPE.to_string(),
+            }),
+        }
+    }
+}
+
+impl TryFrom<&TokenContainer<'_>> for SqlType {
+    type Error = ParsingError;
+
+    fn try_from(token_c: &TokenContainer) -> Result<Self, Self::Error> {
+        match token_c.token {
+            Token::SmallInt => Ok(SqlType::SmallInt),
+            Token::Int => Ok(SqlType::Int),
+            Token::BigInt => Ok(SqlType::BigInt),
+            Token::Real => Ok(SqlType::Real),
+            Token::DoublePrecision => Ok(SqlType::DoublePrecision),
+            Token::Varchar => Ok(SqlType::VarChar),
+            Token::Text => Ok(SqlType::Text),
+            Token::Char => Ok(SqlType::Char),
+            Token::Bool => Ok(SqlType::Boolean),
+            _ => Err(ParsingError::Internal {
+                msg: ERR_INVALID_DATA_TYPE.to_string(),
+            }),
+        }
+    }
+}
+
 impl SqlType {
     #[inline]
     pub fn from_token(token_container: &TokenContainer) -> Result<Self, ParsingError> {

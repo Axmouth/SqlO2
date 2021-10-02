@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 
 use crate::sql_types::SqlType;
 
@@ -149,7 +150,7 @@ fn expect_token(tokens: &[TokenContainer], cursor: usize, token: Token) -> bool 
 fn help_message(token: Option<&TokenContainer>, cursor: usize, msg: &str) -> String {
     if let Some(token) = token {
         format!(
-            "[{}, {}]: {}, got {:?}",
+            "[{}, {}]: {}, got {}",
             token.loc.line, token.loc.col, msg, token.token,
         )
     } else {
@@ -313,25 +314,35 @@ fn parse_column_definitions<'a>(
         }
 
         // Look for a delimiter
-        let current_token = &tokens[cursor];
-        if delimiter == current_token.token {
-            break;
+        if let Some(TokenContainer {
+            loc: _,
+            token: current_token,
+        }) = tokens.get(cursor)
+        {
+            if current_token == &delimiter {
+                break;
+            }
         }
 
         // Look for a comma
         if !column_definitions.is_empty() {
-            if tokens[cursor].token != Token::Comma {
-                return Err(ParsingError::General {
-                    msg: help_message(tokens.get(cursor), cursor, "Expected Comma"),
-                    cursor,
-                });
+            if let Some(TokenContainer { loc: _, token }) = tokens.get(cursor) {
+                if token == &Token::Comma {
+                    cursor += 1;
+                } else {
+                    return Err(ParsingError::General {
+                        msg: help_message(tokens.get(cursor), cursor, "Expected Comma"),
+                        cursor,
+                    });
+                }
             }
-
-            cursor += 1;
         }
         // Look for a column name
-        let col_name = match &tokens[cursor].token {
-            Token::IdentifierValue { value } => value,
+        let col_name = match &tokens.get(cursor) {
+            Some(TokenContainer {
+                loc: _,
+                token: Token::IdentifierValue { value },
+            }) => value,
             _ => {
                 return Err(ParsingError::General {
                     msg: help_message(tokens.get(cursor), cursor, "Expected Column Name"),
@@ -342,21 +353,38 @@ fn parse_column_definitions<'a>(
         cursor += 1;
 
         // Look for a column type
-        if !tokens[cursor].token.is_datatype() {
-            return Err(ParsingError::General {
-                msg: help_message(tokens.get(cursor), cursor, "Expected Column Type"),
-                cursor,
-            });
+        if let Some(token_c) = tokens.get(cursor) {
+            if !token_c.token.is_datatype() {
+                return Err(ParsingError::General {
+                    msg: help_message(tokens.get(cursor), cursor, "Expected Column Type"),
+                    cursor,
+                });
+            }
         }
 
-        let col_type = &tokens[cursor];
+        let mut is_primary_key = false;
+        let col_type = match tokens.get(cursor) {
+            Some(v) => v,
+            None => {
+                return Err(ParsingError::General {
+                    msg: help_message(tokens.get(cursor), cursor, "Expected Column Type"),
+                    cursor,
+                });
+            }
+        };
         cursor += 1;
 
         // Look for primary key
-        let mut is_primary_key = false;
-        if cursor + 1 < tokens.len()
-            && tokens[cursor].token == Token::Primary
-            && tokens[cursor + 1].token == Token::Key
+        if let (
+            Some(TokenContainer {
+                loc: _,
+                token: Token::Primary,
+            }),
+            Some(TokenContainer {
+                loc: _,
+                token: Token::Key,
+            }),
+        ) = (&tokens.get(cursor), &tokens.get(cursor + 1))
         {
             is_primary_key = true;
             cursor += 2;
@@ -395,9 +423,11 @@ fn parse_create_table_statement<'a>(
     }
     cursor += 1;
 
-    let curr_token = &tokens[cursor].token;
-    let name = match curr_token {
-        Token::IdentifierValue { value } => value,
+    let name = match tokens.get(cursor) {
+        Some(TokenContainer {
+            loc: _,
+            token: Token::IdentifierValue { value },
+        }) => value,
         _ => {
             return Err(ParsingError::General {
                 msg: help_message(tokens.get(cursor), cursor, "Expected Table Name"),
@@ -406,24 +436,34 @@ fn parse_create_table_statement<'a>(
         }
     };
     cursor += 1;
-    if tokens[cursor].token != Token::LeftParenthesis {
+    if let Some(TokenContainer {
+        loc: _,
+        token: Token::LeftParenthesis,
+    }) = tokens.get(cursor)
+    {
+        cursor += 1;
+    } else {
         return Err(ParsingError::General {
             msg: help_message(tokens.get(cursor), cursor, "Expected Left Parenthesis"),
             cursor,
         });
     }
-    cursor += 1;
 
     let (cols, new_cursor) = parse_column_definitions(tokens, cursor, Token::RightParenthesis)?;
     cursor = new_cursor;
 
-    if tokens[cursor].token != Token::RightParenthesis {
+    if let Some(TokenContainer {
+        loc: _,
+        token: Token::RightParenthesis,
+    }) = tokens.get(cursor)
+    {
+        cursor += 1;
+    } else {
         return Err(ParsingError::General {
-            msg: help_message(tokens.get(cursor), cursor, "Expected Right Parenthesis"),
+            msg: help_message(tokens.get(cursor), cursor, "Expected Left Parenthesis"),
             cursor,
         });
     }
-    cursor += 1;
 
     Ok((
         CreateTableStatement {
@@ -554,9 +594,12 @@ fn parse_expressions(
         }
 
         // Look for delimiter
-        let current_token = &tokens[cursor];
-        for delimiter in delimiters {
-            if delimiter == &current_token.token {
+        if let Some(TokenContainer {
+            loc: _,
+            token: current_token,
+        }) = tokens.get(cursor)
+        {
+            if delimiters.contains(current_token) {
                 return Ok((expressions, cursor));
             }
         }
@@ -733,7 +776,7 @@ fn parse_expression<'a>(
         if let Some(operand) = nested_un_ops.pop() {
             inner_exp = Expression::Unary(UnaryExpression {
                 first: Box::from(inner_exp),
-                operand: Operand::from_token(operand)?,
+                operand: Operand::from_token(&operand)?,
             });
         } else {
             return Err(ParsingError::General {
@@ -744,7 +787,7 @@ fn parse_expression<'a>(
         while let Some(operand) = nested_un_ops.pop() {
             inner_exp = Expression::Unary(UnaryExpression {
                 first: Box::from(inner_exp),
-                operand: Operand::from_token(operand)?,
+                operand: Operand::from_token(&operand)?,
             });
         }
         expression = inner_exp;
@@ -754,27 +797,32 @@ fn parse_expression<'a>(
         cursor = new_cursor;
     }
 
-    if cursor < tokens.len()
-        && UNARY_POSTFIX_OPERATORS.contains(&tokens[cursor].token)
-        && cursor + 1 < tokens.len()
-        && BINARY_OPERATORS.contains(&tokens[cursor + 1].token)
+    if let (
+        Some(TokenContainer {
+            token: token1,
+            loc: _,
+        }),
+        Some(TokenContainer {
+            token: token2,
+            loc: _,
+        }),
+    ) = (tokens.get(cursor), tokens.get(cursor))
     {
-        let token = &tokens[cursor];
-        let operand = token.token.clone();
-
-        cursor += 1;
-        expression = Expression::Unary(UnaryExpression {
-            first: Box::from(expression),
-            operand: Operand::from_token(operand)?,
-        });
+        if UNARY_POSTFIX_OPERATORS.contains(token1) && BINARY_OPERATORS.contains(token2) {
+            cursor += 1;
+            expression = Expression::Unary(UnaryExpression {
+                first: Box::from(expression),
+                operand: Operand::from_token(token1)?,
+            });
+        }
     }
 
     let mut last_cursor = cursor;
-    'outer: while cursor < tokens.len() {
-        if delimiters.contains(&tokens[cursor].token) {
+    'outer: while let Some(TokenContainer { token, loc: _ }) = tokens.get(cursor) {
+        if delimiters.contains(token) {
             break 'outer;
         }
-        if UNARY_POSTFIX_OPERATORS.contains(&tokens[cursor].token) {
+        if UNARY_POSTFIX_OPERATORS.contains(token) {
             break 'outer;
         }
 
@@ -788,22 +836,36 @@ fn parse_expression<'a>(
             }
         }
         let mut operand = Token::Empty;
-        if cursor < tokens.len() && BINARY_OPERATORS.contains(&tokens[cursor].token) {
-            let token = &tokens[cursor];
-            operand = token.token.clone();
+        if BINARY_OPERATORS.contains(token) {
+            operand = token.clone();
             cursor += 1;
         }
         if operand == Token::TypeCast {
-            if cursor < tokens.len() && tokens[cursor].token.is_datatype() {
-                expression = Expression::Cast {
-                    data: Box::new(expression),
-                    typ: SqlType::from_token(&tokens[cursor])?,
-                };
-                cursor += 1;
-                continue;
+            if let Some(TokenContainer { token: op, loc: _ }) = tokens.get(cursor) {
+                if op.is_datatype() {
+                    expression = Expression::Cast {
+                        data: Box::new(expression),
+                        typ: SqlType::try_from(op)?,
+                    };
+                    cursor += 1;
+                    continue;
+                } else {
+                    return Err(ParsingError::General {
+                        msg: help_message(
+                            tokens.get(cursor),
+                            cursor,
+                            "Expected type name after type cast",
+                        ),
+                        cursor,
+                    });
+                }
             } else {
                 return Err(ParsingError::General {
-                    msg: help_message(tokens.get(cursor), cursor, "Expected type for type cast"),
+                    msg: help_message(
+                        tokens.get(cursor),
+                        cursor,
+                        "Expected type name after type cast",
+                    ),
                     cursor,
                 });
             }
@@ -840,24 +902,20 @@ fn parse_expression<'a>(
         expression = Expression::Binary(BinaryExpression {
             first: Box::from(expression),
             second: Box::from(second_expression),
-            operand: Operand::from_token(operand)?,
+            operand: Operand::from_token(&operand)?,
         });
         cursor = new_cursor;
         last_cursor = cursor;
     }
 
-    if cursor < tokens.len()
-        && UNARY_POSTFIX_OPERATORS.contains(&tokens[cursor].token)
-        && is_top_level
-    {
-        let token = &tokens[cursor];
-        let operand = token.token.clone();
-
-        cursor += 1;
-        expression = Expression::Unary(UnaryExpression {
-            first: Box::from(expression),
-            operand: Operand::from_token(operand)?,
-        });
+    if let Some(TokenContainer { token, loc: _ }) = tokens.get(cursor) {
+        if UNARY_POSTFIX_OPERATORS.contains(token) && is_top_level {
+            cursor += 1;
+            expression = Expression::Unary(UnaryExpression {
+                first: Box::from(expression),
+                operand: Operand::from_token(token)?,
+            });
+        }
     }
 
     Ok((expression, cursor))
@@ -933,8 +991,8 @@ fn parse_literal_expression(
     }
 }
 
-fn parse_insert_statement<'a>(
-    tokens: &'a [TokenContainer],
+fn parse_insert_statement(
+    tokens: &[TokenContainer],
     initial_cursor: usize,
     _: Token,
 ) -> Result<(InsertStatement, usize), ParsingError> {
@@ -958,8 +1016,11 @@ fn parse_insert_statement<'a>(
     }
     cursor += 1;
 
-    let table_name = match &tokens[cursor].token {
-        Token::IdentifierValue { value } => value,
+    let table_name = match tokens.get(cursor) {
+        Some(TokenContainer {
+            loc: _,
+            token: Token::IdentifierValue { value },
+        }) => value,
         _ => {
             return Err(ParsingError::General {
                 msg: help_message(tokens.get(cursor), cursor, "Expected Table Name"),
@@ -971,23 +1032,26 @@ fn parse_insert_statement<'a>(
     cursor += 1;
 
     // Look for VALUES
-    if tokens[cursor].token != Token::Values {
-        help_message(tokens.get(cursor), cursor, "Expected VALUES");
-        return Err(ParsingError::General {
-            msg: help_message(tokens.get(cursor), cursor, "Expected VALUES"),
-            cursor,
-        });
+    if let Some(token) = tokens.get(cursor) {
+        if token.token != Token::Values {
+            return Err(ParsingError::General {
+                msg: help_message(tokens.get(cursor), cursor, "Expected VALUES"),
+                cursor,
+            });
+        }
+        cursor += 1;
     }
-    cursor += 1;
 
     // Look for left parenthesis
-    if tokens[cursor].token != Token::LeftParenthesis {
-        return Err(ParsingError::General {
-            msg: help_message(tokens.get(cursor), cursor, "Expected Left Parenthesis"),
-            cursor,
-        });
+    if let Some(token) = tokens.get(cursor) {
+        if token.token != Token::LeftParenthesis {
+            return Err(ParsingError::General {
+                msg: help_message(tokens.get(cursor), cursor, "Expected left parenthesis"),
+                cursor,
+            });
+        }
+        cursor += 1;
     }
-    cursor += 1;
 
     // Look for expression list
     let (values, new_cursor) = match parse_expressions(tokens, cursor, &[Token::RightParenthesis]) {
@@ -1003,13 +1067,18 @@ fn parse_insert_statement<'a>(
     cursor = new_cursor;
 
     // Look for right parenthesis
-    if tokens[cursor].token != Token::RightParenthesis {
+    if let Some(TokenContainer {
+        token: Token::RightParenthesis,
+        loc: _,
+    }) = tokens.get(cursor)
+    {
+        cursor += 1;
+    } else {
         return Err(ParsingError::General {
             msg: help_message(tokens.get(cursor), cursor, "Expected Right Parenthesis"),
             cursor,
         });
     }
-    cursor += 1;
 
     Ok((
         InsertStatement {
@@ -1100,7 +1169,6 @@ fn parse_select_items<'a>(
             }
             _ => {}
         }
-
         let current_token = &tokens[cursor];
         for delimiter in delimiters {
             if delimiter == &current_token.token {
@@ -1109,14 +1177,18 @@ fn parse_select_items<'a>(
         }
 
         if !select_items.is_empty() {
-            if tokens[cursor].token != Token::Comma {
+            if let Some(TokenContainer {
+                loc: _,
+                token: Token::Comma,
+            }) = tokens.get(cursor)
+            {
+                cursor += 1;
+            } else {
                 return Err(ParsingError::General {
                     msg: help_message(tokens.get(cursor), cursor, "Expected comma"),
                     cursor,
                 });
             }
-
-            cursor += 1;
         }
 
         let mut select_item = SelectItem {
@@ -1232,11 +1304,8 @@ fn parse_select_statement<'a>(
             delimiter.clone(),
         ],
     ) {
-        Err(_) => {
-            return Err(ParsingError::General {
-                msg: help_message(tokens.get(cursor), cursor, "Expected select items"),
-                cursor,
-            });
+        Err(err) => {
+            return Err(err);
         }
         Ok(value) => value,
     };
@@ -1625,7 +1694,7 @@ fn parse_joins<'a>(
         };
         cursor = new_cursor;
 
-        let operand = if let Ok(o) = Operand::from_token(operand_token) {
+        let operand = if let Ok(o) = Operand::from_token(&operand_token) {
             o
         } else {
             return Err(ParsingError::General {
