@@ -5,8 +5,8 @@ use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt};
 static AUTHENTICATION_OK: &[u8] = &[b'R', 0, 0, 0, 8, 0, 0, 0, 0];
 static READY_FOR_QUERY: &[u8] = &[b'Z', 0, 0, 0, 5, b'I'];
 static SSL_REQUEST: [u8; 4] = [0x04, 0xd2, 0x16, 0x2f];
-static SSL_CLIENT_CERTIFICATE: [u8; 3] = [0x16, 0x2f, 0x04];
-static NEGATIVE: &[u8] = &[b'N'];
+// static SSL_CLIENT_CERTIFICATE: [u8; 3] = [0x16, 0x2f, 0x04];
+// static NEGATIVE: &[u8] = &[b'N'];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {

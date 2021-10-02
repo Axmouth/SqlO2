@@ -13,7 +13,7 @@ use std::time::Duration;
 use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
 
 fn main() {
-    const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
 
     let mut mb = MemoryBackend::new();
     let mut rl = Editor::<()>::new();

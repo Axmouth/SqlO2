@@ -261,7 +261,7 @@ impl LiteralExpression {
         }
     }
 
-    pub fn from_token<'a>(token: &'a Token) -> Result<LiteralExpression, ParsingError> {
+    pub fn from_token(token: &Token) -> Result<LiteralExpression, ParsingError> {
         match token {
             Token::StringValue { value } => Ok(LiteralExpression::String(value.to_string())),
             Token::IdentifierValue { value } => {
@@ -368,7 +368,7 @@ impl Operand {
         .to_string()
     }
 
-    pub fn from_token<'a>(token: Token) -> Result<Operand, ParsingError> {
+    pub fn from_token(token: Token) -> Result<Operand, ParsingError> {
         match token {
             Token::Plus => Ok(Operand::Add),
             Token::Minus => Ok(Operand::Subtract),

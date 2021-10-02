@@ -22,7 +22,7 @@ fn main() {
     let mut db = MemoryBackend::new();
     let port = 9876;
     let listener = TcpListener::bind(("127.0.0.1", port)).unwrap();
-    let mut last_used_session_id = 0;
+    let mut last_used_session_id = 1;
 
     log::info!("SqlO2 server operational!");
 

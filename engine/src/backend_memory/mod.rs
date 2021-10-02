@@ -16,7 +16,7 @@ use instant::Instant;
 use std::collections::HashMap;
 
 const ERR_INVALID_CELL: &str = "Invalid Cell";
-const ERR_INVALID_OPERANDS: &str = "Invalid Operands";
+// const ERR_INVALID_OPERANDS: &str = "Invalid Operands";
 const ANONYMOUS_COL_NAME: &str = "?column?";
 
 #[derive(Clone, PartialEq)]

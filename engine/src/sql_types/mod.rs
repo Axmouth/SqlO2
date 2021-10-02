@@ -1,4 +1,5 @@
 use byteorder::{BigEndian, ReadBytesExt};
+use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 
@@ -27,7 +28,7 @@ pub enum SqlType {
 
 impl SqlType {
     #[inline]
-    pub fn from_token<'a>(token_container: &'a TokenContainer) -> Result<Self, ParsingError> {
+    pub fn from_token(token_container: &TokenContainer) -> Result<Self, ParsingError> {
         match token_container.token {
             Token::SmallInt => Ok(SqlType::SmallInt),
             Token::Int => Ok(SqlType::Int),
@@ -2163,20 +2164,18 @@ impl SqlText {
 
     #[inline]
     pub fn parse_char(data: String, len: usize) -> Result<Self, SqlTypeError> {
-        if len == data.len() {
-            Ok(SqlText::Text { value: data })
-        } else if len < data.len() {
-            Err(SqlTypeError::ParseError(format!(
+        match len.cmp(&data.len()) {
+            Ordering::Equal => Ok(SqlText::Text { value: data }),
+            Ordering::Less => Err(SqlTypeError::ParseError(format!(
                 "Input text too long, expected length: {}, current length: {}",
                 len,
                 data.len()
-            )))
-        } else {
-            Err(SqlTypeError::ParseError(format!(
+            ))),
+            Ordering::Greater => Err(SqlTypeError::ParseError(format!(
                 "Input text too short, expected length: {}, current length: {}",
                 len,
                 data.len()
-            )))
+            ))),
         }
     }
 

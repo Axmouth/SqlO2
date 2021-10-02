@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::sql_types::SqlType;
 
 use super::ast::*;
@@ -133,7 +135,7 @@ impl From<LexingError> for ParsingError {
 }
 
 #[inline]
-fn expect_token<'a>(tokens: &[TokenContainer], cursor: usize, token: Token) -> bool {
+fn expect_token(tokens: &[TokenContainer], cursor: usize, token: Token) -> bool {
     let current_token = match tokens.get(cursor) {
         Some(value) => value,
         None => {
@@ -362,7 +364,7 @@ fn parse_column_definitions<'a>(
 
         column_definitions.push(ColumnDefinition {
             name: col_name.to_string(),
-            data_type: SqlType::from_token(&col_type)?,
+            data_type: SqlType::from_token(col_type)?,
             is_primary_key,
         });
     }
@@ -377,7 +379,7 @@ fn parse_create_table_statement<'a>(
 ) -> Result<(CreateTableStatement, usize), ParsingError> {
     let mut cursor = initial_cursor;
 
-    if !expect_token(&tokens, cursor, Token::Create) {
+    if !expect_token(tokens, cursor, Token::Create) {
         return Err(ParsingError::General {
             msg: help_message(tokens.get(cursor), cursor, "Not a create table statement"),
             cursor,
@@ -385,7 +387,7 @@ fn parse_create_table_statement<'a>(
     }
     cursor += 1;
 
-    if !expect_token(&tokens, cursor, Token::Table) {
+    if !expect_token(tokens, cursor, Token::Table) {
         return Err(ParsingError::General {
             msg: help_message(tokens.get(cursor), cursor, "Expected table keyword"),
             cursor,
@@ -561,7 +563,7 @@ fn parse_expressions(
 
         // Look for comma
         if !expressions.is_empty() {
-            if !expect_token(&tokens, cursor, Token::Comma) {
+            if !expect_token(tokens, cursor, Token::Comma) {
                 return Err(ParsingError::General {
                     msg: help_message(tokens.get(cursor), cursor, "Expected Comma"),
                     cursor,
@@ -861,8 +863,8 @@ fn parse_expression<'a>(
     Ok((expression, cursor))
 }
 
-fn parse_literal_expression<'a>(
-    tokens: &'a [TokenContainer],
+fn parse_literal_expression(
+    tokens: &[TokenContainer],
     initial_cursor: usize,
 ) -> Result<(Expression, usize), ParsingError> {
     let mut cursor = initial_cursor;
@@ -939,7 +941,7 @@ fn parse_insert_statement<'a>(
     let mut cursor = initial_cursor;
 
     // Look for INSERT
-    if !expect_token(&tokens, cursor, Token::Insert) {
+    if !expect_token(tokens, cursor, Token::Insert) {
         return Err(ParsingError::General {
             msg: help_message(tokens.get(cursor), cursor, "Not an insert statement"),
             cursor,
@@ -948,7 +950,7 @@ fn parse_insert_statement<'a>(
     cursor += 1;
 
     // Look for INTO
-    if !expect_token(&tokens, cursor, Token::Into) {
+    if !expect_token(tokens, cursor, Token::Into) {
         return Err(ParsingError::General {
             msg: help_message(tokens.get(cursor), cursor, "Expected INTO"),
             cursor,
@@ -1086,13 +1088,17 @@ fn parse_select_items<'a>(
     delimiters_plus.push(Token::As);
 
     'outer: loop {
-        if cursor == tokens.len() {
-            return Ok((select_items, cursor - 1));
-        } else if cursor > tokens.len() {
-            return Err(ParsingError::General {
-                msg: help_message(tokens.get(cursor), cursor, "Unexpected end of tokens"),
-                cursor,
-            });
+        match cursor.cmp(&tokens.len()) {
+            Ordering::Equal => {
+                return Ok((select_items, cursor - 1));
+            }
+            Ordering::Greater => {
+                return Err(ParsingError::General {
+                    msg: help_message(tokens.get(cursor), cursor, "Unexpected end of tokens"),
+                    cursor,
+                });
+            }
+            _ => {}
         }
 
         let current_token = &tokens[cursor];
