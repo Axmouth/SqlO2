@@ -1972,6 +1972,7 @@ mod lexer_tests {
         }
     }
 
+    #[cfg(feature = "alloc_counter")]
     mod alloc_tests {
         use super::test_case;
         use super::*;

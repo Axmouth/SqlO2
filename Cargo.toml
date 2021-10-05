@@ -14,3 +14,11 @@ members = [
 
 [profile.bench]
 debug = true
+lto = "thin"
+
+[profile.test]
+debug = true
+
+[profile.release]
+debug = false
+lto = "thin"
