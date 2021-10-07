@@ -4,9 +4,20 @@ members = [
     "engine",
     "benchmarks",
     "repl",
-    "wasm_client",
-    "wire_protocol"
+    "server",
+    "test-util",
+    "test-test",
+    "wasm-repl",
+    "wire-protocol"
 ]
 
 [profile.bench]
 debug = true
+lto = "thin"
+
+[profile.test]
+debug = true
+
+[profile.release]
+debug = false
+lto = "thin"

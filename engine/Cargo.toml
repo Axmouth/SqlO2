@@ -1,20 +1,26 @@
 [package]
-name = "postgrustql"
+name = "sqlo2"
 version = "0.1.0"
 authors = ["Axmouth <aggronfg@yahoo.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [features]
+default = []
 stdweb = [ "instant/stdweb" ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
+wasm = ["stdweb", "wasm-bindgen"]
 
 [dependencies]
 byteorder = "1"
 bytes = "1.0.1"
-futures = "0.3"
 regex  = "1.4"
 lazy_static = "1.4"
 instant = { version = "0.1", features = [ "now" ] }
 serde = { version = "1.0", features = ["derive"] }
+jemallocator = {version = "0.3", optional = true }
+mimalloc = { version = "0.1", default-features = false, optional = true }
+alloc_counter = {version = "0.0.4", optional = true }
+
+[dev-dependencies]
+pretty_assertions = "0.7"
+test_util = { path = "../test-util" }

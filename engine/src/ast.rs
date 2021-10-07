@@ -1,4 +1,4 @@
-use crate::sql_types::SqlType;
+use crate::{parser::ParsingError, sql_types::SqlType};
 
 use super::lexer::*;
 
@@ -78,7 +78,7 @@ pub struct CreateTableStatement {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ColumnDefinition {
     pub name: String,
-    pub data_type: TokenContainer,
+    pub data_type: SqlType,
     pub is_primary_key: bool,
 }
 
@@ -183,47 +183,35 @@ impl Expression {
     }
 
     pub fn new_literal_id(value: String) -> Expression {
-        Expression::Literal(LiteralExpression {
-            literal: Token::IdentifierValue {
-                value,
-            },
-        })
+        Expression::Literal(LiteralExpression::Identifier(value))
     }
     pub fn new_literal_num(value: String) -> Expression {
-        Expression::Literal(LiteralExpression {
-            literal: Token::NumericValue {
-                value,
-            },
-        })
+        Expression::Literal(LiteralExpression::Numeric(value))
     }
     pub fn new_literal_string(value: String) -> Expression {
-        Expression::Literal(LiteralExpression {
-            literal: Token::StringValue {
-                value,
-            },
-        })
+        Expression::Literal(LiteralExpression::String(value))
     }
     pub fn new_literal_bool(value: String) -> Expression {
-        Expression::Literal(LiteralExpression {
-            literal: Token::BoolValue {
-                value:  value == TRUE_KEYWORD,
-            },
-        })
+        Expression::Literal(LiteralExpression::Bool(matches!(
+            value.to_lowercase().as_str(),
+            "true" | "t"
+        )))
     }
     pub fn new_literal_null() -> Expression {
-        Expression::Literal(LiteralExpression {
-            literal: Token::Null,
-        })
+        Expression::Literal(LiteralExpression::Null)
     }
 
     pub fn generate_code(&self) -> Result<String, String> {
         match self {
-            Expression::Literal(value) => match &value.literal {
-                Token::IdentifierValue { value } => Ok(format!("\"{}\"", value)),
-                Token::StringValue { value } => Ok(format!("'{}'", value)),
-                _ => Err("Unknown Literal Kind".to_string()),
-            },
+            Expression::Literal(value) => value.generate_code(),
             Expression::Binary(value) => value.generate_code(),
+            Expression::Unary(value) => value.generate_code(),
+            // Expression::SubSelect(value) => value.generate_code(),
+            Expression::TableColumn(value) => Ok(value.col_name.clone()),
+            Expression::Cast { data, typ } => data
+                .generate_code()
+                .map(|s| format!("CAST({} AS {})", s, typ.to_string())),
+            Expression::Empty => Ok("".to_string()),
             _ => Err("Unknown Expression Kind".to_string()),
         }
     }
@@ -250,15 +238,190 @@ impl Expression {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct LiteralExpression {
-    pub literal: Token,
+pub enum LiteralExpression {
+    String(String),
+    Identifier(String),
+    Numeric(String),
+    Bool(bool),
+    Null,
+}
+
+impl LiteralExpression {
+    pub fn generate_code(&self) -> Result<String, String> {
+        match self {
+            LiteralExpression::String(value) => Ok(format!("'{}'", value)),
+            LiteralExpression::Identifier(value) => Ok(format!("\"{}\"", value)),
+            LiteralExpression::Numeric(value) => Ok(value.clone()),
+            LiteralExpression::Bool(value) => Ok(if *value {
+                TRUE_KEYWORD.to_string()
+            } else {
+                FALSE_KEYWORD.to_string()
+            }),
+            LiteralExpression::Null => Ok(NULL_KEYWORD.to_string()),
+        }
+    }
+
+    pub fn from_token(token: &Token) -> Result<LiteralExpression, ParsingError> {
+        match token {
+            Token::StringValue { value } => Ok(LiteralExpression::String(value.to_string())),
+            Token::IdentifierValue { value } => {
+                Ok(LiteralExpression::Identifier(value.to_string()))
+            }
+            Token::NumericValue { value } => Ok(LiteralExpression::Numeric(value.to_string())),
+            Token::BoolValue { value } => Ok(LiteralExpression::Bool(*value)),
+            Token::Null => Ok(LiteralExpression::Null),
+            _ => Err(ParsingError::Internal {
+                msg: "Unexpected token".to_string(),
+            }),
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub enum Operand {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+    And,
+    Or,
+    Equal,
+    NotEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+    LessThan,
+    LessThanOrEqual,
+    Not,
+    SquareRoot,
+    CubeRoot,
+    Factorial,
+    FactorialPrefix,
+    AbsoluteValue,
+    Exponentiation,
+    Concat,
+    Is,
+    IsNot,
+    In,
+    NotIn,
+    Like,
+    NotLike,
+    Between,
+    NotBetween,
+    Exists,
+    NotExists,
+    Null,
+    NotNull,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    BitwiseNot,
+    BitwiseShiftLeft,
+    BitwiseShiftRight,
+    BitwiseShiftRightZeroFill,
+}
+
+impl Operand {
+    pub fn generate_code(&self) -> String {
+        match self {
+            Operand::Add => PLUS_SYMBOL,
+            Operand::Subtract => MINUS_SYMBOL,
+            Operand::Multiply => ASTERISK_SYMBOL,
+            Operand::Divide => SLASH_SYMBOL,
+            Operand::Modulo => MODULO_SYMBOL,
+            Operand::And => AND_KEYWORD,
+            Operand::Or => OR_KEYWORD,
+            Operand::Equal => EQUAL_SYMBOL,
+            Operand::NotEqual => NOT_EQUAL_SYMBOL,
+            Operand::GreaterThan => GREATER_THAN_SYMBOL,
+            Operand::GreaterThanOrEqual => GREATER_THAN_OR_EQUAL_SYMBOL,
+            Operand::LessThan => LESS_THAN_SYMBOL,
+            Operand::LessThanOrEqual => LESS_THAN_OR_EQUAL_SYMBOL,
+            Operand::Not => NOT_KEYWORD,
+            Operand::SquareRoot => SQUARE_ROOT_SYMBOL,
+            Operand::CubeRoot => CUBE_ROOT_SYMBOL,
+            Operand::Factorial => FACTORIAL_SYMBOL,
+            Operand::FactorialPrefix => FACTORIAL_PREFIX_SYMBOL,
+            Operand::AbsoluteValue => ABS_SYMBOL,
+            Operand::Exponentiation => EXPONENTIATION_SYMBOL,
+            Operand::Concat => CONCAT_SYMBOL,
+            Operand::Is => IS_KEYWORD,
+            Operand::IsNot => "IS NOT",
+            Operand::In => "IN",
+            Operand::NotIn => "NOT IN",
+            Operand::Like => LIKE_KEYWORD,
+            Operand::NotLike => "NOT LIKE",
+            Operand::Between => "BETWEEN",
+            Operand::NotBetween => "NOT BETWEEN",
+            Operand::Exists => "EXISTS",
+            Operand::NotExists => "NOT EXISTS",
+            Operand::Null => NULL_KEYWORD,
+            Operand::NotNull => "NOT NULL",
+            Operand::BitwiseAnd => BITWISE_AND_SYMBOL,
+            Operand::BitwiseOr => BITWISE_OR_SYMBOL,
+            Operand::BitwiseXor => BITWISE_XOR_SYMBOL,
+            Operand::BitwiseNot => BITWISE_NOT_SYMBOL,
+            Operand::BitwiseShiftLeft => BITWISE_SHIFT_LEFT_SYMBOL,
+            Operand::BitwiseShiftRight => BITWISE_SHIFT_RIGHT_SYMBOL,
+            Operand::BitwiseShiftRightZeroFill => ">>",
+        }
+        .to_string()
+    }
+
+    pub fn from_token(token: &Token) -> Result<Operand, ParsingError> {
+        match token {
+            Token::Plus => Ok(Operand::Add),
+            Token::Minus => Ok(Operand::Subtract),
+            Token::Asterisk => Ok(Operand::Multiply),
+            Token::Slash => Ok(Operand::Divide),
+            Token::Modulo => Ok(Operand::Modulo),
+            Token::And => Ok(Operand::And),
+            Token::Or => Ok(Operand::Or),
+            Token::Equal => Ok(Operand::Equal),
+            Token::NotEqual => Ok(Operand::NotEqual),
+            Token::GreaterThan => Ok(Operand::GreaterThan),
+            Token::GreaterThanOrEqual => Ok(Operand::GreaterThanOrEqual),
+            Token::LessThan => Ok(Operand::LessThan),
+            Token::LessThanOrEqual => Ok(Operand::LessThanOrEqual),
+            Token::Not => Ok(Operand::Not),
+            Token::SquareRoot => Ok(Operand::SquareRoot),
+            Token::CubeRoot => Ok(Operand::CubeRoot),
+            Token::Factorial => Ok(Operand::Factorial),
+            Token::FactorialPrefix => Ok(Operand::FactorialPrefix),
+            Token::AbsoluteValue => Ok(Operand::AbsoluteValue),
+            Token::Exponentiation => Ok(Operand::Exponentiation),
+            Token::Concat => Ok(Operand::Concat),
+            Token::Is => Ok(Operand::Is),
+            // Token::IsNot => Ok(Operand::IsNot),
+            // Token::In => Ok(Operand::In),
+            // Token::NotIn => Ok(Operand::NotIn),
+            Token::Like => Ok(Operand::Like),
+            // Token::NotLike => Ok(Operand::NotLike),
+            // Token::Between => Ok(Operand::Between),
+            // Token::NotBetween => Ok(Operand::NotBetween),
+            // Token::Exists => Ok(Operand::Exists),
+            // Token::NotExists => Ok(Operand::NotExists),
+            // Token::Null => Ok(Operand::Null),
+            // Token::NotNull => Ok(Operand::NotNull),
+            Token::BitwiseAnd => Ok(Operand::BitwiseAnd),
+            Token::BitwiseOr => Ok(Operand::BitwiseOr),
+            Token::BitwiseXor => Ok(Operand::BitwiseXor),
+            Token::BitwiseNot => Ok(Operand::BitwiseNot),
+            Token::BitwiseShiftLeft => Ok(Operand::BitwiseShiftLeft),
+            Token::BitwiseShiftRight => Ok(Operand::BitwiseShiftRight),
+            // Token::BitwiseShiftRightZeroFill => Ok(Operand::BitwiseShiftRightZeroFill),
+            _ => Err(ParsingError::Internal {
+                msg: format!("Unrecognized token: {:?}", token),
+            }),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct BinaryExpression {
     pub first: Box<Expression>,
     pub second: Box<Expression>,
-    pub operand: Token,
+    pub operand: Operand,
 }
 
 impl BinaryExpression {
@@ -275,7 +438,7 @@ impl BinaryExpression {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct UnaryExpression {
     pub first: Box<Expression>,
-    pub operand: Token,
+    pub operand: Operand,
 }
 
 impl UnaryExpression {
@@ -288,105 +451,9 @@ impl UnaryExpression {
     }
 }
 
-impl Token {
+impl Token<'_> {
     pub fn generate_code(&self) -> String {
-        match self {
-            Token::And => "AND".to_string(),
-            Token::As => "AS".to_string(),
-            Token::Asterisk => "*".to_string(),
-            Token::Bool => "BOOL".to_string(),
-            Token::BoolValue { value } => {
-                if *value {
-                    "TRUE".to_string()
-                } else {
-                    "FALSE".to_string()
-                }
-            }
-            Token::Comma => COMMA_SYMBOL.to_string(),
-            Token::Concat => CONCAT_SYMBOL.to_string(),
-            Token::Create => CREATE_KEYWORD.to_string(),
-            Token::Drop => DROP_KEYWORD.to_string(),
-            Token::Empty => "".to_string(),
-            Token::Equal => EQUAL_SYMBOL.to_string(),
-            Token::False => FALSE_KEYWORD.to_string(),
-            Token::From => FROM_KEYWORD.to_string(),
-            Token::GreaterThan => GREATER_THAN_SYMBOL.to_string(),
-            Token::GreaterThanOrEqual => GREATER_THAN_OR_EQUAL_SYMBOL.to_string(),
-            Token::IdentifierValue { value } => format!("\"{}\"", value),
-            Token::Index => INDEX_KEYWORD.to_string(),
-            Token::Insert => INSERT_KEYWORD.to_string(),
-            Token::Int => INT_KEYWORD.to_string(),
-            Token::Into => INTO_KEYWORD.to_string(),
-            Token::Key => KEY_KEYWORD.to_string(),
-            Token::LeftParenthesis => LEFT_PARENTHESIS_SYMBOL.to_string(),
-            Token::LessThan => LESS_THAN_SYMBOL.to_string(),
-            Token::LessThanOrEqual => LESS_THAN_OR_EQUAL_SYMBOL.to_string(),
-            Token::Minus => MINUS_SYMBOL.to_string(),
-            Token::NotEqual => NOT_EQUAL_SYMBOL.to_string(),
-            Token::Null => NULL_KEYWORD.to_string(),
-            Token::NumericValue { value } => value.clone(),
-            Token::On => ON_KEYWORD.to_string(),
-            Token::Or => OR_KEYWORD.to_string(),
-            Token::Not => NOT_KEYWORD.to_string(),
-            Token::Plus => PLUS_SYMBOL.to_string(),
-            Token::Slash => SLASH_SYMBOL.to_string(),
-            Token::Modulo => MODULO_SYMBOL.to_string(),
-            Token::Exponentiation => EXPONENTIATION_SYMBOL.to_string(),
-            Token::SquareRoot => SQUARE_ROOT_SYMBOL.to_string(),
-            Token::CubeRoot => CUBE_ROOT_SYMBOL.to_string(),
-            Token::Factorial => FACTORIAL_SYMBOL.to_string(),
-            Token::FactorialPrefix => FACTORIAL_PREFIX_SYMBOL.to_string(),
-            Token::AbsoluteValue => ABS_SYMBOL.to_string(),
-            Token::BitwiseAnd => BITWISE_AND_SYMBOL.to_string(),
-            Token::BitwiseOr => BITWISE_OR_SYMBOL.to_string(),
-            Token::BitwiseXor => BITWISE_XOR_SYMBOL.to_string(),
-            Token::BitwiseNot => BITWISE_NOT_SYMBOL.to_string(),
-            Token::BitwiseShiftLeft => BITWISE_SHIFT_LEFT_SYMBOL.to_string(),
-            Token::BitwiseShiftRight => BITWISE_SHIFT_RIGHT_SYMBOL.to_string(),
-            Token::Primary => PRIMARY_KEYWORD.to_string(),
-            Token::RightParenthesis => RIGHT_PARENTHESIS_SYMBOL.to_string(),
-            Token::Select => SELECT_KEYWORD.to_string(),
-            Token::Semicolon => SEMICOLON_SYMBOL.to_string(),
-            Token::StringValue { value } => format!("'{}'", value),
-            Token::Table => TABLE_KEYWORD.to_string(),
-            Token::Text => TEXT_KEYWORD.to_string(),
-            Token::True => TRUE_KEYWORD.to_string(),
-            Token::Unique => UNIQUE_KEYWORD.to_string(),
-            Token::Values => VALUES_KEYWORD.to_string(),
-            Token::Where => WHERE_KEYWORD.to_string(),
-            Token::Alter => ALTER_KEYWORD.to_string(),
-            Token::Delete => DELETE_KEYWORD.to_string(),
-            Token::Update => UPDATE_KEYWORD.to_string(),
-            Token::Join => JOIN_KEYWORD.to_string(),
-            Token::Inner => INNER_KEYWORD.to_string(),
-            Token::Right => RIGHT_KEYWORD.to_string(),
-            Token::Left => LEFT_KEYWORD.to_string(),
-            Token::Constraint => CONSTRAINT_KEYWORD.to_string(),
-            Token::Foreign => FOREIGN_KEYWORD.to_string(),
-            Token::Double => DOUBLE_KEYWORD.to_string(),
-            Token::DoublePrecision => "DOUBLE PRECISION".to_string(),
-            Token::Precision => PRECISION_KEYWORD.to_string(),
-            Token::Real => REAL_KEYWORD.to_string(),
-            Token::SmallInt => SMALLINT_KEYWORD.to_string(),
-            Token::BigInt => BIGINT_KEYWORD.to_string(),
-            Token::Varchar => VARCHAR_KEYWORD.to_string(),
-            Token::Char => CHAR_KEYWORD.to_string(),
-            Token::Is => IS_KEYWORD.to_string(),
-            Token::TypeCast => TYPE_CAST_SYMBOL.to_string(),
-            Token::Distinct => DISTINCT_KEYWORD.to_string(),
-            Token::Order => ORDER_KEYWORD.to_string(),
-            Token::By => BY_KEYWORD.to_string(),
-            Token::OrderBy => "ORDER BY".to_string(),
-            Token::Asc => ASC_KEYWORD.to_string(),
-            Token::Desc => DESC_KEYWORD.to_string(),
-            Token::Limit => LIMIT_KEYWORD.to_string(),
-            Token::Offset => OFFSET_KEYWORD.to_string(),
-            Token::Dot => DOT_SYMBOL.to_string(),
-            Token::Outer => OUTER_KEYWORD.to_string(),
-            Token::Full => FULL_KEYWORD.to_string(),
-            Token::Like => LIKE_KEYWORD.to_string(),
-            Token::Comment => "".to_string(),
-        }
+        self.to_string()
     }
 }
 
@@ -426,16 +493,8 @@ mod ast_tests {
                     statements: vec![Statement::InsertStatement(InsertStatement {
                         table: "users".to_owned(),
                         values: vec![
-                            Expression::Literal(LiteralExpression {
-                                literal: Token::NumericValue {
-                                    value: "105".to_owned(),
-                                },
-                            }),
-                            Expression::Literal(LiteralExpression {
-                                literal: Token::StringValue {
-                                    value: "George".to_owned(),
-                                },
-                            }),
+                            Expression::Literal(LiteralExpression::Numeric("105".to_owned())),
+                            Expression::Literal(LiteralExpression::String( "George".to_owned())),
                         ],
                     })],
                 },
@@ -448,18 +507,12 @@ mod ast_tests {
                         cols: vec![
                             ColumnDefinition {
                                 name: "id".to_owned(),
-                                data_type: TokenContainer {
-                                    loc: TokenLocation { col: 23, line: 0 },
-                                    token: Token::Int,
-                                },
+                                data_type: SqlType::Int,
                                 is_primary_key: false,
                             },
                             ColumnDefinition {
                                 name: "name".to_owned(),
-                                data_type: TokenContainer {
-                                    loc: TokenLocation { col: 33, line: 0 },
-                                    token: Token::Text,
-                                },
+                                data_type: SqlType::Text,
                                 is_primary_key: false,
                             },
                         ],
@@ -535,25 +588,17 @@ mod ast_tests {
                                     col_name: "name".to_owned(),
                                     table_name: None,
                                 })),
-                                operand: Token::NotEqual,
-                                second: Box::new(Expression::Literal(LiteralExpression {
-                                    literal: Token::StringValue {
-                                        value: "Rachel".to_owned(),
-                                    },
-                                })),
+                                operand: Operand::NotEqual,
+                                second: Box::new(Expression::Literal(LiteralExpression::String("Rachel".to_owned()))),
                             })),
-                            operand: Token::And,
+                            operand: Operand::And,
                             second: Box::new(Expression::Binary(BinaryExpression {
                                 first: Box::new(Expression::TableColumn(TableColumn {
                                     col_name: "id".to_owned(),
                                     table_name: None,
                                 })),
-                                operand: Token::LessThan,
-                                second: Box::new(Expression::Literal(LiteralExpression {
-                                    literal: Token::NumericValue {
-                                        value: "5".to_owned(),
-                                    },
-                                })),
+                                operand: Operand::LessThan,
+                                second: Box::new(Expression::Literal(LiteralExpression::Numeric( "5".to_owned()))),
                             })),
                         }),
                         is_distinct: false,
@@ -607,12 +652,8 @@ mod ast_tests {
                                         col_name: "id".to_owned(),
                                         table_name: None,
                                     })),
-                                    operand: Token::Slash,
-                                    second: Box::new(Expression::Literal(LiteralExpression {
-                                        literal: Token::NumericValue {
-                                            value: "2".to_owned(),
-                                        },
-                                    })),
+                                    operand: Operand::Divide,
+                                    second: Box::new(Expression::Literal(LiteralExpression::Numeric( "2".to_owned()))),
                                 })),
                                 typ: SqlType::Int,
                             },
@@ -645,21 +686,16 @@ mod ast_tests {
                                             })),
                                         typ: SqlType::Text,
                                         }),
-                                    operand: Token::Concat,
+                                    operand: Operand::Concat,
                                     second: Box::new(Expression::Binary(BinaryExpression {
-                                        first: Box::new(Expression::Literal(LiteralExpression {
-                                            literal: Token::StringValue {
-                                                value: " ".to_owned(),
-                                            },
-                                        })),
-                                        operand: Token::Concat,
+                                        first: Box::new(Expression::Literal(LiteralExpression::String( " ".to_owned()))),
+                                        operand: Operand::Concat,
                                         second: Box::new(Expression::TableColumn(TableColumn {
                                             col_name: "name".to_owned(),
                                             table_name: None,
                                             })),
                                     })),
                                 }),
-                                        
                         }],
                         from: vec![RowDataSource::Table {
                             table_name: "characters".to_string(),
@@ -671,12 +707,8 @@ mod ast_tests {
                                 col_name: "id".to_owned(),
                                 table_name: None,
                             })),
-                            operand: Token::GreaterThan,
-                            second: Box::new(Expression::Literal(LiteralExpression {
-                                literal: Token::NumericValue {
-                                    value: "1".to_owned(),
-                                },
-                            })),
+                            operand: Operand::GreaterThan,
+                            second: Box::new(Expression::Literal(LiteralExpression::Numeric("1".to_owned()))),
                         }),
                         is_distinct: false,
                         order_by: Some(OrderByClause {
@@ -706,7 +738,7 @@ mod ast_tests {
                             joins: vec![
                                 JoinClause {
                                     kind: JoinKind::Inner,
-                                    source: 
+                                    source:
                                         RowDataSource::Table {
                                             table_name: String::from("character_roles"),
                                             as_clause: None,
@@ -717,7 +749,7 @@ mod ast_tests {
                                                 col_name: String::from("id"),
                                                 table_name: Some(String::from("characters")),
                                             })),
-                                            operand: Token::Equal,
+                                            operand: Operand::Equal,
                                             second: Box::new(Expression::TableColumn(TableColumn {
                                                 col_name: String::from("character_id"),
                                                 table_name: Some(String::from("character_roles")) ,
@@ -732,12 +764,8 @@ mod ast_tests {
                                 col_name: "id".to_owned(),
                                 table_name: None,
                             })),
-                            operand: Token::NotEqual,
-                            second: Box::new(Expression::Literal(LiteralExpression {
-                                literal: Token::NumericValue {
-                                    value: "2".to_owned(),
-                                },
-                            })),
+                            operand: Operand::NotEqual,
+                            second: Box::new(Expression::Literal(LiteralExpression::Numeric("2".to_owned()))),
                         }),
                         is_distinct: false,
                         order_by: Some(OrderByClause {
@@ -756,11 +784,12 @@ mod ast_tests {
 
         let mut found_faults = false;
         let mut err_msg = "\n".to_owned();
+        let parser = Parser::new();
 
         for test in parse_tests {
             print!("(Parser) Testing: {}", test.input);
 
-            let ast = match parse(test.input) {
+            let ast = match parser.parse(test.input) {
                 Ok(value) => value,
                 Err(err) => {
                     found_faults = true;

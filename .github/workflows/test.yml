@@ -1,0 +1,33 @@
+name: Run tests
+
+on: [push, pull_request]
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - uses: actions/cache@v1
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - uses: actions/checkout@v1
+      - name: Check formatting
+        uses: icepuma/rust-action@master
+        with:
+          args: cargo fmt -- --check
+
+      - name: Run tests
+        uses: icepuma/rust-action@master
+        with:
+          args: cargo test --workspace
+
+      - name: Check for clippy issues
+        uses: icepuma/rust-action@master
+        with:
+          args: cargo clippy -- -Dwarnings

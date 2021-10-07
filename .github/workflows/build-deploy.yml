@@ -10,25 +10,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
-      - uses: actions/setup-node@v1 #this installs node and npm for us
+      - uses: actions/cache@v1
         with:
-          node-version: "14.x"
-      - uses: actions/cache@v1 # this allows for re-using node_modules caching, making builds a bit faster.
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-node-
-      - name: Install wasm-pack
+            ${{ runner.os }}-cargo-
+      - name: Install trunk
         uses: actions-rs/install@v0.1
         with:
-          crate: wasm-pack
+          crate: trunk
           version: latest
           use-tool-cache: true
       - name: Build
         run: |
-          npm i -g @angular/cli
-          cd ng-repl && npm i && cd ..
           chmod +x ./update-gh-pages.sh
           ./update-gh-pages.sh
       - name: Deploy

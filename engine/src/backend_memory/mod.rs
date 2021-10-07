@@ -3,8 +3,11 @@ extern crate byteorder;
 use super::ast::*;
 use super::backend::*;
 use super::lexer::*;
-use super::parser::parse;
+use super::parser::Parser;
 
+use crate::parser::ParsingError;
+use crate::sql_types::SqlNumeric;
+use crate::sql_types::SqlText;
 use crate::{
     backend::MemoryCell,
     sql_types::{SqlType, SqlValue},
@@ -13,7 +16,7 @@ use instant::Instant;
 use std::collections::HashMap;
 
 const ERR_INVALID_CELL: &str = "Invalid Cell";
-const ERR_INVALID_OPERANDS: &str = "Invalid Operands";
+// const ERR_INVALID_OPERANDS: &str = "Invalid Operands";
 const ANONYMOUS_COL_NAME: &str = "?column?";
 
 #[derive(Clone, PartialEq)]
@@ -71,12 +74,12 @@ impl Index {
             }
 
             let supported_checks = vec![
-                Token::Equal,
-                Token::NotEqual,
-                Token::GreaterThan,
-                Token::GreaterThanOrEqual,
-                Token::LessThan,
-                Token::LessThanOrEqual,
+                Operand::Equal,
+                Operand::NotEqual,
+                Operand::GreaterThan,
+                Operand::GreaterThanOrEqual,
+                Operand::LessThan,
+                Operand::LessThanOrEqual,
             ];
             let is_supported = supported_checks.contains(&bin_exp.operand);
 
@@ -125,12 +128,12 @@ impl Index {
         let mut row_indexes: Vec<usize> = Vec::with_capacity(100);
 
         match bin_exp.operand {
-            Token::Equal => {
+            Operand::Equal => {
                 if let Some(indexes) = self.tree.get(&value) {
                     row_indexes.append(&mut indexes.clone());
                 }
             }
-            Token::NotEqual => {
+            Operand::NotEqual => {
                 for (key, indexes) in &self.tree {
                     if *key == value {
                         continue;
@@ -138,7 +141,7 @@ impl Index {
                     row_indexes.append(&mut indexes.clone());
                 }
             }
-            Token::LessThan => {
+            Operand::LessThan => {
                 for (key, indexes) in &self.tree {
                     if key >= &value {
                         break;
@@ -146,7 +149,7 @@ impl Index {
                     row_indexes.append(&mut indexes.clone());
                 }
             }
-            Token::LessThanOrEqual => {
+            Operand::LessThanOrEqual => {
                 for (key, indexes) in &self.tree {
                     if key > &value {
                         break;
@@ -154,12 +157,12 @@ impl Index {
                     row_indexes.append(&mut indexes.clone());
                 }
             }
-            Token::GreaterThan => {
+            Operand::GreaterThan => {
                 for (_, ref mut indexes) in self.tree.clone().split_off(&value) {
                     row_indexes.append(indexes);
                 }
             }
-            Token::GreaterThanOrEqual => {
+            Operand::GreaterThanOrEqual => {
                 if let Some(indexes) = self.tree.get(&value) {
                     row_indexes.append(&mut indexes.clone());
                 }
@@ -209,34 +212,48 @@ impl Table {
         expression: &Expression,
     ) -> Result<(SqlValue, &str, SqlType), String> {
         match expression {
-            Expression::Literal(literal_expression) => {
-                let literal = &literal_expression.literal;
-
-                match &literal {
-                    Token::IdentifierValue { value } => {
-                        for (i, table_col) in self.columns.iter().enumerate() {
-                            if table_col == value.as_str() {
-                                let typ =
-                                    self.column_types.get(i).ok_or("Error accesing column")?;
-                                let val = self
-                                    .rows
-                                    .get(row_index as usize)
-                                    .ok_or("Error accesing row")?
-                                    .get(i as usize)
-                                    .ok_or("Error accesing row's column")?;
-                                return Ok((val.clone(), table_col, *typ));
-                            }
+            Expression::Literal(literal_expression) => match &literal_expression {
+                LiteralExpression::Identifier(value) => {
+                    for (i, table_col) in self.columns.iter().enumerate() {
+                        if table_col == value.as_str() {
+                            let typ = self.column_types.get(i).ok_or("Error accesing column")?;
+                            let val = self
+                                .rows
+                                .get(row_index as usize)
+                                .ok_or("Error accesing row")?
+                                .get(i as usize)
+                                .ok_or("Error accesing row's column")?;
+                            return Ok((val.clone(), table_col, *typ));
                         }
+                    }
 
-                        return Err(format!("{}: {}", value, ERR_COLUMN_DOES_NOT_EXIST));
-                    }
-                    _ => {
-                        let val = SqlValue::from_token(literal)?;
-                        let typ = val.get_type();
-                        Ok((val, ANONYMOUS_COL_NAME, typ))
-                    }
+                    Err(format!("{}: {}", value, ERR_COLUMN_DOES_NOT_EXIST))
                 }
-            }
+                LiteralExpression::Numeric(value) => {
+                    let typ = SqlType::DoublePrecision;
+                    let val = SqlValue::Numeric(SqlNumeric::DoublePrecision {
+                        value: value.parse::<f64>().map_err(|e| e.to_string())?,
+                    });
+                    Ok((val, "", typ))
+                }
+                LiteralExpression::String(value) => {
+                    let typ = SqlType::Text;
+                    let val = SqlValue::Text(SqlText::Text {
+                        value: value.clone(),
+                    });
+                    Ok((val, "", typ))
+                }
+                LiteralExpression::Bool(value) => {
+                    let typ = SqlType::Boolean;
+                    let val = SqlValue::Boolean(*value);
+                    Ok((val, "", typ))
+                }
+                LiteralExpression::Null => {
+                    let typ = SqlType::Null;
+                    let val = SqlValue::Null;
+                    Ok((val, "", typ))
+                }
+            },
             Expression::TableColumn(table_column) => {
                 for (i, table_col) in self.columns.iter().enumerate() {
                     if table_col == &table_column.col_name {
@@ -251,10 +268,10 @@ impl Table {
                     }
                 }
 
-                return Err(format!(
+                Err(format!(
                     "{}: {}",
                     table_column.col_name, ERR_COLUMN_DOES_NOT_EXIST
-                ));
+                ))
             }
             Expression::ProcessedTableColumn(table_column) => {
                 let table_col = self
@@ -291,102 +308,102 @@ impl Table {
                     self.evaluate_cell(row_index, &binary_expression.second)?;
 
                 match binary_expression.operand {
-                    Token::Equal => {
+                    Operand::Equal => {
                         let result = SqlValue::equals(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::NotEqual => {
+                    Operand::NotEqual => {
                         let result = SqlValue::not_equal(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::GreaterThan => {
+                    Operand::GreaterThan => {
                         let result = SqlValue::greater_than(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::GreaterThanOrEqual => {
+                    Operand::GreaterThanOrEqual => {
                         let result = SqlValue::greater_than_or_equals(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::LessThan => {
+                    Operand::LessThan => {
                         let result = SqlValue::less_than(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::LessThanOrEqual => {
+                    Operand::LessThanOrEqual => {
                         let result = SqlValue::less_than_or_equals(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Concat => {
+                    Operand::Concat => {
                         let result = SqlValue::concat(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Plus => {
+                    Operand::Add => {
                         let result = SqlValue::add(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Minus => {
+                    Operand::Subtract => {
                         let result = SqlValue::subtract(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Asterisk => {
+                    Operand::Multiply => {
                         let result = SqlValue::multiply(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Slash => {
+                    Operand::Divide => {
                         let result = SqlValue::divide(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Modulo => {
+                    Operand::Modulo => {
                         let result = SqlValue::modulo(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::And => {
+                    Operand::And => {
                         let result = SqlValue::and(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Or => {
+                    Operand::Or => {
                         let result = SqlValue::or(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Exponentiation => {
+                    Operand::Exponentiation => {
                         let result = SqlValue::exponentiation(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::BitwiseAnd => {
+                    Operand::BitwiseAnd => {
                         let result = SqlValue::bitwise_and(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::BitwiseOr => {
+                    Operand::BitwiseOr => {
                         let result = SqlValue::bitwise_or(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::BitwiseXor => {
+                    Operand::BitwiseXor => {
                         let result = SqlValue::bitwise_xor(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::BitwiseShiftLeft => {
+                    Operand::BitwiseShiftLeft => {
                         let result = SqlValue::bitwise_shift_left(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::BitwiseShiftRight => {
+                    Operand::BitwiseShiftRight => {
                         let result = SqlValue::bitwise_shift_right(&first_val, &second_val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
@@ -397,37 +414,37 @@ impl Table {
             Expression::Unary(unary_expression) => {
                 let (val, _, _) = self.evaluate_cell(row_index, &unary_expression.first)?;
                 match unary_expression.operand {
-                    Token::Minus => {
+                    Operand::Subtract => {
                         let result = SqlValue::minus(&val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::SquareRoot => {
+                    Operand::SquareRoot => {
                         let result = SqlValue::square_root(&val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::CubeRoot => {
+                    Operand::CubeRoot => {
                         let result = SqlValue::cube_root(&val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Factorial | Token::FactorialPrefix => {
+                    Operand::Factorial | Operand::FactorialPrefix => {
                         let result = SqlValue::factorial(&val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::Not => {
+                    Operand::Not => {
                         let result = SqlValue::not(&val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::AbsoluteValue => {
+                    Operand::AbsoluteValue => {
                         let result = SqlValue::abs(&val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
                     }
-                    Token::BitwiseNot => {
+                    Operand::BitwiseNot => {
                         let result = SqlValue::bitwise_not(&val)?;
                         let typ = result.get_type();
                         Ok((result, ANONYMOUS_COL_NAME, typ))
@@ -504,6 +521,7 @@ impl Table {
 #[derive(PartialEq, Default)]
 pub struct MemoryBackend {
     tables: HashMap<String, Table>,
+    parser: Parser,
 }
 
 pub fn get_true_mem_cell() -> MemoryCell {
@@ -512,13 +530,13 @@ pub fn get_true_mem_cell() -> MemoryCell {
 pub fn get_false_mem_cell() -> MemoryCell {
     MemoryCell { bytes: vec![0] }
 }
-pub fn get_true_lex_token() -> TokenContainer {
+pub fn get_true_lex_token() -> TokenContainer<'static> {
     TokenContainer {
         token: Token::BoolValue { value: true },
         loc: TokenLocation { line: 0, col: 0 },
     }
 }
-pub fn get_false_lex_token() -> TokenContainer {
+pub fn get_false_lex_token() -> TokenContainer<'static> {
     TokenContainer {
         token: Token::BoolValue { value: false },
         loc: TokenLocation { line: 0, col: 0 },
@@ -529,7 +547,11 @@ impl MemoryBackend {
     pub fn new() -> MemoryBackend {
         Self {
             tables: HashMap::new(),
+            parser: Parser::new(),
         }
+    }
+    pub fn parse<'a>(&'a self, sql: &'a str) -> Result<Ast, ParsingError> {
+        self.parser.parse(sql)
     }
 
     pub fn create_table(&mut self, create_statement: CreateTableStatement) -> Result<bool, String> {
@@ -557,13 +579,7 @@ impl MemoryBackend {
         for col in create_statement.cols {
             new_table.columns.push(col.name.clone());
 
-            let data_type;
-            if let Ok(typ) = SqlType::from_token(col.data_type.token) {
-                data_type = typ;
-            } else {
-                self.tables.remove(&new_table.name);
-                return Err(ERR_INVALID_DATA_TYPE.to_string());
-            }
+            let data_type = col.data_type;
 
             if col.is_primary_key {
                 if primary_key != None {
@@ -618,7 +634,7 @@ impl MemoryBackend {
                         }
                     };
 
-                    let cell = literal_to_memory_cell(&value.literal)?.to_type(*typ)?;
+                    let cell = literal_to_memory_cell(value)?.to_type(*typ)?;
                     row.push(cell);
                 }
                 _ => {
@@ -1077,7 +1093,7 @@ impl MemoryBackend {
 
     pub fn eval_query(&mut self, query: &str) -> Result<Vec<EvalResult<SqlValue>>, String> {
         let mut before = Instant::now();
-        let ast = match parse(query) {
+        let ast = match self.parser.parse(query) {
             Ok(val) => val,
             Err(err) => return Err(err.to_string()),
         };
@@ -1170,10 +1186,10 @@ pub fn linearize_expressions(
         return expressions;
     }
     if let Some(Expression::Binary(ref bin_exp)) = where_clause {
-        if bin_exp.operand == Token::Or {
+        if bin_exp.operand == Operand::Or {
             return expressions;
         }
-        if (bin_exp.operand) == Token::And {
+        if (bin_exp.operand) == Operand::And {
             let exps = linearize_expressions(Some(*bin_exp.first.clone()), expressions);
             return linearize_expressions(Some(*bin_exp.second.clone()), exps);
         }
@@ -1189,9 +1205,167 @@ pub fn linearize_expressions(
 }
 
 #[inline]
-pub fn literal_to_memory_cell(token: &Token) -> Result<SqlValue, String> {
-    match SqlValue::from_token(token) {
-        Ok(value) => Ok(value),
-        Err(err) => Err(err.to_string()),
+pub fn literal_to_memory_cell(literal: &LiteralExpression) -> Result<SqlValue, String> {
+    match literal {
+        LiteralExpression::Numeric(value) => {
+            let val = SqlValue::Numeric(SqlNumeric::DoublePrecision {
+                value: value.parse::<f64>().map_err(|e| e.to_string())?,
+            });
+            Ok(val)
+        }
+        LiteralExpression::String(value) => {
+            let val = SqlValue::Text(SqlText::Text {
+                value: value.clone(),
+            });
+            Ok(val)
+        }
+        LiteralExpression::Bool(value) => {
+            let val = SqlValue::Boolean(*value);
+            Ok(val)
+        }
+        LiteralExpression::Null => {
+            let val = SqlValue::Null;
+            Ok(val)
+        }
+        _ => Err("Unsupported literal type".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod eval_query {
+        use super::*;
+        use instant::Duration;
+        use pretty_assertions::assert_eq;
+        use test_util::test_case;
+
+        #[test_case(
+            "Select 1",
+            Ok(vec![EvalResult::Select {
+                results: QueryResults {
+                    columns: vec![ResultColumn {
+                        col_type: SqlType::DoublePrecision,
+                        name: "".to_string(),
+                    }],
+                    rows: vec![vec![SqlValue::Numeric(SqlNumeric::DoublePrecision {
+                        value: 1.0,
+                    })]]
+                },
+                time: std::time::Duration::new(0, 0),
+            }])
+        )]
+        fn eval_query_test(query: &str, expected: Result<Vec<EvalResult<SqlValue>>, String>) {
+            let mut db = MemoryBackend::new();
+
+            let result = db.eval_query(query);
+
+            assert_eq!(result, expected);
+        }
+
+        #[test_case(
+            &[
+            "CREATE TABLE test (id INT, name TEXT, age INT);",
+            "INSERT INTO test VALUES (1, 'John', 20);"
+            ],
+            vec![
+                Ok(
+                    vec![
+                        EvalResult::CreateTable {
+                            success: true,
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),
+                Ok(
+                    vec![
+                        EvalResult::Insert {
+                            success: true,
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),]
+        )]
+        #[test_case(
+            &[
+            "CREATE TABLE test (id INT, name TEXT, age INT);",
+            "INSERT INTO test VALUES (1, 'John', 20);",
+            "SELECT * FROM test WHERE id = 1;"
+            ],
+            vec![
+                Ok(
+                    vec![
+                        EvalResult::CreateTable {
+                            success: true,
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),
+                Ok(
+                    vec![
+                        EvalResult::Insert {
+                            success: true,
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),
+                Ok(
+                    vec![
+                        EvalResult::Select {
+                            results: QueryResults {
+                                columns: vec![
+                                    ResultColumn {
+                                        col_type: SqlType::Int,
+                                        name: "id".to_string(),
+                                    },
+                                    ResultColumn {
+                                        col_type: SqlType::Text,
+                                        name: "name".to_string(),
+                                    },
+                                    ResultColumn {
+                                        col_type: SqlType::Int,
+                                        name: "age".to_string(),
+                                    },
+                                ],
+                                rows: vec![
+                                    vec![
+                                        SqlValue::Numeric(
+                                            SqlNumeric::Int {
+                                                value: 1,
+                                            },
+                                        ),
+                                        SqlValue::Text(
+                                            SqlText::Text {
+                                                value: "John".to_string(),
+                                            },
+                                        ),
+                                        SqlValue::Numeric(
+                                            SqlNumeric::Int {
+                                                value: 20,
+                                            },
+                                        ),
+                                    ],
+                                ],
+                            },
+                            time: Duration::new(0, 0),
+                        },
+                    ],
+                ),
+            ]
+        )]
+        fn eval_queries_test(
+            queries: &[&str],
+            expected: Vec<Result<Vec<EvalResult<SqlValue>>, String>>,
+        ) {
+            let mut db = MemoryBackend::new();
+
+            let results = queries
+                .iter()
+                .map(|query| db.eval_query(query))
+                .collect::<Vec<_>>();
+
+            assert_eq!(results, expected);
+        }
     }
 }

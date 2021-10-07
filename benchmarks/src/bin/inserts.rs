@@ -1,4 +1,4 @@
-use postgrustql::*;
+use sqlo2::*;
 
 fn main() {
     let mut db = backend_memory::MemoryBackend::new();
@@ -9,18 +9,7 @@ fn main() {
     )
     .unwrap();
     for i in 0..1000000 {
-        let parsed =
-            parser::parse(&format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i)).unwrap();
-        let statement;
-        match &parsed.statements[0] {
-            ast::Statement::InsertStatement(insert_statement) => {
-                statement = insert_statement;
-            }
-            _ => {
-                eprintln!("Derp..");
-                return;
-            }
-        }
-        db.insert(statement.clone()).unwrap();
+        db.eval_query(&format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i))
+            .unwrap();
     }
 }

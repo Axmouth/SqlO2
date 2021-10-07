@@ -1,7 +1,10 @@
 use byteorder::{BigEndian, ReadBytesExt};
+use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 
+use crate::lexer::TokenContainer;
+use crate::parser::ParsingError;
 use crate::{
     backend::{Cell, MemoryCell, ERR_INVALID_DATA_TYPE},
     lexer::Token,
@@ -23,9 +26,10 @@ pub enum SqlType {
     Type,
 }
 
-impl SqlType {
-    #[inline]
-    pub fn from_token(token: Token) -> Result<Self, SqlTypeError> {
+impl TryFrom<&Token<'_>> for SqlType {
+    type Error = ParsingError;
+
+    fn try_from(token: &Token) -> Result<Self, Self::Error> {
         match token {
             Token::SmallInt => Ok(SqlType::SmallInt),
             Token::Int => Ok(SqlType::Int),
@@ -36,9 +40,50 @@ impl SqlType {
             Token::Text => Ok(SqlType::Text),
             Token::Char => Ok(SqlType::Char),
             Token::Bool => Ok(SqlType::Boolean),
-            _ => Err(SqlTypeError::ConversionError(
-                ERR_INVALID_DATA_TYPE.to_string(),
-            )),
+            _ => Err(ParsingError::Internal {
+                msg: ERR_INVALID_DATA_TYPE.to_string(),
+            }),
+        }
+    }
+}
+
+impl TryFrom<&TokenContainer<'_>> for SqlType {
+    type Error = ParsingError;
+
+    fn try_from(token_c: &TokenContainer) -> Result<Self, Self::Error> {
+        match token_c.token {
+            Token::SmallInt => Ok(SqlType::SmallInt),
+            Token::Int => Ok(SqlType::Int),
+            Token::BigInt => Ok(SqlType::BigInt),
+            Token::Real => Ok(SqlType::Real),
+            Token::DoublePrecision => Ok(SqlType::DoublePrecision),
+            Token::Varchar => Ok(SqlType::VarChar),
+            Token::Text => Ok(SqlType::Text),
+            Token::Char => Ok(SqlType::Char),
+            Token::Bool => Ok(SqlType::Boolean),
+            _ => Err(ParsingError::Internal {
+                msg: ERR_INVALID_DATA_TYPE.to_string(),
+            }),
+        }
+    }
+}
+
+impl SqlType {
+    #[inline]
+    pub fn from_token(token_container: &TokenContainer) -> Result<Self, ParsingError> {
+        match token_container.token {
+            Token::SmallInt => Ok(SqlType::SmallInt),
+            Token::Int => Ok(SqlType::Int),
+            Token::BigInt => Ok(SqlType::BigInt),
+            Token::Real => Ok(SqlType::Real),
+            Token::DoublePrecision => Ok(SqlType::DoublePrecision),
+            Token::Varchar => Ok(SqlType::VarChar),
+            Token::Text => Ok(SqlType::Text),
+            Token::Char => Ok(SqlType::Char),
+            Token::Bool => Ok(SqlType::Boolean),
+            _ => Err(ParsingError::Internal {
+                msg: ERR_INVALID_DATA_TYPE.to_string(),
+            }),
         }
     }
 
@@ -92,6 +137,12 @@ pub enum SqlValue {
     Numeric(SqlNumeric),
     Boolean(bool),
     Type(SqlType),
+}
+
+impl Default for SqlValue {
+    fn default() -> Self {
+        SqlValue::Null
+    }
 }
 
 impl Serialize for SqlValue {
@@ -401,7 +452,7 @@ impl SqlValue {
     pub fn from_token(token: &Token) -> Result<Self, SqlTypeError> {
         match token {
             Token::StringValue { value } => Ok(SqlValue::Text(SqlText::Text {
-                value: value.clone(),
+                value: value.to_string(),
             })),
             Token::NumericValue { value } => Ok(SqlValue::Numeric(SqlNumeric::parse(value)?)),
             Token::BoolValue { value } => Ok(SqlValue::Boolean(*value)),
@@ -2155,20 +2206,18 @@ impl SqlText {
 
     #[inline]
     pub fn parse_char(data: String, len: usize) -> Result<Self, SqlTypeError> {
-        if len == data.len() {
-            Ok(SqlText::Text { value: data })
-        } else if len < data.len() {
-            Err(SqlTypeError::ParseError(format!(
+        match len.cmp(&data.len()) {
+            Ordering::Equal => Ok(SqlText::Text { value: data }),
+            Ordering::Less => Err(SqlTypeError::ParseError(format!(
                 "Input text too long, expected length: {}, current length: {}",
                 len,
                 data.len()
-            )))
-        } else {
-            Err(SqlTypeError::ParseError(format!(
+            ))),
+            Ordering::Greater => Err(SqlTypeError::ParseError(format!(
                 "Input text too short, expected length: {}, current length: {}",
                 len,
                 data.len()
-            )))
+            ))),
         }
     }
 

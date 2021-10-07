@@ -1,19 +1,17 @@
 [package]
-name = "postgrustql_benchmarks"
+name = "sqlo2_benchmarks"
 version = "0.1.0"
 authors = ["Axmouth <aggronfg@yahoo.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-postgrustql = { path = "../engine" }
+sqlo2 = { path = "../engine" }
 criterion = "0.3"
 instant = { version = "0.1", features = [ "now" ] }
+alloc_counter = "0.0.4"
+sysinfo = "0.20"
+
 
 [[bench]]
 name = "bench_main"
 harness = false
-
-[profile.release]
-debug = true

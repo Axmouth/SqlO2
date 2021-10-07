@@ -1,17 +1,57 @@
-use postgrustql::{self};
+use sqlo2::{self};
 
-use postgrustql::backend::EvalResult;
-use postgrustql::backend_memory::*;
+use sqlo2::backend::EvalResult;
+use sqlo2::backend_memory::*;
+
+extern crate rustc_version_runtime;
+use rustc_version_runtime::version;
 
 use rustyline::{error::ReadlineError, Editor};
 use std::io::{stdout, Write};
 use std::time::Duration;
 
+use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
+
 fn main() {
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+
     let mut mb = MemoryBackend::new();
     let mut rl = Editor::<()>::new();
 
     if rl.load_history("history.txt").is_ok() {}
+
+    let mut system = System::new();
+    system.refresh_all();
+    let rust_info = version();
+
+    println!();
+    println!("SqlO2 {} Repl", VERSION);
+    println!();
+
+    // Display system information:
+    println!(
+        "System:            {} {}",
+        system.name().unwrap_or_else(|| "Unknown".to_string()),
+        system.os_version().unwrap_or_else(|| "unknown".to_string())
+    );
+    println!(
+        "Kernel             {}",
+        system
+            .kernel_version()
+            .unwrap_or_else(|| "Unknown".to_string())
+    );
+    println!(
+        "Rust version:      {}.{}.{}",
+        rust_info.major, rust_info.minor, rust_info.patch
+    );
+    if let Ok(current_pid) = get_current_pid() {
+        let current_process_opt = system.process(current_pid);
+        if let Some(current_process) = current_process_opt {
+            println!("Memory usage(kb):  {}", current_process.memory());
+        }
+    }
+
+    println!();
 
     loop {
         match stdout().flush() {
@@ -21,7 +61,7 @@ fn main() {
             }
         }
 
-        let readline = rl.readline("PostgRustQL #: ");
+        let readline = rl.readline("SqlO2 #: ");
         let input = match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());

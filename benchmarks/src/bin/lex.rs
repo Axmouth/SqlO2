@@ -1,6 +1,6 @@
 use criterion::black_box;
 use instant::Instant;
-use postgrustql::lexer;
+use sqlo2::lexer;
 
 fn lex_benchmark() {
     let lexer = lexer::Lexer::new();
