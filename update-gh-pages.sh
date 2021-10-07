@@ -1,7 +1,7 @@
 cargo install trunk --locked
 rustup target add wasm32-unknown-unknown
 cd wasm-repl
-trunk build --release
+trunk build --release --public-url SqlO2/
 cd ..
 
 mkdir -p docs
