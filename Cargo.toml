@@ -7,7 +7,6 @@ members = [
     "server",
     "test-util",
     "test-test",
-    "wasm-client",
     "wasm-repl",
     "wire-protocol"
 ]

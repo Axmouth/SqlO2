@@ -11,13 +11,7 @@ instant = { version = "0.1", features = [ "now" ] }
 alloc_counter = "0.0.4"
 sysinfo = "0.20"
 
+
 [[bench]]
 name = "bench_main"
 harness = false
-
-[profile.bench]
-debug = true
-
-[profile.release]
-debug = true
-

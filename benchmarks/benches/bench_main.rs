@@ -29,14 +29,14 @@ fn parse_benchmark(c: &mut Criterion) {
     CREATE TABLE people (id INT PRIMARY KEY, name TEXT); INSERT INTO people VALUES (1, 'Baam'); INSERT INTO people VALUES (2, 'Rachel'); INSERT INTO people VALUES (3, 'Rak WraithKaiser'); INSERT INTO people VALUES (4, 'Khun Aguero Agnes');
     SELECT id, name FROM people;
     SELECT id, name FROM people where id != 3;
-    SELECT id, name FROM people where name = 'Rachel';".to_owned().as_str()))));
+    SELECT id, name FROM people where name = 'Rachel';"))));
 }
 
 fn parse_select_benchmark(c: &mut Criterion) {
     let parser = parser::Parser::new();
 
-    c.bench_function("parse", |b| b.iter(|| parser.parse(
-        black_box("SELECT id, age, role, job, position, country, address from people WHERE country = 'GR' AND age > 17 INNER LEFT JOIN ON jobs".to_owned().as_str()))));
+    c.bench_function("parse_select", |b| b.iter(|| parser.parse(
+        black_box("SELECT id, age, role, job, position, country, address from people WHERE country = 'GR' AND age > 17 INNER LEFT JOIN ON jobs"))));
 }
 
 fn create_benchmark(c: &mut Criterion) {
@@ -153,10 +153,10 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
         let result = db.eval_query(black_box(
             format!("SELECT * FROM people WHERE id = {};", i * 10000).as_str(),
         ));
-        if result.is_err() {
-            println!("{}", result.err().unwrap());
-        } else {
-            result.unwrap();
+        if let Err(e) = &result {
+            println!("{}", e);
+        } else if result.is_ok() {
+            continue;
         }
     }
     println!(
@@ -167,10 +167,8 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     // Select benchmark 2
     let before = Instant::now();
     for _ in 0..100 {
-        db.eval_query(black_box(
-            format!("SELECT * FROM people WHERE id = 999999;").as_str(),
-        ))
-        .unwrap();
+        db.eval_query(black_box("SELECT * FROM people WHERE id = 999999;"))
+            .unwrap();
     }
     println!(
         "Elapsed time to select single last row, 100 times: {:.2?}",
@@ -180,10 +178,8 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     // Select benchmark 3
     let before = Instant::now();
     for _ in 0..1 {
-        db.eval_query(black_box(
-            format!("SELECT * FROM people WHERE id = 999999;").as_str(),
-        ))
-        .unwrap();
+        db.eval_query(black_box("SELECT * FROM people WHERE id = 999999;"))
+            .unwrap();
     }
     println!(
         "Elapsed time to select single last row, 1 time: {:.2?}",
@@ -218,10 +214,8 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     // Select benchmark 5
     let before = Instant::now();
     for _ in 0..1 {
-        db.eval_query(black_box(
-            format!("SELECT * FROM people WHERE id = 999999;").as_str(),
-        ))
-        .unwrap();
+        db.eval_query(black_box("SELECT * FROM people WHERE id = 999999;"))
+            .unwrap();
     }
     println!(
         "Elapsed time to select single last row, 1 time, with an index: {:.2?}",
@@ -234,7 +228,7 @@ criterion_group!(
     lex_benchmark,
     lex_select_benchmark,
     parse_benchmark,
-    // parse_select_benchmark,
+    parse_select_benchmark,
     create_benchmark,
     single_insert_benchmark,
     insert_benchmark,

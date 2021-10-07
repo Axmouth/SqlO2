@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, iter::FromIterator};
 
 // location of the token in source code
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Ord, PartialOrd, Default)]
@@ -729,10 +729,10 @@ impl Lexer {
                 }
                 continue 'lex;
             }
-            let mut hint = "".to_owned();
+            let mut hint = "".to_string();
 
             if let Some(TokenContainer { loc: _, token }) = tokens.last() {
-                hint = "after ".to_owned();
+                hint = "after ".to_string();
                 hint.push_str(format!("{:?}", token).as_str());
             }
             let loc = get_location_from_cursor(source, cur.pointer);
@@ -881,16 +881,16 @@ impl Lexer {
         ))
     }
 
-    // lexCharacterDelimited looks through a source string starting at the
+    // lex_character_delimited looks through a source string starting at the
     // given cursor to find a start- and end- delimiter. The delimiter can
     // be escaped be preceeding the delimiter with itself.
-    pub fn lex_character_delimited(
+    pub fn lex_character_delimited<'a>(
         &self,
-        source: &str,
+        source: &'a str,
         ic: Cursor,
         delimiter: char,
         kind: TokenKind,
-    ) -> Option<(TokenContainer, Cursor)> {
+    ) -> Option<(TokenContainer<'a>, Cursor)> {
         let mut cur = ic;
 
         if source[cur.pointer..].is_empty() {
@@ -911,7 +911,7 @@ impl Lexer {
         cur.loc.col += 1;
         cur.pointer += 1;
 
-        let mut value: String = "".to_owned();
+        let mut escaped = false;
 
         let mut char_iter = source[cur.pointer..].chars().peekable();
 
@@ -922,49 +922,59 @@ impl Lexer {
                 // SQL escapes are via double characters, not backslash.
                 match char_iter.peek() {
                     None => {
-                        return Some((
-                            TokenContainer {
-                                loc: ic.loc,
-                                token: if kind == TokenKind::String {
-                                    Token::StringValue {
-                                        value: Cow::Owned(value),
-                                    }
-                                } else {
-                                    Token::IdentifierValue {
-                                        value: Cow::Owned(value),
-                                    }
-                                },
-                            },
-                            cur,
-                        ));
-                    }
-                    Some(char) => {
-                        if *char != delimiter {
+                        if let Some(src) = source.get((ic.pointer + 1)..(cur.pointer - 1)) {
+                            let value = if escaped {
+                                Cow::Owned(src.replace(
+                                    &String::from_iter([delimiter, delimiter]),
+                                    &String::from_iter([delimiter]),
+                                ))
+                            } else {
+                                Cow::Borrowed(src)
+                            };
                             return Some((
                                 TokenContainer {
                                     loc: ic.loc,
                                     token: if kind == TokenKind::String {
-                                        Token::StringValue {
-                                            value: Cow::Owned(value),
-                                        }
+                                        Token::StringValue { value }
                                     } else {
-                                        Token::IdentifierValue {
-                                            value: Cow::Owned(value),
-                                        }
+                                        Token::IdentifierValue { value }
                                     },
                                 },
                                 cur,
                             ));
+                        }
+                    }
+                    Some(char) => {
+                        if *char != delimiter {
+                            if let Some(src) = source.get((ic.pointer + 1)..(cur.pointer - 1)) {
+                                let value = if escaped {
+                                    Cow::Owned(src.replace(
+                                        &String::from_iter([delimiter, delimiter]),
+                                        &String::from_iter([delimiter]),
+                                    ))
+                                } else {
+                                    Cow::Borrowed(src)
+                                };
+                                return Some((
+                                    TokenContainer {
+                                        loc: ic.loc,
+                                        token: if kind == TokenKind::String {
+                                            Token::StringValue { value }
+                                        } else {
+                                            Token::IdentifierValue { value }
+                                        },
+                                    },
+                                    cur,
+                                ));
+                            }
                         } else if *char == delimiter {
+                            escaped = true;
                             char_iter.next();
-                        } else {
-                            value.push(delimiter);
                         }
                     }
                 }
             }
 
-            value.push(c);
             cur.loc.col += 1;
             cur.pointer += 1;
         }
@@ -972,7 +982,11 @@ impl Lexer {
         None
     }
 
-    pub fn lex_string(&self, source: &str, ic: Cursor) -> Option<(TokenContainer, Cursor)> {
+    pub fn lex_string<'a>(
+        &self,
+        source: &'a str,
+        ic: Cursor,
+    ) -> Option<(TokenContainer<'a>, Cursor)> {
         self.lex_character_delimited(source, ic, '\'', TokenKind::String)
     }
 
@@ -1269,7 +1283,7 @@ fn is_char_valid_for_identifier(c: char) -> bool {
 }
 
 #[cfg(test)]
-mod lexer_tests {
+mod tests {
     use super::super::lexer::*;
     use test_util::test_case;
 
