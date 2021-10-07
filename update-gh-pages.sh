@@ -5,4 +5,4 @@ trunk build --release
 cd ..
 
 mkdir -p docs
-cp -r wasm-repl/dist* docs
+cp -r wasm-repl/dist/* docs
