@@ -10,7 +10,7 @@ mod tests {
     fn count_alloc_works() {
         let ((allocations, reallocations, deallocations), _) = count_alloc(|| {
             let a = "dfdddfdf";
-            let _ = a.as_bytes().iter().map(|x| *x).collect::<Vec<u8>>();
+            let _ = a.as_bytes().iter().copied().collect::<Vec<u8>>();
         });
         println!("Allocations : {}", allocations);
         println!("Rellocations : {}", reallocations);

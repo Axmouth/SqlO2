@@ -30,4 +30,4 @@ jobs:
       - name: Check for clippy issues
         uses: icepuma/rust-action@master
         with:
-          args: cargo clippy -- -Dwarnings
+          args: cargo clippy  --all-targets --workspace -- -Dwarnings
