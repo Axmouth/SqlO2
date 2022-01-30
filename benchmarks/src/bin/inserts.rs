@@ -9,7 +9,7 @@ fn main() {
     )
     .unwrap();
     for i in 0..1000000 {
-        db.eval_query(&format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i))
+        db.eval_query(&format!("INSERT INTO people VALUES ({i}, 'Baam{i}');"))
             .unwrap();
     }
 }

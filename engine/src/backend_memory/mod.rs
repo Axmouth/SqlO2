@@ -1,5 +1,7 @@
 extern crate byteorder;
 
+pub mod memory_store;
+
 use super::ast::*;
 use super::backend::*;
 use super::lexer::*;
@@ -16,6 +18,7 @@ use instant::Instant;
 use std::collections::HashMap;
 
 const ERR_INVALID_CELL: &str = "Invalid Cell";
+//TODO:
 // const ERR_INVALID_OPERANDS: &str = "Invalid Operands";
 const ANONYMOUS_COL_NAME: &str = "?column?";
 
@@ -120,7 +123,7 @@ impl Index {
         let (value, _, _) = match new_table.evaluate_cell(0, &value_exp) {
             Ok(value) => value,
             Err(err) => {
-                eprintln!("{}", err);
+                eprintln!("{err}");
                 return Ok(table.clone());
             }
         };
@@ -227,7 +230,7 @@ impl Table {
                         }
                     }
 
-                    Err(format!("{}: {}", value, ERR_COLUMN_DOES_NOT_EXIST))
+                    Err(format!("{value}: {ERR_COLUMN_DOES_NOT_EXIST}"))
                 }
                 LiteralExpression::Numeric(value) => {
                     let typ = SqlType::DoublePrecision;
@@ -269,8 +272,8 @@ impl Table {
                 }
 
                 Err(format!(
-                    "{}: {}",
-                    table_column.col_name, ERR_COLUMN_DOES_NOT_EXIST
+                    "{}: {ERR_COLUMN_DOES_NOT_EXIST}",
+                    table_column.col_name
                 ))
             }
             Expression::ProcessedTableColumn(table_column) => {
@@ -992,7 +995,7 @@ impl MemoryBackend {
         let table = match &tables.get(&table_name) {
             Some(TableContainer::Concrete(table)) => table,
             Some(TableContainer::Temp(table)) => table.as_ref(),
-            None => return Err(format!("Table {} not found", table_name)),
+            None => return Err(format!("Table {table_name} not found")),
         };
 
         for row_index in 0..table.rows.len() {

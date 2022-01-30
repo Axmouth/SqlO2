@@ -2,14 +2,14 @@
 name = "sqlo2_benchmarks"
 version = "0.1.0"
 authors = ["Axmouth <aggronfg@yahoo.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 sqlo2 = { path = "../engine" }
-criterion = "0.3"
-instant = { version = "0.1", features = [ "now" ] }
-alloc_counter = "0.0.4"
-sysinfo = "0.20"
+criterion = "=0.3"
+instant = { version = "=0.1", features = [ "now" ] }
+alloc_counter = "=0.0.4"
+sysinfo = "=0.23.0"
 
 
 [[bench]]

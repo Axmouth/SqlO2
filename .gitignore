@@ -5,3 +5,4 @@ target
 *.data.old
 *history.txt
 /docs
+.idea

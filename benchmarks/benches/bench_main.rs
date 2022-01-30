@@ -102,7 +102,7 @@ fn select_benchmark(c: &mut Criterion) {
     )
     .unwrap();
     for i in 0..10000 {
-        db.eval_query(&format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i))
+        db.eval_query(&format!("INSERT INTO people VALUES ({i}, 'Baam{i}');"))
             .unwrap();
     }
     let temp = db.eval_query("SELECT * FROM people;").unwrap();
@@ -137,10 +137,8 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     db.eval_query("CREATE TABLE people (id INT, name TEXT);")
         .unwrap();
     for i in 0..1000000 {
-        db.eval_query(
-            black_box(format!("INSERT INTO people VALUES ({}, 'Baam{}');", i, i)).as_str(),
-        )
-        .unwrap();
+        db.eval_query(black_box(format!("INSERT INTO people VALUES ({i}, 'Baam{i}');")).as_str())
+            .unwrap();
     }
     println!(
         "Elapsed time to insert 1000000 rows: {:.2?}",

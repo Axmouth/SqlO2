@@ -33,7 +33,7 @@ pub enum DeserializationError {
 impl From<std::io::Error> for DeserializationError {
     fn from(err: std::io::Error) -> Self {
         DeserializationError::InvalidMessage {
-            msg: format!("{}", err),
+            msg: err.to_string(),
         }
     }
 }
@@ -136,8 +136,7 @@ impl<'a> DeserializableMessage<'a> for Bind<'a> {
             if params.len() != numparams as usize {
                 return Err(DeserializationError::InvalidMessage {
                     msg: format!(
-                        "Invalid Bind message: expected {} params, got {}",
-                        numparams,
+                        "Invalid Bind message: expected {numparams} params, got {}",
                         params.len()
                     ),
                 });
@@ -154,8 +153,7 @@ impl<'a> DeserializableMessage<'a> for Bind<'a> {
             if results.len() != numresults as usize {
                 return Err(DeserializationError::InvalidMessage {
                     msg: format!(
-                        "Invalid Bind message: expected {} formats, got {}",
-                        numresults,
+                        "Invalid Bind message: expected {numresults} formats, got {}",
                         results.len()
                     ),
                 });
@@ -376,9 +374,7 @@ pub struct ParameterStatus<'a> {
 
 impl<'a> DeserializableMessage<'a> for ParameterStatus<'a> {
     fn deserialize_content(bytes: &'a [u8]) -> Result<Self, DeserializationError> {
-        let mut content_split = bytes
-            .split(|c| *c == b'\0')
-            .map(|v| String::from_utf8_lossy(v));
+        let mut content_split = bytes.split(|c| *c == b'\0').map(String::from_utf8_lossy);
 
         if let (Some(name), Some(value), None) = (
             content_split.next(),
@@ -586,7 +582,7 @@ impl<'a> DeserializableMessage<'a> for StartupMessage<'a> {
         }
         let mut options_list = content_split
             .filter(|v| !v.is_empty())
-            .map(|v| String::from_utf8_lossy(v));
+            .map(String::from_utf8_lossy);
         let mut options = HashMap::new();
         loop {
             let (k, v) = (options_list.next(), options_list.next());

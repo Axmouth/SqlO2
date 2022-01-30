@@ -1,270 +1,262 @@
+use std::rc::Rc;
+
 use crate::components::results_table::ResultsTable;
 use crate::services::sqlo2_service::SqlO2Service;
 use sqlo2::{backend::EvalResult, sql_types::SqlValue};
 
 use serde::{Deserialize, Serialize};
-use yew::{
-    html, web_sys::HtmlTextAreaElement, Component, ComponentLink, Html, InputData, KeyboardEvent,
-    NodeRef, ShouldRender,
-};
-use yew_router::service::RouteService;
+use wasm_bindgen::JsCast;
+use web_sys::{EventTarget, HtmlTextAreaElement};
+use yew::prelude::*;
+use yew_router::prelude::*;
 
 #[derive(Debug, Clone)]
-pub enum Msg {
+pub enum ReplAction {
     FocusInput,
-    QuerySubmit,
-    HistoryUp,
     HistoryDown,
+    HistoryUp,
     QueryInputValue(String),
+    QuerySubmit(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct ExecutedQuery {
-    query_string: String,
+    query_string: Box<str>,
     query_results: Result<Vec<EvalResult<SqlValue>>, String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct Query {
     default: Option<Option<bool>>,
     q: Option<Option<String>>,
 }
 
-#[derive(Debug)]
-pub struct Repl {
-    // `ComponentLink` is like a reference to a component.
-    // It can be used to send messages to the component
-    link: ComponentLink<Self>,
+#[derive(Clone, Debug, Default, PartialEq)]
+struct ReplState {
     exec_history: Vec<ExecutedQuery>,
-    query_string: String,
+    query_string: Box<str>,
     can_type: bool,
     history_position: usize,
-    current: String,
+    current: Box<str>,
     focus_ref: NodeRef,
-    route_service: RouteService,
 }
 
-impl Component for Repl {
-    type Message = Msg;
-    type Properties = ();
+impl Reducible for ReplState {
+    type Action = ReplAction;
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let route_service = RouteService::new();
-
-        let q_str = route_service.get_query();
-        let q = serde_qs::from_str::<Query>(&q_str);
-
-        let mut exec_history = vec![];
-        let mut history_position = 0;
-        if let Ok(q) = q {
-            if let Some(Some(true)) = q.default {
-                for sql in DEFAULT_QUERIES {
-                    exec_history.push(ExecutedQuery {
-                        query_results: SqlO2Service::execute(*sql),
-                        query_string: sql.to_string(),
-                    });
-                }
-                history_position = DEFAULT_QUERIES.len();
-            }
-            if let Some(Some(sql)) = q.q {
-                exec_history.push(ExecutedQuery {
-                    query_results: SqlO2Service::execute(&sql),
-                    query_string: sql,
-                });
-                history_position = DEFAULT_QUERIES.len();
-            }
-        }
-
-        Self {
-            link,
-            exec_history,
-            query_string: "".to_string(),
-            can_type: false,
-            history_position,
-            current: "".to_string(),
-            focus_ref: NodeRef::default(),
-            route_service,
-        }
-    }
-
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn reduce(self: Rc<Self>, msg: Self::Action) -> Rc<Self> {
         match msg {
-            Msg::FocusInput => {
+            ReplAction::FocusInput => {
                 if let Some(input) = self.focus_ref.cast::<HtmlTextAreaElement>() {
-                    let _ = input.focus().is_ok();
-                }
-                true
-            }
-            Msg::QuerySubmit => {
-                self.can_type = false;
-                if let Some(input) = self.focus_ref.cast::<HtmlTextAreaElement>() {
-                    self.exec_history.push(ExecutedQuery {
-                        query_string: input.value(),
-                        query_results: SqlO2Service::execute(self.query_string.as_str()),
-                    });
-                    self.current = "".to_string();
-                    self.query_string = "".to_string();
-                    self.history_position = self.exec_history.len();
                     let _ = input.focus().is_ok();
                     input.scroll_into_view();
                 }
-                true
+
+                self
             }
-            Msg::HistoryUp => {
-                if self.history_position > 0 {
-                    self.history_position -= 1;
-                }
-                if self.history_position >= self.exec_history.len() {
-                    self.query_string = self.current.clone();
-                } else {
-                    self.query_string = self.exec_history[self.history_position]
-                        .query_string
-                        .clone();
-                }
-                true
+            ReplAction::QuerySubmit(sql) => {
+                let mut state = (*self).clone();
+                state.can_type = false;
+                state.exec_history.push(ExecutedQuery {
+                    query_string: sql.clone().into(),
+                    query_results: SqlO2Service::execute(&sql),
+                });
+                state.current = "".into();
+                state.query_string = "".into();
+                state.history_position = state.exec_history.len();
+
+                Rc::new(state)
             }
-            Msg::HistoryDown => {
-                if self.history_position < self.exec_history.len() {
-                    self.history_position += 1;
+            ReplAction::HistoryUp => {
+                let mut state = (*self).clone();
+                if state.history_position > 0 {
+                    state.history_position -= 1;
                 }
-                if self.history_position >= self.exec_history.len() {
-                    self.query_string = self.current.clone();
-                } else {
-                    self.query_string = self.exec_history[self.history_position]
-                        .query_string
-                        .clone();
-                }
-                true
+
+                state.query_string = state
+                    .exec_history
+                    .get(state.history_position)
+                    .map(|e| e.query_string.clone())
+                    .unwrap_or_else(|| state.current.clone());
+
+                Rc::new(state)
             }
-            Msg::QueryInputValue(e) => {
-                if !self.can_type {
-                    self.can_type = true;
+            ReplAction::HistoryDown => {
+                let mut state = (*self).clone();
+                if state.history_position < state.exec_history.len() {
+                    state.history_position += 1;
+                }
+
+                state.query_string = state
+                    .exec_history
+                    .get(state.history_position)
+                    .map(|e| e.query_string.clone())
+                    .unwrap_or_else(|| state.current.clone());
+
+                Rc::new(state)
+            }
+            ReplAction::QueryInputValue(e) => {
+                let mut state = (*self).clone();
+                if !state.can_type {
+                    state.can_type = true;
                 } else {
-                    self.query_string = e;
-                    if self.history_position == self.exec_history.len() {
-                        self.current = self.query_string.clone();
+                    state.query_string = e.into();
+                    if state.history_position == state.exec_history.len() {
+                        state.current = state.query_string.clone();
                     }
                 }
-                true
+
+                Rc::new(state)
             }
         }
     }
+}
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        // Should only return "true" if new properties are different to
-        // previously received properties.
-        // This component has no properties so we will always return "false".
-        false
-    }
+#[function_component(Repl)]
+pub fn repl() -> Html {
+    let focus_ref = use_node_ref();
+    let state = use_reducer(|| ReplState {
+        focus_ref: focus_ref.clone(),
+        ..Default::default()
+    });
 
-    fn view(&self) -> Html {
-        let focus_input = self.link.callback(|_| Msg::FocusInput);
+    let location = use_location();
+    let query: Option<Query> = location.map(|loc| loc.query().ok()).flatten();
 
-        let keyup = self.link.batch_callback(|e: KeyboardEvent| {
-            if e.key() == "Enter" && !e.shift_key() {
-                Some(Msg::QuerySubmit)
-            } else if e.key() == "ArrowUp" {
-                Some(Msg::HistoryUp)
-            } else if e.key() == "ArrowDown" {
-                Some(Msg::HistoryDown)
-            } else {
-                None
+    let state_cb = state.clone();
+    use_effect_with_deps(
+        move |_| {
+            if let Some(q) = query {
+                if let Some(Some(true)) = q.default {
+                    for sql in DEFAULT_QUERIES.iter().copied() {
+                        state_cb.dispatch(ReplAction::QuerySubmit(sql.to_string()));
+                    }
+                }
+                if let Some(Some(sql)) = q.q {
+                    state_cb.dispatch(ReplAction::QuerySubmit(sql));
+                }
+                state_cb.dispatch(ReplAction::FocusInput);
             }
-        });
-        let keydown = self.link.batch_callback(|e: KeyboardEvent| {
-            if e.key() == "Enter" && !e.shift_key() {
-                e.prevent_default();
-                None
-            } else {
-                None
-            }
-        });
 
-        html! {
-            <>
-                <div class="repl-main" onclick=focus_input>
-                    { for self.exec_history.iter().map(|item| {
-                        html! {
-                            <div>
-                                <div class="prompt-wrapper">
-                                    <div class="prompt">{"SqlO2#:\u{00a0}"}</div>
-                                    <pre class="executed-query">{{ &item.query_string }}</pre>
-                                </div>
-                                <br />
-                                {
-                                    if let Ok(query_results) = &item.query_results {
-                                        html!{
-                                            <>
-                                                <div class="results-section">
-                                                    {
-                                                                for query_results.iter().map(|query_result|
-                                                                html!{
-                                                                    {
-                                                                        if let EvalResult::Select { results, time: _ } = &query_result {
-                                                                            html!{
-                                                                                <div class="results-table">
-                                                                                    <ResultsTable result={results.clone()} />
-                                                                                </div>
-                                                                            }
-                                                                        } else {
-                                                                            html!{<></>
-                                                                        }
-                                                                        }
+            || {}
+        },
+        (),
+    );
+
+    let state_cb = state.clone();
+    use_effect(move || {
+        move || {
+            if let Some(input) = state_cb.focus_ref.cast::<HtmlTextAreaElement>() {
+                input.set_rows((input.scroll_height() / 18) as u32);
+                let _ = input.focus().is_ok();
+                input.scroll_into_view();
+            }
+        }
+    });
+
+    let state_cb = state.clone();
+    let focus_input = Callback::from(move |_| {
+        state_cb.dispatch(ReplAction::FocusInput);
+    });
+
+    let state_cb = state.clone();
+    let keyup = Callback::from(move |e: KeyboardEvent| {
+        if e.key() == "Enter" && !e.shift_key() {
+            state_cb.dispatch(ReplAction::QuerySubmit(state_cb.query_string.to_string()));
+            state_cb.dispatch(ReplAction::FocusInput);
+        } else if e.key() == "ArrowUp" {
+            state_cb.dispatch(ReplAction::HistoryUp);
+        } else if e.key() == "ArrowDown" {
+            state_cb.dispatch(ReplAction::HistoryDown);
+        }
+    });
+
+    let state_cb = state.clone();
+    let keydown = Callback::from(move |e: KeyboardEvent| {
+        if e.key() == "Enter" && !e.shift_key() {
+            e.prevent_default();
+        }
+        let target: Option<EventTarget> = e.target();
+        let input = target.and_then(|t| t.dyn_into::<HtmlTextAreaElement>().ok());
+        if let Some(value) = input.map(|input| input.value()) {
+            state_cb.dispatch(ReplAction::QueryInputValue(value));
+        }
+    });
+
+    html! {
+        <>
+            <div class="repl-main" onclick={focus_input}>
+                { for state.exec_history.iter().map(|item| {
+                    html! {
+                        <div>
+                            <div class="prompt-wrapper">
+                                <div class="prompt">{"SqlO2#:\u{00a0}"}</div>
+                                <pre class="executed-query">{{ &item.query_string }}</pre>
+                            </div>
+                            <br />
+                            {
+                                if let Ok(query_results) = &item.query_results {
+                                    html! {
+                                        <>
+                                            <div class="results-section">
+                                                {
+                                                    for query_results.iter().map(|query_result|
+                                                        html! {
+                                                            {
+                                                                if let EvalResult::Select { results, time: _ } = &query_result {
+                                                                    html! {
+                                                                        <div class="results-table">
+                                                                            <ResultsTable result={results.clone()} />
+                                                                        </div>
                                                                     }
-                                                                })
-                                                    }
-                                                </div>
-                                                <div class="ok">
-                                                    <div>{"ok!"}</div>
-                                                </div>
-                                            </>
-                                        }
-                                    } else if let Err(err) = &item.query_results {
-                                        html!{
-                                            <div class="failed">
-                                                <div>{"fail..\u{00a0}"}</div>
-                                                <div>{"Error:\u{00a0}"} { err }</div>
+                                                                } else {
+                                                                    html! {
+                                                                        <></>
+                                                                    }
+                                                                }
+                                                            }
+                                                        })
+                                                }
                                             </div>
-                                        }
-
-                                    } else {
-                                        html!{
-                                            <div class="failed"/>
-                                        }
+                                            <div class="ok">
+                                                <div>{"ok!"}</div>
+                                            </div>
+                                        </>
+                                    }
+                                } else if let Err(err) = &item.query_results {
+                                    html! {
+                                        <div class="failed">
+                                            <div>{"fail..\u{00a0}"}</div>
+                                            <div>{"Error:\u{00a0}"} { err }</div>
+                                        </div>
+                                    }
+                                } else {
+                                    html! {
+                                        <div class="failed"/>
                                     }
                                 }
-                                </div>
-                    }})
+                            }
+                            </div>
+                }})
 
-                    }
+                }
 
-                <div class="prompt-wrapper">
-                <div class="prompt">{"SqlO2#:\u{00a0}"}</div>
-                    <textarea
-                        class="terminal-input"
-                        oninput=self.link.callback(|e: InputData| Msg::QueryInputValue(e.value))
-                        onkeyup=keyup
-                        onkeydown=keydown
-                        rows=1
-                        autofocus=true
-                        ref={self.focus_ref.clone()}
-                        value={self.query_string.clone()}
-                    ></textarea>
-                </div>
+            <div class="prompt-wrapper">
+            <div class="prompt">{"SqlO2#:\u{00a0}"}</div>
+                <textarea
+                    class="terminal-input"
+                    onkeyup={keyup}
+                    onkeydown={keydown}
+                    rows=1
+                    autofocus=true
+                    ref={focus_ref.clone()}
+                    value={state.query_string.to_string()}
+                >
+                </textarea>
             </div>
-        </>
-        }
+        </div>
+    </>
     }
-
-    fn rendered(&mut self, _first_render: bool) {
-        if let Some(input) = self.focus_ref.cast::<HtmlTextAreaElement>() {
-            input.set_rows((input.scroll_height() / 18) as u32);
-            let _ = input.focus().is_ok();
-            input.scroll_into_view();
-        }
-    }
-
-    fn destroy(&mut self) {}
 }
 
 static DEFAULT_QUERIES: &[&str] = &[

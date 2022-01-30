@@ -12,9 +12,9 @@ mod tests {
             let a = "dfdddfdf";
             let _ = a.as_bytes().iter().copied().collect::<Vec<u8>>();
         });
-        println!("Allocations : {}", allocations);
-        println!("Rellocations : {}", reallocations);
-        println!("Dellocations : {}", deallocations);
+        println!("Allocations : {allocations}");
+        println!("Rellocations : {reallocations}");
+        println!("Dellocations : {deallocations}");
 
         assert_eq!(allocations, 1);
         assert_eq!(reallocations, 0);

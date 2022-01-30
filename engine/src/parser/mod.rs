@@ -154,7 +154,7 @@ fn help_message(token: Option<&TokenContainer>, cursor: usize, msg: &str) -> Str
             token.loc.line, token.loc.col, msg, token.token,
         )
     } else {
-        format!("Token {} : {}", cursor, msg)
+        format!("Token {cursor} : {msg}")
     }
 }
 
@@ -1455,7 +1455,7 @@ fn parse_select_statement<'a>(
                 Ok(val) => val,
                 Err(err) => {
                     return Err(ParsingError::General {
-                        msg: format!("Failed to parse Limit value: {}", err.to_string()),
+                        msg: format!("Failed to parse Limit value: {err}"),
                         cursor,
                     });
                 }
@@ -1497,7 +1497,7 @@ fn parse_select_statement<'a>(
                 Ok(val) => val,
                 Err(err) => {
                     return Err(ParsingError::General {
-                        msg: format!("Failed to parse Offset value: {}", err.to_string()),
+                        msg: format!("Failed to parse Offset value: {err}"),
                         cursor,
                     });
                 }
@@ -1538,7 +1538,9 @@ fn parse_joins<'a>(
         let mut kind = JoinKind::Inner;
         if tokens.get(cursor).is_none() {
             break;
-        } else if let Some(TokenContainer {
+        }
+
+        if let Some(TokenContainer {
             token: Token::On,
             loc: _,
         }) = tokens.get(cursor)
@@ -2083,7 +2085,7 @@ mod parser_tests {
         }
 
         if found_faults {
-            panic!("{}", err_msg);
+            panic!("{err_msg}");
         }
     }
 }

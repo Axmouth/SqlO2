@@ -120,8 +120,7 @@ impl CreateIndexStatement {
     pub fn generate_code(&self) -> Result<String, String> {
         let unique = if self.is_unique { " UNIQUE" } else { "" };
         Ok(format!(
-            "CREATE{} INDEX \"{}\" ON \"{}\" ({});",
-            unique,
+            "CREATE{unique} INDEX \"{}\" ON \"{}\" ({});",
             self.name,
             self.table,
             self.expression.generate_code()?
@@ -148,8 +147,8 @@ impl CreateConstraintStatement {
     pub fn generate_code(&self) -> Result<String, String> {
         let unique = if false { " UNIQUE" } else { "" };
         Ok(format!(
-            "CREATE{} CONSTRAINT \"{}\" ON \"{}\" ();",
-            unique, self.name, self.table,
+            "CREATE{unique} CONSTRAINT \"{}\" ON \"{}\" ();",
+            self.name, self.table,
         ))
     }
 }
@@ -208,9 +207,9 @@ impl Expression {
             Expression::Unary(value) => value.generate_code(),
             // Expression::SubSelect(value) => value.generate_code(),
             Expression::TableColumn(value) => Ok(value.col_name.clone()),
-            Expression::Cast { data, typ } => data
-                .generate_code()
-                .map(|s| format!("CAST({} AS {})", s, typ.to_string())),
+            Expression::Cast { data, typ } => {
+                data.generate_code().map(|s| format!("CAST({s} AS {typ})"))
+            }
             Expression::Empty => Ok("".to_string()),
             _ => Err("Unknown Expression Kind".to_string()),
         }
@@ -249,8 +248,8 @@ pub enum LiteralExpression {
 impl LiteralExpression {
     pub fn generate_code(&self) -> Result<String, String> {
         match self {
-            LiteralExpression::String(value) => Ok(format!("'{}'", value)),
-            LiteralExpression::Identifier(value) => Ok(format!("\"{}\"", value)),
+            LiteralExpression::String(value) => Ok(format!("'{value}'")),
+            LiteralExpression::Identifier(value) => Ok(format!("\"{value}\"")),
             LiteralExpression::Numeric(value) => Ok(value.clone()),
             LiteralExpression::Bool(value) => Ok(if *value {
                 TRUE_KEYWORD.to_string()
@@ -803,7 +802,7 @@ mod ast_tests {
         }
 
         if found_faults {
-            panic!("{}", err_msg);
+            panic!("{err_msg}");
         }
     }
 }

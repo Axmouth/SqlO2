@@ -1,8 +1,8 @@
 [package]
 name = "sqlo2_wire_protocol"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-log = "0.4"
-byteorder = "1.4"
+log = "=0.4.14"
+byteorder = "=1.4.3"

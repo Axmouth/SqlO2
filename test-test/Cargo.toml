@@ -1,8 +1,8 @@
 [package]
 name = "test_test"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 test_util = { path = "../test-util" }
-pretty_assertions = "0.7"
+pretty_assertions = "=1.0.0"
