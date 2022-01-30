@@ -31,8 +31,5 @@ pub mod lexer;
 pub mod parser;
 pub mod sql_types;
 
-#[macro_use]
-extern crate lazy_static;
-
 #[cfg(test)]
 mod tests {}

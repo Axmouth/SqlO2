@@ -260,7 +260,7 @@ impl LiteralExpression {
         }
     }
 
-    pub fn from_token(token: &Token) -> Result<LiteralExpression, ParsingError> {
+    pub fn from_token(token: &Token, cursor: usize) -> Result<LiteralExpression, ParsingError> {
         match token {
             Token::StringValue { value } => Ok(LiteralExpression::String(value.to_string())),
             Token::IdentifierValue { value } => {
@@ -271,6 +271,7 @@ impl LiteralExpression {
             Token::Null => Ok(LiteralExpression::Null),
             _ => Err(ParsingError::Internal {
                 msg: "Unexpected token".to_string(),
+                cursor,
             }),
         }
     }
@@ -367,7 +368,7 @@ impl Operand {
         .to_string()
     }
 
-    pub fn from_token(token: &Token) -> Result<Operand, ParsingError> {
+    pub fn from_token(token: &Token, cursor: usize) -> Result<Operand, ParsingError> {
         match token {
             Token::Plus => Ok(Operand::Add),
             Token::Minus => Ok(Operand::Subtract),
@@ -411,6 +412,7 @@ impl Operand {
             // Token::BitwiseShiftRightZeroFill => Ok(Operand::BitwiseShiftRightZeroFill),
             _ => Err(ParsingError::Internal {
                 msg: format!("Unrecognized token: {:?}", token),
+                cursor,
             }),
         }
     }

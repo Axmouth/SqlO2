@@ -26,10 +26,10 @@ pub enum SqlType {
     Type,
 }
 
-impl TryFrom<&Token<'_>> for SqlType {
+impl TryFrom<(&Token<'_>, usize)> for SqlType {
     type Error = ParsingError;
 
-    fn try_from(token: &Token) -> Result<Self, Self::Error> {
+    fn try_from((token, cursor): (&Token, usize)) -> Result<Self, Self::Error> {
         match token {
             Token::SmallInt => Ok(SqlType::SmallInt),
             Token::Int => Ok(SqlType::Int),
@@ -42,15 +42,16 @@ impl TryFrom<&Token<'_>> for SqlType {
             Token::Bool => Ok(SqlType::Boolean),
             _ => Err(ParsingError::Internal {
                 msg: ERR_INVALID_DATA_TYPE.to_string(),
+                cursor,
             }),
         }
     }
 }
 
-impl TryFrom<&TokenContainer<'_>> for SqlType {
+impl TryFrom<(&TokenContainer<'_>, usize)> for SqlType {
     type Error = ParsingError;
 
-    fn try_from(token_c: &TokenContainer) -> Result<Self, Self::Error> {
+    fn try_from((token_c, cursor): (&TokenContainer, usize)) -> Result<Self, Self::Error> {
         match token_c.token {
             Token::SmallInt => Ok(SqlType::SmallInt),
             Token::Int => Ok(SqlType::Int),
@@ -63,6 +64,7 @@ impl TryFrom<&TokenContainer<'_>> for SqlType {
             Token::Bool => Ok(SqlType::Boolean),
             _ => Err(ParsingError::Internal {
                 msg: ERR_INVALID_DATA_TYPE.to_string(),
+                cursor,
             }),
         }
     }
@@ -70,7 +72,10 @@ impl TryFrom<&TokenContainer<'_>> for SqlType {
 
 impl SqlType {
     #[inline]
-    pub fn from_token(token_container: &TokenContainer) -> Result<Self, ParsingError> {
+    pub fn from_token(
+        token_container: &TokenContainer,
+        cursor: usize,
+    ) -> Result<Self, ParsingError> {
         match token_container.token {
             Token::SmallInt => Ok(SqlType::SmallInt),
             Token::Int => Ok(SqlType::Int),
@@ -83,6 +88,7 @@ impl SqlType {
             Token::Bool => Ok(SqlType::Boolean),
             _ => Err(ParsingError::Internal {
                 msg: ERR_INVALID_DATA_TYPE.to_string(),
+                cursor,
             }),
         }
     }

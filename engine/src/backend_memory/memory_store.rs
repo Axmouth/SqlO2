@@ -34,9 +34,7 @@ pub struct MemoryStore {
 
 impl MemoryStore {
     pub fn new() -> Self {
-        Self {
-            sections: vec![],
-        }
+        Self { sections: vec![] }
     }
 
     pub fn len(&self) -> usize {
