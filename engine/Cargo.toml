@@ -20,7 +20,8 @@ serde = { version = "=1.0.136", features = ["derive"] }
 jemallocator = {version = "=0.3.2", optional = true }
 mimalloc = { version = "=0.1.27", default-features = false, optional = true }
 alloc_counter = {version = "=0.0.4", optional = true }
+test-util = { path = "../test-util" }
 
 [dev-dependencies]
 pretty_assertions = "=1.0.0"
-test_util = { path = "../test-util" }
+test-macros = { path = "../test-macros" }

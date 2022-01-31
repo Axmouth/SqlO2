@@ -1,0 +1,1 @@
+INSERT INTO characters VALUES (17, 'Should fail');

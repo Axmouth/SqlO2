@@ -6,3 +6,5 @@ target
 *history.txt
 /docs
 .idea
+
+*.test_diff

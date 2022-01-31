@@ -1,5 +1,5 @@
 [package]
-name = "sqlo2_wasm_repl"
+name = "sqlo2_wasm-repl"
 version = "0.1.0"
 edition = "2021"
 

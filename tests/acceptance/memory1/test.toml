@@ -1,0 +1,11 @@
+[[query]]
+result = "ok"
+filename = "query1"
+
+[[query]]
+result = "ok"
+filename = "query2"
+
+[[query]]
+result = "err"
+filename = "query3"

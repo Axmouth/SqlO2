@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sqlo2_wire_protocol = { path = "../wire-protocol" }
+sqlo2_wire-protocol = { path = "../wire-protocol" }
 sqlo2 = { path = "../engine" }
 byteorder = "=1.4.3"
 log = "=0.4.14"

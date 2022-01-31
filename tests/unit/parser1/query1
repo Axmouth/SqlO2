@@ -1,0 +1,123 @@
+Ast {
+    statements: [
+        CreateTableStatement(
+            CreateTableStatement {
+                name: "character_roles",
+                cols: [
+                    ColumnDefinition {
+                        name: "character_id",
+                        data_type: Int,
+                        is_primary_key: false,
+                    },
+                    ColumnDefinition {
+                        name: "role_name",
+                        data_type: Text,
+                        is_primary_key: false,
+                    },
+                ],
+            },
+        ),
+        InsertStatement(
+            InsertStatement {
+                table: "character_roles",
+                values: [
+                    Literal(
+                        Numeric(
+                            "1",
+                        ),
+                    ),
+                    Literal(
+                        String(
+                            "Wave Controller",
+                        ),
+                    ),
+                ],
+            },
+        ),
+        InsertStatement(
+            InsertStatement {
+                table: "character_roles",
+                values: [
+                    Literal(
+                        Numeric(
+                            "2",
+                        ),
+                    ),
+                    Literal(
+                        String(
+                            "Light Bearer",
+                        ),
+                    ),
+                ],
+            },
+        ),
+        InsertStatement(
+            InsertStatement {
+                table: "character_roles",
+                values: [
+                    Literal(
+                        Numeric(
+                            "3",
+                        ),
+                    ),
+                    Literal(
+                        String(
+                            "Spear Bearer",
+                        ),
+                    ),
+                ],
+            },
+        ),
+        InsertStatement(
+            InsertStatement {
+                table: "character_roles",
+                values: [
+                    Literal(
+                        Numeric(
+                            "4",
+                        ),
+                    ),
+                    Literal(
+                        String(
+                            "Light Bearer",
+                        ),
+                    ),
+                ],
+            },
+        ),
+        InsertStatement(
+            InsertStatement {
+                table: "character_roles",
+                values: [
+                    Literal(
+                        Numeric(
+                            "1",
+                        ),
+                    ),
+                    Literal(
+                        String(
+                            "Fisherman",
+                        ),
+                    ),
+                ],
+            },
+        ),
+        InsertStatement(
+            InsertStatement {
+                table: "character_roles",
+                values: [
+                    Literal(
+                        Numeric(
+                            "4",
+                        ),
+                    ),
+                    Literal(
+                        String(
+                            "Spear Bearer",
+                        ),
+                    ),
+                ],
+            },
+        ),
+    ],
+}

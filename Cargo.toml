@@ -5,8 +5,10 @@ members = [
     "benchmarks",
     "repl",
     "server",
-    "test-util",
+    "test-macros",
     "test-test",
+    "test-util",
+    "tests",
     "wasm-repl",
     "wire-protocol"
 ]

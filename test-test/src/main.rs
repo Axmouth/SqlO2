@@ -1,11 +1,11 @@
-extern crate test_util;
+extern crate test_macros;
 
 fn main() {}
 
 #[cfg(test)]
 mod test_tests {
     use pretty_assertions::{assert_eq, assert_ne};
-    use test_util::test_case;
+    use test_macros::test_case;
 
     #[test_case([1, 2, 4], [1, 2, 4])]
     #[test_case([2, 2, 3], [2, 2, 3])]

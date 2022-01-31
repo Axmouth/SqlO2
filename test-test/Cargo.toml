@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-test_util = { path = "../test-util" }
+test-macros = { path = "../test-macros" }
 pretty_assertions = "=1.0.0"

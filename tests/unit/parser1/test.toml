@@ -1,0 +1,7 @@
+[[query]]
+result = "ok"
+filename = "query1"
+
+[[query]]
+result = "err"
+filename = "query2"

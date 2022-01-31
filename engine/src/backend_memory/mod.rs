@@ -16,6 +16,7 @@ use crate::{
 };
 use instant::Instant;
 use std::collections::HashMap;
+use test_util::TestSubjectExt;
 
 const ERR_INVALID_CELL: &str = "Invalid Cell";
 //TODO:
@@ -525,6 +526,12 @@ impl Table {
 pub struct MemoryBackend {
     tables: HashMap<String, Table>,
     parser: Parser,
+}
+
+impl TestSubjectExt for MemoryBackend {
+    fn init() -> Self {
+        Self::new()
+    }
 }
 
 pub fn get_true_mem_cell() -> MemoryCell {
@@ -1242,7 +1249,7 @@ mod tests {
         use super::*;
         use instant::Duration;
         use pretty_assertions::assert_eq;
-        use test_util::test_case;
+        use test_macros::test_case;
 
         #[test_case(
             "Select 1",

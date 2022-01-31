@@ -1,0 +1,137 @@
+[
+    Select {
+        results: QueryResults {
+            columns: [
+                ResultColumn {
+                    col_type: Int,
+                    name: "id",
+                },
+                ResultColumn {
+                    col_type: Text,
+                    name: "name",
+                },
+                ResultColumn {
+                    col_type: Int,
+                    name: "character_id",
+                },
+                ResultColumn {
+                    col_type: Text,
+                    name: "role_name",
+                },
+            ],
+            rows: [
+                [
+                    Numeric(
+                        Int {
+                            value: 1,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "The 25th Bam",
+                        },
+                    ),
+                    Numeric(
+                        Int {
+                            value: 1,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "Wave Controller",
+                        },
+                    ),
+                ],
+                [
+                    Numeric(
+                        Int {
+                            value: 1,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "The 25th Bam",
+                        },
+                    ),
+                    Numeric(
+                        Int {
+                            value: 1,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "Fisherman",
+                        },
+                    ),
+                ],
+                [
+                    Numeric(
+                        Int {
+                            value: 3,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "Rak WraithKaiser",
+                        },
+                    ),
+                    Numeric(
+                        Int {
+                            value: 3,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "Spear Bearer",
+                        },
+                    ),
+                ],
+                [
+                    Numeric(
+                        Int {
+                            value: 4,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "Khun Aguero Agnes",
+                        },
+                    ),
+                    Numeric(
+                        Int {
+                            value: 4,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "Light Bearer",
+                        },
+                    ),
+                ],
+                [
+                    Numeric(
+                        Int {
+                            value: 4,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "Khun Aguero Agnes",
+                        },
+                    ),
+                    Numeric(
+                        Int {
+                            value: 4,
+                        },
+                    ),
+                    Text(
+                        Text {
+                            value: "Spear Bearer",
+                        },
+                    ),
+                ],
+            ],
+        },
+        time: 0ns,
+    },
+]

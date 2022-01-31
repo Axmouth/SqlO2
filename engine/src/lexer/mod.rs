@@ -1,6 +1,7 @@
 use std::{borrow::Cow, iter::FromIterator};
+use test_util::TestSubjectExt;
 
-// location of the token in source code
+// Location of the token in source code
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Ord, PartialOrd, Default)]
 pub struct TokenLocation {
     pub line: usize,
@@ -400,6 +401,21 @@ pub enum LexingError {
     General { msg: String, loc: TokenLocation },
 }
 
+macro_rules! lex_error {
+    ($msg:expr) => {
+        LexingError::General {
+            msg: $msg.to_string(),
+            loc: TokenLocation::new(0, 0),
+        }
+    };
+    ($msg:expr, $loc:expr) => {
+        LexingError::General {
+            msg: $msg.to_string(),
+            loc: $loc,
+        }
+    };
+}
+
 impl std::fmt::Display for LexingError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -613,6 +629,12 @@ pub struct Lexer {
     max_symbol_length: usize,
 }
 
+impl TestSubjectExt for Lexer {
+    fn init() -> Self {
+        Self::new()
+    }
+}
+
 impl Lexer {
     pub fn new() -> Self {
         let max_symbol_length =
@@ -648,10 +670,10 @@ impl Lexer {
     //
     // 1. Instantiating a cursor with pointing to the start of the string
     //
-    // 2. Execute all the lexers in series.
+    // 2. Go through all the lexers in series.
     //
     // 3. If any of the lexer generate a token then add the token to the
-    // token slice, update the cursor and restart the process from the new
+    // token list, update the cursor and restart the process from the new
     pub fn lex<'a>(&'a self, source: &'a str) -> Result<Vec<TokenContainer<'a>>, LexingError> {
         let mut tokens = Vec::with_capacity(30);
         let mut cur: Cursor = Cursor {
@@ -736,11 +758,11 @@ impl Lexer {
                 hint.push_str(format!("{:?}", token).as_str());
             }
             let loc = get_location_from_cursor(source, cur.pointer);
-            let error = LexingError::General {
-                msg: format!("Unable to lex token {}, at {}:{}", hint, loc.line, loc.col),
-                loc,
-            };
-            return Err(error);
+
+            lex_error!(
+                format!("Unable to lex token {}, at {}:{}", hint, loc.line, loc.col),
+                loc
+            );
         }
         Ok(tokens)
     }
@@ -1285,7 +1307,7 @@ fn is_char_valid_for_identifier(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::super::lexer::*;
-    use test_util::test_case;
+    use test_macros::test_case;
 
     struct LexerTest<'a> {
         expected_result: bool,

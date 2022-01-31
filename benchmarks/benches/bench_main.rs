@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Benchmark, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use instant::Instant;
 use sqlo2::*;
@@ -41,18 +41,15 @@ fn parse_select_benchmark(c: &mut Criterion) {
 
 fn create_benchmark(c: &mut Criterion) {
     // Bench here
-    c.bench(
-        "create",
-        Benchmark::new("create in", move |b| {
-            b.iter(|| {
-                for _ in 0..1 {
-                    let mut db = backend_memory::MemoryBackend::new();
-                    db.eval_query("CREATE TABLE people (id INT PRIMARY KEY, name TEXT);")
-                        .unwrap();
-                }
-            })
-        }),
-    );
+    c.bench_function("create", |b| {
+        b.iter(|| {
+            for _ in 0..1 {
+                let mut db = backend_memory::MemoryBackend::new();
+                db.eval_query("CREATE TABLE people (id INT PRIMARY KEY, name TEXT);")
+                    .unwrap();
+            }
+        })
+    });
 }
 
 fn insert_benchmark(c: &mut Criterion) {
@@ -61,17 +58,14 @@ fn insert_benchmark(c: &mut Criterion) {
         .unwrap();
 
     // Bench here
-    c.bench(
-        "insert",
-        Benchmark::new("insert in", move |b| {
-            b.iter(|| {
-                for _ in 0..10 {
-                    db.eval_query(black_box("INSERT INTO people VALUES (1, 'Baam');"))
-                        .unwrap();
-                }
-            })
-        }),
-    );
+    c.bench_function("insert", |b| {
+        b.iter(|| {
+            for _ in 0..10 {
+                db.eval_query(black_box("INSERT INTO people VALUES (1, 'Baam');"))
+                    .unwrap();
+            }
+        })
+    });
 }
 
 fn single_insert_benchmark(c: &mut Criterion) {
@@ -80,17 +74,14 @@ fn single_insert_benchmark(c: &mut Criterion) {
         .unwrap();
 
     // Bench here
-    c.bench(
-        "single_insert",
-        Benchmark::new("insert in", move |b| {
-            b.iter(|| {
-                for _ in 0..1 {
-                    db.eval_query(black_box("INSERT INTO people VALUES (1, 'Baam');"))
-                        .unwrap();
-                }
-            })
-        }),
-    );
+    c.bench_function("single_insert", |b| {
+        b.iter(|| {
+            for _ in 0..1 {
+                db.eval_query(black_box("INSERT INTO people VALUES (1, 'Baam');"))
+                    .unwrap();
+            }
+        })
+    });
 }
 
 fn select_benchmark(c: &mut Criterion) {
@@ -118,14 +109,11 @@ fn select_benchmark(c: &mut Criterion) {
     }
 
     // Bench here
-    c.bench(
-        "select",
-        Benchmark::new("select_from_10000", move |b| {
-            b.iter(|| {
-                db.eval_query(black_box("SELECT * FROM people;")).unwrap();
-            })
-        }),
-    );
+    c.bench_function("select", |b| {
+        b.iter(|| {
+            db.eval_query(black_box("SELECT * FROM people;")).unwrap();
+        })
+    });
 }
 
 pub fn million_row_benchmark(_c: &mut Criterion) {
