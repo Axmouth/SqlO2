@@ -31,5 +31,7 @@ pub mod lexer;
 pub mod parser;
 pub mod sql_types;
 
+pub mod test_impls;
+
 #[cfg(test)]
 mod tests {}

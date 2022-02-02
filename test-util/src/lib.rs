@@ -1,6 +1,8 @@
-use std::fmt::Debug;
+mod impls;
 
+pub use impls::*;
 use serde::Deserialize;
+use std::fmt::Debug;
 
 // Implement file based tests:
 //
@@ -154,65 +156,6 @@ impl std::fmt::Display for TestResultType {
             TestResultType::None => write!(f, "none"),
             TestResultType::Unknown => write!(f, "unknown"),
         }
-    }
-}
-
-pub trait TestSubjectExt {
-    fn init() -> Self;
-}
-
-pub trait TestResultExt {
-    fn result_type(&self) -> TestResultType;
-
-    fn stringified(&self) -> String;
-}
-
-impl<T, E> TestResultExt for Result<T, E>
-where
-    T: Debug,
-    E: Debug,
-{
-    fn result_type(&self) -> TestResultType {
-        match self {
-            Ok(_) => TestResultType::Ok,
-            Err(_) => TestResultType::Err,
-        }
-    }
-
-    fn stringified(&self) -> String {
-        match self {
-            Ok(t) => format!("{:#?}", t),
-            Err(e) => format!("{:#?}", e),
-        }
-    }
-}
-
-impl<T> TestResultExt for Option<T>
-where
-    T: Debug,
-{
-    fn result_type(&self) -> TestResultType {
-        match self {
-            Some(_) => TestResultType::Some,
-            None => TestResultType::None,
-        }
-    }
-
-    fn stringified(&self) -> String {
-        match self {
-            Some(t) => format!("{:#?}", t),
-            None => "".to_string(),
-        }
-    }
-}
-
-impl TestResultExt for String {
-    fn result_type(&self) -> TestResultType {
-        TestResultType::Unknown
-    }
-
-    fn stringified(&self) -> String {
-        self.to_string()
     }
 }
 
