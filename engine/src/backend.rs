@@ -81,17 +81,6 @@ pub enum EvalResult<C> {
     },
 }
 
-impl<C> EvalResult<C> {
-    pub fn zero_time(&mut self) {
-        match self {
-            EvalResult::Select { time, .. } => *time = Duration::new(0, 0),
-            EvalResult::Insert { time, .. } => *time = Duration::new(0, 0),
-            EvalResult::CreateTable { time, .. } => *time = Duration::new(0, 0),
-            EvalResult::DropTable { time, .. } => *time = Duration::new(0, 0),
-        }
-    }
-}
-
 impl<C> PartialEq for EvalResult<C>
 where
     C: PartialEq,

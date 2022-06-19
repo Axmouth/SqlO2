@@ -9,9 +9,9 @@ sqlo2 = { path = "../engine", features = ["stdweb", "wasm-bindgen"] }
 yew = "=0.19.3"
 yew-router = "=0.16.0"
 lazy_static = "=1.4.0"
-serde = "=1.0.136"
-serde_qs = "=0.8.5"
-wasm-bindgen = { version = "=0.2.79", features = ["serde-serialize"] }
+serde = "=1.0.137"
+serde_qs = "=0.9.2"
+wasm-bindgen = { version = "=0.2.80", features = ["serde-serialize"] }
 wasm-logger = "=0.2.0"
-web-sys = { version = "=0.3.56", features = ["HtmlTextAreaElement"] }
-log = "=0.4.14"
+web-sys = { version = "=0.3.57", features = ["HtmlTextAreaElement"] }
+log = "=0.4.17"

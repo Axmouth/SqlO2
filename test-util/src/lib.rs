@@ -1,8 +1,11 @@
 mod impls;
 
+use console::{style, Style};
 pub use impls::*;
 use serde::Deserialize;
-use std::fmt::Debug;
+use similar::{Algorithm, ChangeTag, TextDiff};
+
+use std::fmt::{self, Debug};
 
 // Implement file based tests:
 //
@@ -16,7 +19,7 @@ use std::fmt::Debug;
 // The queries contain an optional key named description, with an extra explanation for that query/step.
 // The queries contain an optional key named query, with the query string.
 // Different types have a different result key, defined with a trait impl
-// When the test finishes but the file does not match the result a <name>.test_diff is create in the same directory
+// When the test finishes but the file does not match the result a <name>.actual is create in the same directory
 // Proc macros can make this easier to write, by passing the folder path.
 // The macro would execute the steps described in the test config(toml?) file in order, using the provided function.
 // The macro would then use the output of said function to compare with the expected output.
@@ -25,6 +28,17 @@ use std::fmt::Debug;
 // Macros for specific commonly used types could be prepared to make this easier.
 
 // Consider ways of provisioning an initial database for acceptance tests to use.
+
+struct Line(Option<usize>, usize);
+
+impl fmt::Display for Line {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            None => write!(f, "{}", " ".repeat(self.1)),
+            Some(idx) => write!(f, "{:<width$}", idx + 1, width = self.1),
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct TestQuerySection {
@@ -50,7 +64,7 @@ where
     T: TestResultExt,
 {
     let expected_output = match std::fs::read_to_string(expected_file) {
-        Ok(s) => Some(s),
+        Ok(s) => Some(s.replace('\r', "")),
         Err(e) => {
             if e.kind() == std::io::ErrorKind::NotFound {
                 eprintln!("Expected output file {expected_file} not found");
@@ -67,7 +81,47 @@ where
     let output_stringified = output.stringified();
 
     let is_expected_output = if let Some(expected_output) = expected_output {
-        expected_output == output_stringified
+        let is_expected = expected_output == output_stringified;
+        let diff = TextDiff::configure()
+            .algorithm(Algorithm::Patience)
+            .diff_lines(&expected_output, &output_stringified);
+        let idx_len = std::cmp::max(
+            expected_output.lines().count().to_string().len(),
+            output_stringified.lines().count().to_string().len(),
+        );
+
+        for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
+            if idx > 0 {
+                println!("{:-^1$}", "-", 80);
+            }
+            for op in group {
+                for change in diff.iter_inline_changes(op) {
+                    let (sign, s) = match change.tag() {
+                        ChangeTag::Delete => ("-", Style::new().red()),
+                        ChangeTag::Insert => ("+", Style::new().green()),
+                        ChangeTag::Equal => (" ", Style::new().dim()),
+                    };
+                    print!(
+                        "{} {} |{}",
+                        style(Line(change.old_index(), idx_len)).dim(),
+                        style(Line(change.new_index(), idx_len)).dim(),
+                        s.apply_to(sign).bold(),
+                    );
+                    for (emphasized, value) in change.iter_strings_lossy() {
+                        if emphasized {
+                            print!("{}", s.apply_to(value).underlined().on_black());
+                        } else {
+                            print!("{}", s.apply_to(value));
+                        }
+                    }
+                    if change.missing_newline() {
+                        println!();
+                    }
+                }
+            }
+        }
+
+        is_expected
     } else {
         false
     };
@@ -77,7 +131,7 @@ where
     let is_expected = is_expected_output && is_expected_result;
 
     if !is_expected_output {
-        let diff_file = format!("{expected_file}.test_diff");
+        let diff_file = format!("{expected_file}.actual");
         eprintln!("Didn't get expected output, writing to {diff_file}",);
         std::fs::write(diff_file, output_stringified).expect("Unable to write file");
     }

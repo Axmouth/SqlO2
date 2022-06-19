@@ -17,6 +17,7 @@ use crate::{
 use instant::Instant;
 use std::collections::HashMap;
 use test_util::TestSubjectExt;
+use tree_display::TreeDisplay;
 
 const ERR_INVALID_CELL: &str = "Invalid Cell";
 //TODO:
@@ -209,7 +210,6 @@ impl From<QueryResults<SqlValue>> for Table {
 }
 
 impl Table {
-    #[inline]
     pub fn evaluate_literal_cell(
         &self,
         row_index: usize,
@@ -298,7 +298,6 @@ impl Table {
         }
     }
 
-    #[inline]
     pub fn evaluate_binary_cell(
         &self,
         row_index: usize,
@@ -465,7 +464,6 @@ impl Table {
         }
     }
 
-    #[inline]
     pub fn evaluate_cell(
         &self,
         row_index: usize,
@@ -732,14 +730,13 @@ impl MemoryBackend {
                     return Err(ERR_TABLE_DOES_NOT_EXIST.to_string());
                 }
                 Some(table) => {
-                    let mut new_table;
                     let from_name = if let Some(from_name) = as_clause {
                         from_name.clone()
                     } else {
                         from_name.clone()
                     };
 
-                    new_table = TableContainer::Concrete(table);
+                    let mut new_table = TableContainer::Concrete(table);
                     for (index, exp) in
                         table.get_applicable_indexes(Some(&select_statement.where_clause))?
                     {
@@ -788,14 +785,13 @@ impl MemoryBackend {
                         return Err(ERR_TABLE_DOES_NOT_EXIST.to_string());
                     }
                     Some(table) => {
-                        let mut new_table;
                         let from_name = if let Some(from_name) = as_clause {
                             from_name.clone()
                         } else {
                             from_name.clone()
                         };
 
-                        new_table = TableContainer::Concrete(table);
+                        let mut new_table = TableContainer::Concrete(table);
                         for (index, exp) in
                             table.get_applicable_indexes(Some(&select_statement.where_clause))?
                         {
@@ -1108,7 +1104,12 @@ impl MemoryBackend {
             Err(err) => return Err(err.to_string()),
         };
 
-        let mut eval_results = vec![];
+        println!(
+            "Ast\n{}",
+            ast.tree_print(Default::default(), Default::default())
+        );
+
+        let mut eval_results = Vec::new();
 
         for statement in ast.statements {
             match statement {
@@ -1214,7 +1215,6 @@ pub fn linearize_expressions(
     }
 }
 
-#[inline]
 pub fn literal_to_memory_cell(literal: &LiteralExpression) -> Result<SqlValue, String> {
     match literal {
         LiteralExpression::Numeric(value) => {

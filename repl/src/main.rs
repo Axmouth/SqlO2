@@ -1,24 +1,47 @@
-use sqlo2::{self};
-
+use colored::*;
+use rustc_version_runtime::version;
+use rustyline::highlight::Highlighter;
+use rustyline::{error::ReadlineError, Editor};
+use rustyline_derive::{Completer, Helper, Hinter, Validator};
 use sqlo2::backend::EvalResult;
 use sqlo2::backend_memory::*;
-
-extern crate rustc_version_runtime;
-use rustc_version_runtime::version;
-
-use rustyline::{error::ReadlineError, Editor};
+use sqlo2::{self};
+use std::borrow::Cow;
 use std::io::{stdout, Write};
 use std::time::Duration;
 
 use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
 
+#[derive(Completer, Helper, Hinter, Validator)]
+struct PromptHighligher;
+
+impl Highlighter for PromptHighligher {
+    fn highlight<'l>(&self, line: &'l str, _: usize) -> Cow<'l, str> {
+        Cow::Borrowed(line)
+    }
+
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(&'s self, _: &'p str, _: bool) -> Cow<'b, str> {
+        Cow::Owned(format!(
+            "{} {}",
+            "SqlO2".bright_cyan().bold(),
+            "#: ".white().bold()
+        ))
+    }
+
+    fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
+        true
+    }
+}
+
 fn main() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
 
     let mut mb = MemoryBackend::new();
-    let mut rl = Editor::<()>::new();
+    let mut rl = Editor::new();
 
     if rl.load_history("history.txt").is_ok() {}
+
+    rl.set_helper(Some(PromptHighligher {}));
 
     let mut system = System::new();
     system.refresh_all();
@@ -99,7 +122,7 @@ fn main() {
             }
         };
 
-        let cmd = input.trim_end().replace("\n", "");
+        let cmd = input.trim_end().replace('\n', "");
         match cmd.as_str() {
             "quit" | "exit" | "\\q" => {
                 break;
@@ -153,46 +176,62 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
                         if !results.rows.is_empty() {
                             output_text.push_str(table.to_string().as_str());
                         }
-                        output_text
-                            .push_str(format!("({} Results)\n", results.rows.len()).as_str());
+                        output_text.push_str(&format!(
+                            "{}",
+                            format!("({} Results)\n", results.rows.len())
+                                .as_str()
+                                .dimmed()
+                        ));
 
-                        output_text.push_str("Ok!\n");
+                        output_text.push_str(&"Ok!\n".green().to_string());
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(format!("Elapsed time : {:.2?}\n", time).as_str());
+                        output_text.push_str(&format!(
+                            "{}",
+                            format!("Elapsed time : {:.2?}\n", time).as_str().dimmed()
+                        ));
                     }
                     EvalResult::CreateTable { success: _, time } => {
-                        output_text.push_str("Ok!\n");
+                        output_text.push_str(&"Ok!\n".green().to_string());
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(format!("Elapsed time : {:.2?}\n", time).as_str());
+                        output_text.push_str(&format!(
+                            "{}",
+                            format!("Elapsed time : {:.2?}\n", time).as_str().dimmed()
+                        ));
                     }
                     EvalResult::Insert { success: _, time } => {
-                        output_text.push_str("Ok!\n");
+                        output_text.push_str(&"Ok!\n".green().to_string());
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(format!("Elapsed time : {:.2?}\n", time).as_str());
+                        output_text.push_str(&format!(
+                            "{}",
+                            format!("Elapsed time : {:.2?}\n", time).as_str().dimmed()
+                        ));
                     }
                     EvalResult::DropTable { success: _, time } => {
-                        output_text.push_str("Ok!\n");
+                        output_text.push_str(&"Ok!\n".green().to_string());
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(format!("Elapsed time : {:.2?}\n", time).as_str());
+                        output_text.push_str(&format!(
+                            "{}",
+                            format!("Elapsed time : {:.2?}\n", time).as_str().dimmed()
+                        ));
                     }
                 }
             }
 
             if multiple_results {
-                output_text.push_str(format!("Total time : {:.2?}", total_time).as_str());
+                output_text.push_str(&format!("Total time : {:.2?}", total_time).dimmed());
             }
         }
 
         Err(err) => {
-            return err;
+            return format!("{}", err.bright_red());
         }
     }
 

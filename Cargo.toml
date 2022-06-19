@@ -23,3 +23,6 @@ debug = true
 [profile.release]
 debug = false
 lto = "thin"
+
+# [patch."https://github.com/Axmouth/tree-display-rs"]
+# tree-display = { path = "../tree-display/tree-display" }

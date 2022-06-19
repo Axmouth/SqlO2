@@ -1,13 +1,23 @@
+use std::fmt::Display;
+
+use tree_display::{tree_display_macros::TreeDisplay, TreeDisplay};
+
 use crate::{parser::ParsingError, sql_types::SqlType};
 
 use super::lexer::*;
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
 pub struct Ast {
     pub statements: Vec<Statement>,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+impl Display for Ast {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.tree_fmt(f, Default::default(), Default::default())
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
 pub enum Statement {
     SelectStatement(SelectStatement),
     CreateTableStatement(CreateTableStatement),
@@ -16,20 +26,22 @@ pub enum Statement {
     InsertStatement(InsertStatement),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct OrderByClause {
     pub asc: bool,
     pub exp: Expression,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct JoinClause {
     pub kind: JoinKind,
     pub source: RowDataSource,
     pub on: Expression,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
 pub enum JoinKind {
     Inner,
     FullOuter,
@@ -37,60 +49,79 @@ pub enum JoinKind {
     RightOuter,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub enum RowDataSource {
     SubSelect {
         select: SelectStatement,
         as_clause: String,
+        #[tree_display(skip_if_empty)]
         joins: Vec<JoinClause>,
     },
     Table {
         table_name: String,
+        #[tree_display(skip_if_none)]
         as_clause: Option<String>,
+        #[tree_display(skip_if_empty)]
         joins: Vec<JoinClause>,
     },
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct TableColumn {
     pub col_name: String,
+    #[tree_display(skip_if_none)]
     pub table_name: Option<String>,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct ProcessedTableColumn {
     pub col_name: Option<String>,
     pub col_idx: usize,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct InsertStatement {
     pub table: String,
     pub values: Vec<Expression>,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct CreateTableStatement {
     pub name: String,
+    #[tree_display(skip_if_empty)]
     pub cols: Vec<ColumnDefinition>,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct ColumnDefinition {
     pub name: String,
     pub data_type: SqlType,
+    #[tree_display(skip_if_false)]
     pub is_primary_key: bool,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Debug, Default, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct SelectStatement {
-    pub items: Vec<SelectItem>,
+    #[tree_display(skip_if_empty)]
     pub from: Vec<RowDataSource>,
+    #[tree_display(skip_if_empty)]
     pub where_clause: Expression,
+    #[tree_display(skip_if_false, rename = "Distinct")]
     pub is_distinct: bool,
+    #[tree_display(skip_if_none)]
     pub order_by: Option<OrderByClause>,
+    #[tree_display(skip_if_none)]
     pub limit: Option<usize>,
+    #[tree_display(skip_if_none)]
     pub offset: Option<usize>,
+    pub items: Vec<SelectItem>,
 }
 
 impl SelectStatement {
@@ -107,7 +138,8 @@ impl SelectStatement {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct CreateIndexStatement {
     pub name: String,
     pub is_unique: bool,
@@ -128,14 +160,16 @@ impl CreateIndexStatement {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct CreateConstraintStatement {
     pub name: String,
     pub constraint: ConstraintType,
     pub table: String,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub enum ConstraintType {
     Foreign { references: Vec<(String, String)> },
     Check { expression: Expression },
@@ -153,12 +187,14 @@ impl CreateConstraintStatement {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct DropTableStatement {
     pub name: String,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub enum Expression {
     Literal(LiteralExpression),
     Binary(BinaryExpression),
@@ -215,28 +251,24 @@ impl Expression {
         }
     }
 
-    #[inline]
     pub fn is_unary(&self) -> bool {
         matches!(self, Expression::Unary(_))
     }
 
-    #[inline]
     pub fn is_binary(&self) -> bool {
         matches!(self, Expression::Binary(_))
     }
 
-    #[inline]
     pub fn is_literal(&self) -> bool {
         matches!(self, Expression::Literal(_))
     }
 
-    #[inline]
     pub fn is_empty(&self) -> bool {
         matches!(self, Expression::Empty)
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
 pub enum LiteralExpression {
     String(String),
     Identifier(String),
@@ -277,7 +309,7 @@ impl LiteralExpression {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
 pub enum Operand {
     Add,
     Subtract,
@@ -418,7 +450,8 @@ impl Operand {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct BinaryExpression {
     pub first: Box<Expression>,
     pub second: Box<Expression>,
@@ -436,7 +469,8 @@ impl BinaryExpression {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct UnaryExpression {
     pub first: Box<Expression>,
     pub operand: Operand,
@@ -458,10 +492,13 @@ impl Token<'_> {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Debug, Default, TreeDisplay)]
+#[tree_display(rename_all_pascal)]
 pub struct SelectItem {
     pub expression: Expression,
+    #[tree_display(skip_if_none)]
     pub as_clause: Option<String>,
+    #[tree_display(skip_if_false)]
     pub asterisk: bool,
 }
 
@@ -479,6 +516,14 @@ impl SelectItem {
 mod ast_tests {
     use super::super::ast::*;
     use super::super::parser::*;
+
+    #[test]
+    fn test_ast_fmt() {
+        let sql = "SELECT * FROM table1";
+        let parser = Parser::new();
+        let ast = parser.parse(sql).unwrap();
+        eprintln!("{}", ast);
+    }
 
     struct ParseTest {
         ast: Ast,

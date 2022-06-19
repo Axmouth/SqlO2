@@ -10,8 +10,11 @@ use crate::{
     lexer::Token,
 };
 use serde::{Deserialize, Serialize, Serializer};
+use tree_display::tree_display_macros::TreeDisplay;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, TreeDisplay,
+)]
 pub enum SqlType {
     SmallInt,
     Int,
@@ -71,7 +74,6 @@ impl TryFrom<(&TokenContainer<'_>, usize)> for SqlType {
 }
 
 impl SqlType {
-    #[inline]
     pub fn from_token(
         token_container: &TokenContainer,
         cursor: usize,
@@ -93,7 +95,6 @@ impl SqlType {
         }
     }
 
-    #[inline]
     pub fn order(&self) -> i32 {
         match self {
             SqlType::SmallInt => 1,
@@ -111,7 +112,7 @@ impl SqlType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, TreeDisplay)]
 pub enum SqlTypeError {
     ConversionError(String),
     ParseError(String),
@@ -136,7 +137,7 @@ impl ToString for SqlTypeError {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, TreeDisplay)]
 pub enum SqlValue {
     Null,
     Text(SqlText),
@@ -179,7 +180,8 @@ impl Serialize for SqlValue {
         }
     }
 }
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Deserialize, Serialize)]
+
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Deserialize, Serialize, TreeDisplay)]
 pub enum SqlNumeric {
     SmallInt { value: i16 },
     Int { value: i32 },
@@ -201,7 +203,7 @@ impl Ord for SqlNumeric {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize, TreeDisplay)]
 pub enum SqlText {
     Char {
         value: String,
@@ -217,7 +219,6 @@ pub enum SqlText {
     },
 }
 
-#[inline]
 fn factorial(num: i64) -> Result<i64, SqlTypeError> {
     if num < 0 {
         return Err(SqlTypeError::OperationError(
@@ -239,12 +240,10 @@ fn factorial(num: i64) -> Result<i64, SqlTypeError> {
 }
 
 impl SqlValue {
-    #[inline]
     pub fn is_numeric(&self) -> bool {
         matches!(self, SqlValue::Numeric(_))
     }
 
-    #[inline]
     pub fn is_int(&self) -> bool {
         match self {
             SqlValue::Numeric(num) => matches!(
@@ -257,7 +256,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn is_float(&self) -> bool {
         match self {
             SqlValue::Numeric(num) => matches!(
@@ -268,22 +266,18 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn is_null(&self) -> bool {
         matches!(self, SqlValue::Null)
     }
 
-    #[inline]
     pub fn is_text(&self) -> bool {
         matches!(self, SqlValue::Text(_))
     }
 
-    #[inline]
     pub fn is_bool(&self) -> bool {
         matches!(self, SqlValue::Boolean(_))
     }
 
-    #[inline]
     pub fn implicist_cast_to_matching_types(
         &self,
         b: &SqlValue,
@@ -432,7 +426,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn decode_type(data: &MemoryCell, typ: SqlType) -> Result<Self, SqlTypeError> {
         if data.bytes.is_empty() {
             return Ok(SqlValue::Null);
@@ -454,7 +447,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn from_token(token: &Token) -> Result<Self, SqlTypeError> {
         match token {
             Token::StringValue { value } => Ok(SqlValue::Text(SqlText::Text {
@@ -469,7 +461,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn encode(&self) -> MemoryCell {
         match self {
             SqlValue::Null => MemoryCell { bytes: vec![] },
@@ -515,7 +506,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn subtract(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
         match (&a, &b) {
@@ -572,7 +562,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn add(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
         match (&a, &b) {
@@ -626,7 +615,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn multiply(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
         match (&a, &b) {
@@ -683,7 +671,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn divide(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
@@ -745,7 +732,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn modulo(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
@@ -807,7 +793,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn exponentiation(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
@@ -874,7 +859,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn bitwise_and(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
@@ -904,7 +888,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn bitwise_or(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
@@ -934,7 +917,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn bitwise_xor(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
@@ -964,7 +946,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn bitwise_shift_left(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
@@ -994,7 +975,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn bitwise_shift_right(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
 
@@ -1024,7 +1004,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn factorial(&self) -> Result<Self, SqlTypeError> {
         match self {
             SqlValue::Numeric(num) => match num {
@@ -1047,7 +1026,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn square_root(&self) -> Result<Self, SqlTypeError> {
         match self {
             SqlValue::Numeric(num) => match num {
@@ -1123,7 +1101,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn cube_root(&self) -> Result<Self, SqlTypeError> {
         match self {
             SqlValue::Numeric(num) => match num {
@@ -1174,7 +1151,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn abs(&self) -> Result<Self, SqlTypeError> {
         match self {
             SqlValue::Numeric(num) => match num {
@@ -1202,7 +1178,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn minus(&self) -> Result<Self, SqlTypeError> {
         match self {
             SqlValue::Numeric(num) => match num {
@@ -1230,7 +1205,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn bitwise_not(&self) -> Result<Self, SqlTypeError> {
         match self {
             SqlValue::Numeric(num) => match num {
@@ -1253,7 +1227,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn not(&self) -> Result<Self, SqlTypeError> {
         match self {
             SqlValue::Boolean(val) => Ok(SqlValue::Boolean(!val)),
@@ -1263,7 +1236,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn concat(&self, b: &Self) -> Result<Self, SqlTypeError> {
         let (a, b) = SqlValue::implicist_cast_to_matching_types(self, b)?;
         match (a, b) {
@@ -1283,7 +1255,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn equals(&self, b: &Self) -> Result<Self, SqlTypeError> {
         if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
@@ -1293,7 +1264,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn not_equal(&self, b: &Self) -> Result<Self, SqlTypeError> {
         if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
@@ -1303,7 +1273,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn less_than(&self, b: &Self) -> Result<Self, SqlTypeError> {
         if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
@@ -1313,7 +1282,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn less_than_or_equals(&self, b: &Self) -> Result<Self, SqlTypeError> {
         if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
@@ -1323,7 +1291,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn greater_than(&self, b: &Self) -> Result<Self, SqlTypeError> {
         if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
@@ -1333,7 +1300,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn greater_than_or_equals(&self, b: &Self) -> Result<Self, SqlTypeError> {
         if self.is_null() || b.is_null() {
             Ok(SqlValue::Null)
@@ -1343,7 +1309,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn and(&self, b: &Self) -> Result<Self, SqlTypeError> {
         if let (SqlValue::Boolean(a), SqlValue::Boolean(b)) = (self, b) {
             Ok(SqlValue::Boolean(*a && *b))
@@ -1354,7 +1319,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn or(&self, b: &Self) -> Result<Self, SqlTypeError> {
         if let (SqlValue::Boolean(a), SqlValue::Boolean(b)) = (self, b) {
             Ok(SqlValue::Boolean(*a || *b))
@@ -1365,7 +1329,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn get_type(&self) -> SqlType {
         match self {
             SqlValue::Numeric(num) => match &num {
@@ -1390,7 +1353,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn explicit_cast_to_type(&self, typ: SqlType) -> Result<Self, SqlTypeError> {
         if self.is_null() {
             return Ok(SqlValue::Null);
@@ -1846,7 +1808,6 @@ impl SqlValue {
         }
     }
 
-    #[inline]
     pub fn to_type(&self, typ: SqlType) -> Result<Self, SqlTypeError> {
         if self.is_null() {
             return Ok(SqlValue::Null);
@@ -2045,7 +2006,6 @@ impl SqlValue {
 }
 
 impl SqlNumeric {
-    #[inline]
     pub fn parse(data: &str) -> Result<Self, SqlTypeError> {
         if let Ok(value) = data.parse::<i16>() {
             Ok(SqlNumeric::SmallInt { value })
@@ -2073,7 +2033,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn parse_small_int(data: String) -> Result<Self, SqlTypeError> {
         if let Ok(value) = data.parse::<i16>() {
             Ok(SqlNumeric::SmallInt { value })
@@ -2084,7 +2043,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn parse_int(data: String) -> Result<Self, SqlTypeError> {
         if let Ok(value) = data.parse::<i32>() {
             Ok(SqlNumeric::Int { value })
@@ -2095,7 +2053,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn parse_big_int(data: String) -> Result<Self, SqlTypeError> {
         if let Ok(value) = data.parse::<i64>() {
             Ok(SqlNumeric::BigInt { value })
@@ -2106,7 +2063,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn parse_real(data: String) -> Result<Self, SqlTypeError> {
         if let Ok(value) = data.parse::<f32>() {
             Ok(SqlNumeric::Real { value })
@@ -2117,7 +2073,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn parse_double_precision(data: String) -> Result<Self, SqlTypeError> {
         if let Ok(value) = data.parse::<f64>() {
             Ok(SqlNumeric::DoublePrecision { value })
@@ -2128,7 +2083,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn decode_small_int(data: &MemoryCell) -> Result<Self, SqlTypeError> {
         let mut rdr = std::io::Cursor::new(&data.bytes);
 
@@ -2141,7 +2095,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn decode_int(data: &MemoryCell) -> Result<Self, SqlTypeError> {
         let mut rdr = std::io::Cursor::new(&data.bytes);
 
@@ -2154,7 +2107,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn decode_big_int(data: &MemoryCell) -> Result<Self, SqlTypeError> {
         let mut rdr = std::io::Cursor::new(&data.bytes);
         if let Ok(value) = rdr.read_i64::<BigEndian>() {
@@ -2166,7 +2118,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn decode_real(data: &MemoryCell) -> Result<Self, SqlTypeError> {
         let mut rdr = std::io::Cursor::new(&data.bytes);
         if let Ok(value) = rdr.read_f32::<BigEndian>() {
@@ -2178,7 +2129,6 @@ impl SqlNumeric {
         }
     }
 
-    #[inline]
     pub fn decode_double_precision(data: &MemoryCell) -> Result<Self, SqlTypeError> {
         let mut rdr = std::io::Cursor::new(&data.bytes);
         if let Ok(value) = rdr.read_f64::<BigEndian>() {
@@ -2192,12 +2142,10 @@ impl SqlNumeric {
 }
 
 impl SqlText {
-    #[inline]
     pub fn parse_text(data: String) -> Result<Self, SqlTypeError> {
         Ok(SqlText::Text { value: data })
     }
 
-    #[inline]
     pub fn parse_varchar(data: String, maxlen: usize) -> Result<Self, SqlTypeError> {
         if maxlen <= data.len() {
             Ok(SqlText::Text { value: data })
@@ -2210,7 +2158,6 @@ impl SqlText {
         }
     }
 
-    #[inline]
     pub fn parse_char(data: String, len: usize) -> Result<Self, SqlTypeError> {
         match len.cmp(&data.len()) {
             Ordering::Equal => Ok(SqlText::Text { value: data }),
@@ -2227,7 +2174,6 @@ impl SqlText {
         }
     }
 
-    #[inline]
     pub fn decode_text(data: &MemoryCell) -> Result<Self, SqlTypeError> {
         let mut rdr = std::io::Cursor::new(&data.bytes);
 
@@ -2240,12 +2186,10 @@ impl SqlText {
         }
     }
 
-    #[inline]
     pub fn decode_varchar(data: &MemoryCell) -> Result<Self, SqlTypeError> {
         SqlText::decode_text(data)
     }
 
-    #[inline]
     pub fn decode_char(data: &MemoryCell) -> Result<Self, SqlTypeError> {
         SqlText::decode_text(data)
     }

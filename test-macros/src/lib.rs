@@ -32,11 +32,7 @@ pub fn test_case(attr: TokenStream, item: TokenStream) -> TokenStream {
             break;
         }
     }
-    let fn_name = if let Some(s) = fn_name_opt {
-        s
-    } else {
-        panic!("No function name found in test case");
-    };
+    let fn_name = fn_name_opt.expect("No function name found in test case");
     let id: u32 = {
         let mut counts_guard = COUNTS.write().expect("Couldn't get write lock on counts");
         let count_opt = counts_guard.get_mut(&fn_name);

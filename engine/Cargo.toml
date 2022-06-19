@@ -13,15 +13,16 @@ wasm = ["stdweb", "wasm-bindgen"]
 [dependencies]
 byteorder = "=1.4.3"
 bytes = "=1.1.0"
-regex  = "=1.5.4"
+regex  = "=1.5.5"
 lazy_static = "=1.4.0"
 instant = { version = "=0.1.12", features = [ "now" ] }
-serde = { version = "=1.0.136", features = ["derive"] }
+serde = { version = "=1.0.137", features = ["derive"] }
 jemallocator = {version = "=0.3.2", optional = true }
-mimalloc = { version = "=0.1.27", default-features = false, optional = true }
+mimalloc = { version = "=0.1.29", default-features = false, optional = true }
 alloc_counter = {version = "=0.0.4", optional = true }
 test-util = { path = "../test-util" }
+test-macros = { path = "../test-macros" }
+tree-display = { git = "https://github.com/Axmouth/tree-display-rs", branch = "main" }
 
 [dev-dependencies]
-pretty_assertions = "=1.0.0"
-test-macros = { path = "../test-macros" }
+pretty_assertions = "=1.2.1"

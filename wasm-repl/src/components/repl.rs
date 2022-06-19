@@ -121,14 +121,14 @@ pub fn repl() -> Html {
     });
 
     let location = use_location();
-    let query: Option<Query> = location.map(|loc| loc.query().ok()).flatten();
+    let query: Option<Query> = location.and_then(|loc| loc.query().ok());
 
     let state_cb = state.clone();
     use_effect_with_deps(
         move |_| {
             if let Some(q) = query {
                 if let Some(Some(true)) = q.default {
-                    for sql in DEFAULT_QUERIES.iter().copied() {
+                    for sql in DEFAULT_QUERIES.iter() {
                         state_cb.dispatch(ReplAction::QuerySubmit(sql.to_string()));
                     }
                 }
