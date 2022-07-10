@@ -8,43 +8,29 @@ pub fn parse_insert_statement(
     let mut cursor = initial_cursor;
 
     // Look for INSERT
-    if !expect_token(tokens, cursor, Token::Insert) {
-        parse_err!(tokens, cursor, "Not an Insert Statement");
+    if !expect_token(tokens, &mut cursor, &Token::Insert) {
+        ret_parse_err!(tokens, cursor, "Not an Insert Statement");
     }
-    cursor += 1;
 
     // Look for INTO
-    if !expect_token(tokens, cursor, Token::Into) {
-        parse_err!(tokens, cursor, "Expected INTO");
+    if !expect_token(tokens, &mut cursor, &Token::Into) {
+        ret_parse_err!(tokens, cursor, "Expected INTO");
     }
-    cursor += 1;
 
-    let table_name = match tokens.get(cursor) {
-        Some(TokenContainer {
-            loc: _,
-            token: Token::IdentifierValue { value },
-        }) => value,
-        _ => {
-            parse_err!(tokens, cursor, "Expected Table Name");
-        }
-    };
-
-    cursor += 1;
+    let table_name = expect_identifier(tokens, &mut cursor).ok_or(parse_err!(
+        tokens,
+        cursor,
+        "Expected Table Name"
+    ))?;
 
     // Look for VALUES
-    if let Some(token) = tokens.get(cursor) {
-        if token.token != Token::Values {
-            parse_err!(tokens, cursor, "Expected VALUES");
-        }
-        cursor += 1;
+    if !expect_token(tokens, &mut cursor, &Token::Values) {
+        ret_parse_err!(tokens, cursor, "Expected VALUES");
     }
 
     // Look for left parenthesis
-    if let Some(token) = tokens.get(cursor) {
-        if token.token != Token::LeftParenthesis {
-            parse_err!(tokens, cursor, "Expected Left parenthesis");
-        }
-        cursor += 1;
+    if !expect_token(tokens, &mut cursor, &Token::LeftParenthesis) {
+        ret_parse_err!(tokens, cursor, "Expected Left parenthesis");
     }
 
     // Look for expression list
@@ -53,14 +39,8 @@ pub fn parse_insert_statement(
     cursor = new_cursor;
 
     // Look for right parenthesis
-    if let Some(TokenContainer {
-        token: Token::RightParenthesis,
-        loc: _,
-    }) = tokens.get(cursor)
-    {
-        cursor += 1;
-    } else {
-        parse_err!(tokens, cursor, "Expected Right Parenthesis");
+    if !expect_token(tokens, &mut cursor, &Token::RightParenthesis) {
+        ret_parse_err!(tokens, cursor, "Expected Right Parenthesis");
     }
 
     Ok((

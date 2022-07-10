@@ -27,11 +27,11 @@ pub fn parse_statement<'a>(
                     Err(err) => Err(err),
                 }
             }
-            Token::Delete => parse_err!(tokens, cursor, Internal, "Delete not implemented"),
-            Token::Update => parse_err!(tokens, cursor, Internal, "Update not implemented"),
-            Token::Alter => parse_err!(tokens, cursor, Internal, "Alter not implemented"),
+            Token::Delete => ret_parse_err!(tokens, cursor, Internal, "Delete not implemented"),
+            Token::Update => ret_parse_err!(tokens, cursor, Internal, "Update not implemented"),
+            Token::Alter => ret_parse_err!(tokens, cursor, Internal, "Alter not implemented"),
             Token::IdentifierValue { value: _ } => {
-                parse_err!(tokens, cursor, Internal, "Assignment not implemented")
+                ret_parse_err!(tokens, cursor, Internal, "Assignment not implemented")
             }
             Token::Create => {
                 if let Some(first_token) = tokens.get(cursor + 1) {
@@ -63,12 +63,12 @@ pub fn parse_statement<'a>(
                                 token: Token::Constraint,
                                 loc: _,
                             }) => {
-                                parse_err!(tokens, cursor, "Create Constraint not implemented")
+                                ret_parse_err!(tokens, cursor, "Create Constraint not implemented")
                             }
-                            _ => parse_err!(tokens, cursor, "Invalid Create Statement"),
+                            _ => ret_parse_err!(tokens, cursor, "Invalid Create Statement"),
                         },
                         Token::Constraint => {
-                            parse_err!(tokens, cursor, "Create Constraint not implemented")
+                            ret_parse_err!(tokens, cursor, "Create Constraint not implemented")
                         }
                         Token::Table => {
                             // Look for a CREATE TABLE statement
@@ -79,10 +79,10 @@ pub fn parse_statement<'a>(
                                 Err(err) => (Err(err)),
                             }
                         }
-                        _ => parse_err!(tokens, cursor, "Invalid Create Statement"),
+                        _ => ret_parse_err!(tokens, cursor, "Invalid Create Statement"),
                     }
                 } else {
-                    parse_err!(tokens, cursor, "Invalid Create Statement");
+                    ret_parse_err!(tokens, cursor, "Invalid Create Statement");
                 }
             }
             Token::Drop => {
@@ -92,9 +92,9 @@ pub fn parse_statement<'a>(
                     Err(err) => (Err(err)),
                 }
             }
-            _ => parse_err!(tokens, cursor, "Expected a valid Statement"),
+            _ => ret_parse_err!(tokens, cursor, "Expected a valid Statement"),
         }
     } else {
-        parse_err!(tokens, cursor, "Expected a valid Statement");
+        ret_parse_err!(tokens, cursor, "Expected a valid Statement");
     }
 }

@@ -70,13 +70,13 @@ pub fn parse_joins<'a>(
                 cursor += 1;
                 kind = JoinKind::FullOuter;
             } else {
-                parse_err!(tokens, cursor, "Expected OUTER Keyword after FULL");
+                ret_parse_err!(tokens, cursor, "Expected OUTER Keyword after FULL");
             }
         } else if let Some(TokenContainer { token, loc: _ }) = tokens.get(cursor) {
             if delimiters.contains(token) {
                 break;
             }
-            parse_err!(tokens, cursor, "Failed to parse Join Clause");
+            ret_parse_err!(tokens, cursor, "Failed to parse Join Clause");
         }
         if let Some(TokenContainer {
             token: Token::Join,
@@ -85,7 +85,7 @@ pub fn parse_joins<'a>(
         {
             cursor += 1;
         } else {
-            parse_err!(tokens, cursor, "No JOIN Keyword after INNER");
+            ret_parse_err!(tokens, cursor, "No JOIN Keyword after INNER");
         }
         let (table, new_cursor) = parse_table(tokens, cursor, delimiters)?;
         cursor = new_cursor;
@@ -96,7 +96,7 @@ pub fn parse_joins<'a>(
         {
             cursor += 1;
         } else {
-            parse_err!(tokens, cursor, "No ON keyword in Join Expression");
+            ret_parse_err!(tokens, cursor, "No ON keyword in Join Expression");
         }
         let (col1, new_cursor) = parse_table_column(tokens, cursor)?;
         cursor = new_cursor;
@@ -105,10 +105,10 @@ pub fn parse_joins<'a>(
             if BINARY_OPERATORS.contains(token) {
                 token.clone()
             } else {
-                parse_err!(tokens, cursor, "No Binary Operator in Join Expression");
+                ret_parse_err!(tokens, cursor, "No Binary Operator in Join Expression");
             }
         } else {
-            parse_err!(tokens, cursor, "No Binary Operator in Join Expression");
+            ret_parse_err!(tokens, cursor, "No Binary Operator in Join Expression");
         };
         let (col2, new_cursor) = parse_table_column(tokens, cursor)?;
         cursor = new_cursor;
@@ -116,7 +116,7 @@ pub fn parse_joins<'a>(
         let operand = if let Ok(o) = Operand::from_token(&operand_token, cursor) {
             o
         } else {
-            parse_err!(
+            ret_parse_err!(
                 tokens,
                 cursor,
                 "Failed to parse Binary Operator in Join Expression"

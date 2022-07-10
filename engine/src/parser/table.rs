@@ -32,7 +32,7 @@ pub fn parse_table<'a>(
             cursor += 1;
             as_clause = Some(value);
         } else if found_as {
-            parse_err!(tokens, cursor, "Failed to parse As clause after AS");
+            ret_parse_err!(tokens, cursor, "Failed to parse As clause after AS");
         }
         let (joins, new_cursor) = parse_joins(tokens, cursor, delimiters)?;
         cursor = new_cursor;
@@ -85,9 +85,9 @@ pub fn parse_table<'a>(
                     cursor,
                 ));
             } else if found_as {
-                parse_err!(tokens, cursor, "Failed to parse As clause after AS");
+                ret_parse_err!(tokens, cursor, "Failed to parse As clause after AS");
             } else if let Some(TokenContainer { token, loc: _ }) = tokens.get(cursor) {
-                parse_err!(
+                ret_parse_err!(
                     tokens,
                     cursor,
                     &format!("Unexpected {:?}, subquery requires as clause", token)
@@ -96,5 +96,5 @@ pub fn parse_table<'a>(
         }
     }
 
-    parse_err!(tokens, cursor, "Failed to parse a source Table");
+    ret_parse_err!(tokens, cursor, "Failed to parse a source Table");
 }

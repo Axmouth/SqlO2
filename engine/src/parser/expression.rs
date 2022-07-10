@@ -1,5 +1,7 @@
 use super::*;
 
+// TODO: Split different paths based on expression type?
+// TODO: Document better
 pub fn parse_expression<'a>(
     tokens: &'a [TokenContainer],
     initial_cursor: usize,
@@ -46,7 +48,7 @@ pub fn parse_expression<'a>(
         {
             cursor += 1;
         } else {
-            parse_err!(tokens, cursor, "Expected closing Parenthesis");
+            ret_parse_err!(tokens, cursor, "Expected closing Parenthesis");
         }
     } else if cursor < tokens.len() && UNARY_OPERATORS.contains(&tokens[cursor].token) {
         let token = &tokens[cursor];
@@ -68,12 +70,7 @@ pub fn parse_expression<'a>(
                 cursor = cursor_;
             }
             Err(err) => {
-                if let Some(TokenContainer {
-                    token: Token::LeftParenthesis,
-                    loc: _,
-                }) = tokens.get(cursor)
-                {
-                    cursor += 1;
+                if expect_token(tokens, &mut cursor, &Token::LeftParenthesis) {
                     let (expression_, cursor_) = parse_expression(
                         tokens,
                         cursor,
@@ -85,14 +82,8 @@ pub fn parse_expression<'a>(
                     inner_exp = expression_;
                     cursor = cursor_;
 
-                    if let Some(TokenContainer {
-                        loc: _,
-                        token: Token::RightParenthesis,
-                    }) = tokens.get(cursor)
-                    {
-                        cursor += 1;
-                    } else {
-                        parse_err!(tokens, cursor, "Expected closing Parenthesis");
+                    if !expect_token(tokens, &mut cursor, &Token::RightParenthesis) {
+                        ret_parse_err!(tokens, cursor, "Expected closing Parenthesis");
                     }
                 } else {
                     return Err(err);
@@ -106,7 +97,7 @@ pub fn parse_expression<'a>(
                 operand: Operand::from_token(&operand, cursor)?,
             });
         } else {
-            parse_err!(tokens, cursor, "Expected Unary Operator");
+            ret_parse_err!(tokens, cursor, "Expected Unary Operator");
         }
         while let Some(operand) = nested_un_ops.pop() {
             inner_exp = Expression::Unary(UnaryExpression {
@@ -133,7 +124,7 @@ pub fn parse_expression<'a>(
     ) = (tokens.get(cursor), tokens.get(cursor + 1))
     {
         if UNARY_POSTFIX_OPERATORS.contains(token1) && BINARY_OPERATORS.contains(token2) {
-            cursor += 1;
+            cursor += 2;
             expression = Expression::Unary(UnaryExpression {
                 first: Box::from(expression),
                 operand: Operand::from_token(token1, cursor)?,
@@ -146,8 +137,20 @@ pub fn parse_expression<'a>(
         if delimiters.contains(token) {
             break 'outer;
         }
+
+        // Makes sure that if there are postfix unary ops, they are applied in the current expression before continuing.
         if UNARY_POSTFIX_OPERATORS.contains(token) {
-            break 'outer;
+            if !expression.is_empty() {
+                expression = Expression::Unary(UnaryExpression {
+                    first: Box::from(expression),
+                    operand: Operand::from_token(token, cursor)?,
+                });
+                cursor += 1;
+                last_cursor = cursor;
+                continue;
+            } else {
+                ret_parse_err!(tokens, cursor, "Expected Expression");
+            }
         }
 
         if let Some(TokenContainer {
@@ -159,11 +162,13 @@ pub fn parse_expression<'a>(
                 break;
             }
         }
+
         let mut operand_tok = Token::Empty;
         if BINARY_OPERATORS.contains(token) {
             operand_tok = token.clone();
             cursor += 1;
         }
+
         if operand_tok == Token::TypeCast {
             if let Some(TokenContainer { token: op, loc: _ }) = tokens.get(cursor) {
                 if op.is_datatype() {
@@ -186,14 +191,14 @@ pub fn parse_expression<'a>(
                     cursor += 1;
                     continue;
                 } else {
-                    parse_err!(tokens, cursor, "Expected Type Name after Type Cast");
+                    ret_parse_err!(tokens, cursor, "Expected Type for Cast");
                 }
             } else {
-                parse_err!(tokens, cursor, "Expected Type Name after Type Cast");
+                ret_parse_err!(tokens, cursor, "Unexpected end of input");
             }
         }
         if operand_tok == Token::Empty {
-            parse_err!(tokens, cursor, "Expected Binary Operator");
+            ret_parse_err!(tokens, cursor, "Expected Binary Operator");
         }
 
         let binding_power = operand_tok.binding_power();

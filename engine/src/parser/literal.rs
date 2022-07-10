@@ -29,7 +29,7 @@ pub fn parse_literal_expression(
                         table_name = Some(col_name);
                         col_name = value;
                     } else {
-                        parse_err!(tokens, cursor, "Expected Identifier after dot");
+                        ret_parse_err!(tokens, cursor, "Expected Identifier after dot");
                     }
                 }
                 Ok((
@@ -51,10 +51,10 @@ pub fn parse_literal_expression(
                 ))
             }
             _ => {
-                parse_err!(tokens, cursor, "Expected Literal")
+                ret_parse_err!(tokens, cursor, "Expected Literal")
             }
         }
     } else {
-        parse_err!(tokens, cursor, "Expected Literal Expression");
+        ret_parse_err!(tokens, cursor, "Expected Literal Expression");
     }
 }

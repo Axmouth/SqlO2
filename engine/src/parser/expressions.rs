@@ -11,7 +11,7 @@ pub fn parse_expressions(
 
     loop {
         if cursor >= tokens.len() {
-            parse_err!(tokens, cursor, "Expected Expression");
+            ret_parse_err!(tokens, cursor, "Expected Expression");
         }
 
         // Look for delimiter
@@ -26,12 +26,8 @@ pub fn parse_expressions(
         }
 
         // Look for comma
-        if !expressions.is_empty() {
-            if !expect_token(tokens, cursor, Token::Comma) {
-                parse_err!(tokens, cursor, "Expected Comma");
-            }
-
-            cursor += 1;
+        if !expressions.is_empty() && !expect_token(tokens, &mut cursor, &Token::Comma) {
+            ret_parse_err!(tokens, cursor, "Expected Comma");
         }
 
         // Look for expression

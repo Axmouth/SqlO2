@@ -17,6 +17,7 @@ mod tables;
 use super::ast::*;
 use super::lexer::*;
 use crate::sql_types::SqlType;
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use test_util::TestSubjectExt;
@@ -66,13 +67,24 @@ macro_rules! parse_err {
         parse_err!($tokens, $cursor, General, $msg)
     };
     ($tokens:expr, $cursor:expr, $err_type:ident, $msg:expr) => {
-        return Err(ParsingError::$err_type {
+        ParsingError::$err_type {
             msg: help_message($tokens.get($cursor), $cursor, $msg),
             cursor: $cursor,
-        })
+        }
     };
 }
+
+macro_rules! ret_parse_err {
+    ($tokens:expr, $cursor:expr, $msg:expr) => {
+        ret_parse_err!($tokens, $cursor, General, $msg)
+    };
+    ($tokens:expr, $cursor:expr, $err_type:ident, $msg:expr) => {
+        return Err(parse_err!($tokens, $cursor, $err_type, $msg))
+    };
+}
+
 pub(crate) use parse_err;
+pub(crate) use ret_parse_err;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Parser {
@@ -104,12 +116,11 @@ impl Parser {
         while cursor < tokens.len() {
             if !first_statement {
                 let mut at_least_one_semicolon = false;
-                while expect_token(&tokens, cursor, Token::Semicolon) {
-                    cursor += 1;
+                while expect_token(&tokens, &mut cursor, &Token::Semicolon) {
                     at_least_one_semicolon = true;
                 }
                 if !(first_statement || at_least_one_semicolon) {
-                    parse_err!(
+                    ret_parse_err!(
                         tokens,
                         cursor,
                         Delimiter,
@@ -162,14 +173,56 @@ impl From<LexingError> for ParsingError {
     }
 }
 
-fn expect_token(tokens: &[TokenContainer], cursor: usize, token: Token) -> bool {
-    let current_token = match tokens.get(cursor) {
-        Some(value) => value,
+fn expect_token(tokens: &[TokenContainer], cursor: &mut usize, token: &Token) -> bool {
+    let current_token = match tokens.get(*cursor) {
+        Some(TokenContainer { token, .. }) => token,
         None => {
             return false;
         }
     };
-    token == current_token.token
+    if token == current_token {
+        *cursor += 1;
+        true
+    } else {
+        false
+    }
+}
+
+#[allow(dead_code)]
+fn expect_tokens(tokens: &[TokenContainer], cursor: &mut usize, expected_tokens: &[Token]) -> bool {
+    let tokens_found = match tokens.get(*cursor..(*cursor + expected_tokens.len())) {
+        Some(val) => val,
+        None => {
+            return false;
+        }
+    };
+    if tokens_found
+        .iter()
+        .zip(expected_tokens.iter())
+        .map(|(tok, exp)| &tok.token == exp)
+        .all(|x| x)
+    {
+        *cursor += expected_tokens.len();
+        true
+    } else {
+        false
+    }
+}
+
+fn expect_identifier<'a, 'b>(
+    tokens: &'a [TokenContainer],
+    cursor: &'b mut usize,
+) -> Option<&'a Cow<'a, str>> {
+    match tokens.get(*cursor) {
+        Some(TokenContainer {
+            token: Token::IdentifierValue { value },
+            ..
+        }) => {
+            *cursor += 1;
+            Some(value)
+        }
+        _ => None,
+    }
 }
 
 fn help_message(token: Option<&TokenContainer>, cursor: usize, msg: &str) -> String {

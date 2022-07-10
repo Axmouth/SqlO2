@@ -25,14 +25,14 @@ pub fn parse_tables<'a>(
             if delimiters.contains(token) {
                 break;
             } else {
-                parse_err!(
+                ret_parse_err!(
                     tokens,
                     cursor,
                     &format!("Failed to parse table, unexpected {:?}", token)
                 );
             }
         } else {
-            parse_err!(tokens, cursor, "Failed to parse Table");
+            ret_parse_err!(tokens, cursor, "Failed to parse Table");
         }
     }
 

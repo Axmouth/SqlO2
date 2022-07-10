@@ -14,9 +14,9 @@ pub fn parse_select_statement<'a>(
     }) = tokens.get(cursor)
     {
     } else if let Some(TokenContainer { token: _, loc: _ }) = tokens.get(cursor) {
-        parse_err!(tokens, cursor, "Not a Select statement");
+        ret_parse_err!(tokens, cursor, "Not a Select statement");
     } else {
-        parse_err!(tokens, cursor, "Reached end of input");
+        ret_parse_err!(tokens, cursor, "Reached end of input");
     }
     cursor += 1;
 
@@ -180,7 +180,7 @@ pub fn parse_select_statement<'a>(
             let limit = match value.parse::<f64>() {
                 Ok(val) => val,
                 Err(err) => {
-                    parse_err!(
+                    ret_parse_err!(
                         tokens,
                         cursor,
                         &format!("Failed to parse Limit value: {err}")
@@ -188,10 +188,10 @@ pub fn parse_select_statement<'a>(
                 }
             };
             if limit.is_sign_negative() {
-                parse_err!(tokens, cursor, "Limit must not be negative");
+                ret_parse_err!(tokens, cursor, "Limit must not be negative");
             }
             if limit.is_nan() || limit.is_infinite() {
-                parse_err!(
+                ret_parse_err!(
                     tokens,
                     cursor,
                     "Limit cannot be interpreted as a whole number"
@@ -217,7 +217,7 @@ pub fn parse_select_statement<'a>(
             let offset = match value.parse::<f64>() {
                 Ok(val) => val,
                 Err(err) => {
-                    parse_err!(
+                    ret_parse_err!(
                         tokens,
                         cursor,
                         &format!("Failed to parse Offset value: {err}")
@@ -225,10 +225,10 @@ pub fn parse_select_statement<'a>(
                 }
             };
             if offset.is_sign_negative() {
-                parse_err!(tokens, cursor, "Offset must not be negative");
+                ret_parse_err!(tokens, cursor, "Offset must not be negative");
             }
             if offset.is_nan() || offset.is_infinite() {
-                parse_err!(
+                ret_parse_err!(
                     tokens,
                     cursor,
                     "Limit cannot be interpreted as a whole number"

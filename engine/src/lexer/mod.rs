@@ -241,7 +241,7 @@ impl std::fmt::Display for Token<'_> {
     }
 }
 
-impl<'a> Token<'_> {
+impl Token<'_> {
     pub fn binding_power(&self) -> u32 {
         match self {
             Token::And => 1,

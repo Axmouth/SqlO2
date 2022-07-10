@@ -17,7 +17,6 @@ use crate::{
 use instant::Instant;
 use std::collections::HashMap;
 use test_util::TestSubjectExt;
-use tree_display::TreeDisplay;
 
 const ERR_INVALID_CELL: &str = "Invalid Cell";
 //TODO:
@@ -1103,11 +1102,6 @@ impl MemoryBackend {
             Ok(val) => val,
             Err(err) => return Err(err.to_string()),
         };
-
-        println!(
-            "Ast\n{}",
-            ast.tree_print(Default::default(), Default::default())
-        );
 
         let mut eval_results = Vec::new();
 

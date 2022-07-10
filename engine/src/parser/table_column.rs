@@ -29,7 +29,7 @@ pub fn parse_table_column(
                         table_name = Some(col_name);
                         col_name = value;
                     } else {
-                        parse_err!(tokens, cursor, "Failed to parse Table name in Column");
+                        ret_parse_err!(tokens, cursor, "Failed to parse Table name in Column");
                     }
                 }
                 Ok((
@@ -40,9 +40,9 @@ pub fn parse_table_column(
                     cursor,
                 ))
             }
-            _ => parse_err!(tokens, cursor, "Failed to parse Column"),
+            _ => ret_parse_err!(tokens, cursor, "Failed to parse Column"),
         }
     } else {
-        parse_err!(tokens, cursor, "Failed to parse Column");
+        ret_parse_err!(tokens, cursor, "Failed to parse Column");
     }
 }

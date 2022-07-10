@@ -13,7 +13,7 @@ pub fn parse_create_index_statement<'a>(
     {
         cursor += 1;
     } else {
-        parse_err!(tokens, cursor, "Not a Create Index Statement");
+        ret_parse_err!(tokens, cursor, "Not a Create Index Statement");
     }
     let mut is_unique = false;
     if let Some(TokenContainer {
@@ -31,7 +31,7 @@ pub fn parse_create_index_statement<'a>(
     {
         cursor += 1;
     } else {
-        parse_err!(tokens, cursor, "Not a Create Index Statement");
+        ret_parse_err!(tokens, cursor, "Not a Create Index Statement");
     }
     let name = if let Some(TokenContainer {
         loc: _,
@@ -41,7 +41,7 @@ pub fn parse_create_index_statement<'a>(
         cursor += 1;
         value
     } else {
-        parse_err!(tokens, cursor, "Expected Index Name");
+        ret_parse_err!(tokens, cursor, "Expected Index Name");
     };
     if let Some(TokenContainer {
         loc: _,
@@ -50,7 +50,7 @@ pub fn parse_create_index_statement<'a>(
     {
         cursor += 1;
     } else {
-        parse_err!(tokens, cursor, "Expected ON Keyword");
+        ret_parse_err!(tokens, cursor, "Expected ON Keyword");
     }
     let table = if let Some(TokenContainer {
         loc: _,
@@ -60,7 +60,7 @@ pub fn parse_create_index_statement<'a>(
         cursor += 1;
         value
     } else {
-        parse_err!(tokens, cursor, "Expected Table Name");
+        ret_parse_err!(tokens, cursor, "Expected Table Name");
     };
     let (expression, cursor) = parse_expression(tokens, cursor, &[delimiter], 0, true, false)?;
 

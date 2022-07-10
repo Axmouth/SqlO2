@@ -28,7 +28,7 @@ mod parser_tests {
         backend.eval_query(sql).map(|r| r.into_vec_container())
     }
 
-    #[test_case("../tests/acceptance/memory1")]
+    #[test_case("../tests/acceptance/memory")]
     fn memory_backend(test: &str) {
         run_test(test, memory_backend_test_fn, MemoryBackend::init());
     }

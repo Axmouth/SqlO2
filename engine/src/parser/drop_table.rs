@@ -13,7 +13,7 @@ pub fn parse_drop_table_statement<'a>(
     {
         cursor += 1;
     } else {
-        parse_err!(tokens, cursor, "Not a Drop Table Statement");
+        ret_parse_err!(tokens, cursor, "Not a Drop Table Statement");
     }
     if let Some(TokenContainer {
         loc: _,
@@ -22,7 +22,7 @@ pub fn parse_drop_table_statement<'a>(
     {
         cursor += 1;
     } else {
-        parse_err!(tokens, cursor, "Not a Drop Table Statement");
+        ret_parse_err!(tokens, cursor, "Not a Drop Table Statement");
     }
     let name = if let Some(TokenContainer {
         loc: _,
@@ -32,7 +32,7 @@ pub fn parse_drop_table_statement<'a>(
         cursor += 1;
         value
     } else {
-        parse_err!(tokens, cursor, "Not a Drop Table Statement");
+        ret_parse_err!(tokens, cursor, "Not a Drop Table Statement");
     };
 
     Ok((

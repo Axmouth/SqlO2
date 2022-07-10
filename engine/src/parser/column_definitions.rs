@@ -11,30 +11,19 @@ pub fn parse_column_definitions<'a>(
 
     loop {
         if cursor >= tokens.len() {
-            parse_err!(tokens, cursor, "Unexpected end of input");
+            ret_parse_err!(tokens, cursor, "Unexpected end of input");
         }
 
         // Look for a delimiter
-        if let Some(TokenContainer {
-            loc: _,
-            token: current_token,
-        }) = tokens.get(cursor)
-        {
-            if current_token == &delimiter {
+        if expect_token(tokens, &mut cursor, &delimiter) {
                 break;
-            }
         }
 
         // Look for a comma
-        if !column_definitions.is_empty() {
-            if let Some(TokenContainer { loc: _, token }) = tokens.get(cursor) {
-                if token == &Token::Comma {
-                    cursor += 1;
-                } else {
-                    parse_err!(tokens, cursor, "Expected Comma");
-                }
-            }
+        if !column_definitions.is_empty() && !expect_token(tokens, &mut cursor, &Token::Comma) {
+            ret_parse_err!(tokens, cursor, "Expected Comma");
         }
+
         // Look for a column name
         let col_name = match &tokens.get(cursor) {
             Some(TokenContainer {
@@ -42,7 +31,7 @@ pub fn parse_column_definitions<'a>(
                 token: Token::IdentifierValue { value },
             }) => value,
             _ => {
-                parse_err!(tokens, cursor, "Expected Column Name");
+                ret_parse_err!(tokens, cursor, "Expected Column Name");
             }
         };
         cursor += 1;
@@ -50,7 +39,7 @@ pub fn parse_column_definitions<'a>(
         // Look for a column type
         if let Some(token_c) = tokens.get(cursor) {
             if !token_c.token.is_datatype() {
-                parse_err!(tokens, cursor, "Expected Column Type");
+                ret_parse_err!(tokens, cursor, "Expected Column Type");
             }
         }
 
@@ -58,12 +47,13 @@ pub fn parse_column_definitions<'a>(
         let col_type = match tokens.get(cursor) {
             Some(v) => v,
             None => {
-                parse_err!(tokens, cursor, "Expected Column Type");
+                ret_parse_err!(tokens, cursor, "Expected Column Type");
             }
         };
         cursor += 1;
 
         // Look for primary key
+        // TODO: expect_tokens(..)
         if let (
             Some(TokenContainer {
                 loc: _,

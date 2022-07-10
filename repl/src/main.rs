@@ -7,6 +7,7 @@ use sqlo2::backend::EvalResult;
 use sqlo2::backend_memory::*;
 use sqlo2::{self};
 use std::borrow::Cow;
+use std::fmt::Write as FmtWrite;
 use std::io::{stdout, Write};
 use std::time::Duration;
 
@@ -176,51 +177,61 @@ pub fn repl_eval(mb: &mut MemoryBackend, cmd: String) -> String {
                         if !results.rows.is_empty() {
                             output_text.push_str(table.to_string().as_str());
                         }
-                        output_text.push_str(&format!(
+                        write!(
+                            output_text,
                             "{}",
                             format!("({} Results)\n", results.rows.len())
                                 .as_str()
                                 .dimmed()
-                        ));
+                        )
+                        .expect("Failed to write to output");
 
                         output_text.push_str(&"Ok!\n".green().to_string());
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(&format!(
+                        write!(
+                            output_text,
                             "{}",
-                            format!("Elapsed time : {:.2?}\n", time).as_str().dimmed()
-                        ));
+                            &format!("Elapsed time : {:.2?}\n", time).as_str().dimmed()
+                        )
+                        .expect("Failed to write to output");
                     }
                     EvalResult::CreateTable { success: _, time } => {
                         output_text.push_str(&"Ok!\n".green().to_string());
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(&format!(
+                        write!(
+                            output_text,
                             "{}",
                             format!("Elapsed time : {:.2?}\n", time).as_str().dimmed()
-                        ));
+                        )
+                        .expect("Failed to write to output");
                     }
                     EvalResult::Insert { success: _, time } => {
                         output_text.push_str(&"Ok!\n".green().to_string());
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(&format!(
+                        write!(
+                            output_text,
                             "{}",
                             format!("Elapsed time : {:.2?}\n", time).as_str().dimmed()
-                        ));
+                        )
+                        .expect("Failed to write to output");
                     }
                     EvalResult::DropTable { success: _, time } => {
                         output_text.push_str(&"Ok!\n".green().to_string());
                         if multiple_results {
                             total_time += time;
                         }
-                        output_text.push_str(&format!(
+                        write!(
+                            output_text,
                             "{}",
                             format!("Elapsed time : {:.2?}\n", time).as_str().dimmed()
-                        ));
+                        )
+                        .expect("Failed to write to output");
                     }
                 }
             }
