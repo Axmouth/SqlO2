@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 sqlo2 = { path = "../engine" }
-prettytable-rs = "=0.8.0"
+prettytable-rs = "=0.10.0"
 rustc_version_runtime = "=0.2"
 rustyline = "=9.1.2"
 sysinfo = "=0.23.0"
