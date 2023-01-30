@@ -9,3 +9,7 @@ filename = "query2"
 [[query]]
 result = "err"
 filename = "query3"
+
+[[query]]
+result = "ok"
+filename = "operation_order_1"

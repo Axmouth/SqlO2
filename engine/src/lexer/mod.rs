@@ -241,7 +241,7 @@ impl std::fmt::Display for Token<'_> {
     }
 }
 
-impl<'a> Token<'_> {
+impl Token<'_> {
     pub fn binding_power(&self) -> u32 {
         match self {
             Token::And => 1,
@@ -266,14 +266,16 @@ impl<'a> Token<'_> {
             Token::Modulo => 6,
             Token::Exponentiation => 6,
 
-            // Unary ops
+            // Prefix Unary ops
             Token::SquareRoot => 7,
             Token::CubeRoot => 7,
-            Token::Factorial => 7,
             Token::FactorialPrefix => 7,
 
+            // Postfix Unary ops
+            Token::Factorial => 8,
+
             // Cast
-            Token::TypeCast => 8,
+            Token::TypeCast => 9,
 
             _ => 0,
         }
@@ -610,12 +612,10 @@ static KEYWORDS: &[&str] = &[
 ];
 
 impl TokenContainer<'_> {
-    #[inline]
     pub fn equals(&self, other: &Self) -> bool {
         self.token == other.token
     }
 
-    #[inline]
     pub fn binding_power(&self) -> u32 {
         self.token.binding_power()
     }
@@ -1284,22 +1284,18 @@ pub fn get_location_from_cursor(source: &str, cursor: usize) -> TokenLocation {
     }
 }
 
-#[inline]
 fn get_chat_at(source: &str, position: usize) -> Option<char> {
     source[position..(position + 1)].chars().next()
 }
 
-#[inline]
 fn is_char_alphabetical(c: char) -> bool {
     ('A'..='Z').contains(&c) || ('a'..='z').contains(&c)
 }
 
-#[inline]
 fn is_char_digit(c: char) -> bool {
     ('0'..='9').contains(&c)
 }
 
-#[inline]
 fn is_char_valid_for_identifier(c: char) -> bool {
     is_char_alphabetical(c) || is_char_digit(c) || c == '$' || c == '_'
 }

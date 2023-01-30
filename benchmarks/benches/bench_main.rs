@@ -209,6 +209,19 @@ pub fn million_row_benchmark(_c: &mut Criterion) {
     );
 }
 
+fn store_set_benchmark(c: &mut Criterion) {
+    use transactional_store::{TransactionalStore, TransactionalStoreExt};
+    let store = TransactionalStore::<isize, &str>::new();
+    // Bench here
+    c.bench_function("create", |b| {
+        b.iter(|| {
+            for i in 0..100000 {
+                store.set(i % 999, i.to_string().as_str(), None);
+            }
+        })
+    });
+}
+
 criterion_group!(
     benches,
     lex_benchmark,
@@ -220,5 +233,6 @@ criterion_group!(
     insert_benchmark,
     select_benchmark,
     million_row_benchmark,
+    store_set_benchmark,
 );
 criterion_main!(benches);

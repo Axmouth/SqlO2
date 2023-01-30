@@ -9,6 +9,7 @@ members = [
     "test-test",
     "test-util",
     "tests",
+    "transactional-store",
     "wasm-repl",
     "wire-protocol"
 ]
@@ -23,3 +24,6 @@ debug = true
 [profile.release]
 debug = false
 lto = "thin"
+
+[patch."https://github.com/Axmouth/tree-display-rs"]
+tree-display = { path = "../tree-display/tree-display" }

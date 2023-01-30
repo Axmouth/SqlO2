@@ -1,9 +1,0 @@
-Select:
-| id(Int) | name(Text)        | character_id(Int) | role_name(Text) |
-|---------|-------------------|-------------------|-----------------|
-| 1       | The 25th Bam      | 1                 | Wave Controller |
-| 1       | The 25th Bam      | 1                 | Fisherman       |
-| 3       | Rak WraithKaiser  | 3                 | Spear Bearer    |
-| 4       | Khun Aguero Agnes | 4                 | Light Bearer    |
-| 4       | Khun Aguero Agnes | 4                 | Spear Bearer    |
-

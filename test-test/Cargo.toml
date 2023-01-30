@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 test-macros = { path = "../test-macros" }
-pretty_assertions = "=1.0.0"
+pretty_assertions = "=1.2.1"

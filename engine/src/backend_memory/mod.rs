@@ -15,6 +15,7 @@ use crate::{
     sql_types::{SqlType, SqlValue},
 };
 use instant::Instant;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use test_util::TestSubjectExt;
 
@@ -23,7 +24,50 @@ const ERR_INVALID_CELL: &str = "Invalid Cell";
 // const ERR_INVALID_OPERANDS: &str = "Invalid Operands";
 const ANONYMOUS_COL_NAME: &str = "?column?";
 
-#[derive(Clone, PartialEq)]
+type SqlRowIter = Box<dyn Iterator<Item = Vec<SqlValue>>>;
+
+pub trait Selectable {
+    fn select(&self) -> Result<(SqlRowIter, Vec<SqlType>), String>;
+}
+
+pub struct InnerJoinIter {
+    
+}
+
+pub struct OuterJoinIter {
+    
+}
+
+pub struct LeftJoinIter {
+    
+}
+
+pub struct RightJoinIter {
+    
+}
+
+pub struct RightOuterJoinIter {
+    
+}
+
+pub struct TableRowsIter {
+
+}
+
+pub struct IndexedTableRowsIter {
+
+}
+
+pub struct SubQueryIter {
+
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct ExecutionContext {}
+
+type Thunk = Box<dyn Fn(ExecutionContext) -> Result<(SqlValue, Box<str>), String>>;
+
+#[derive(Clone, PartialEq, Eq)]
 pub enum TableContainer<'a> {
     Temp(Box<Table>),
     Concrete(&'a Table),
@@ -41,7 +85,8 @@ pub struct Index {
 
 impl Index {
     pub fn add_row(&mut self, table: &Table, row_index: usize) -> Result<(), String> {
-        let (index_value, _, _) = table.evaluate_cell(row_index, &self.expression)?;
+        let (thunk, _) = table.compile_cell(row_index, &self.expression)?;
+        let (index_value, _) = thunk(ExecutionContext {})?;
 
         if index_value.is_null() {
             return Err("Violates NOT NULL Constraint".to_string());
@@ -78,12 +123,12 @@ impl Index {
             }
 
             let supported_checks = vec![
-                Operand::Equal,
-                Operand::NotEqual,
-                Operand::GreaterThan,
-                Operand::GreaterThanOrEqual,
-                Operand::LessThan,
-                Operand::LessThanOrEqual,
+                BinaryOperand::Equal,
+                BinaryOperand::NotEqual,
+                BinaryOperand::GreaterThan,
+                BinaryOperand::GreaterThanOrEqual,
+                BinaryOperand::LessThan,
+                BinaryOperand::LessThanOrEqual,
             ];
             let is_supported = supported_checks.contains(&bin_exp.operand);
 
@@ -121,7 +166,7 @@ impl Index {
             rows: Vec::with_capacity(100),
         };
 
-        let (value, _, _) = match new_table.evaluate_cell(0, &value_exp) {
+        let (thunk, _) = match new_table.compile_cell(0, &value_exp) {
             Ok(value) => value,
             Err(err) => {
                 eprintln!("{err}");
@@ -129,15 +174,17 @@ impl Index {
             }
         };
 
+        let (value, _) = thunk(ExecutionContext {})?;
+
         let mut row_indexes: Vec<usize> = Vec::with_capacity(100);
 
         match bin_exp.operand {
-            Operand::Equal => {
+            BinaryOperand::Equal => {
                 if let Some(indexes) = self.tree.get(&value) {
                     row_indexes.append(&mut indexes.clone());
                 }
             }
-            Operand::NotEqual => {
+            BinaryOperand::NotEqual => {
                 for (key, indexes) in &self.tree {
                     if *key == value {
                         continue;
@@ -145,7 +192,7 @@ impl Index {
                     row_indexes.append(&mut indexes.clone());
                 }
             }
-            Operand::LessThan => {
+            BinaryOperand::LessThan => {
                 for (key, indexes) in &self.tree {
                     if key >= &value {
                         break;
@@ -153,7 +200,7 @@ impl Index {
                     row_indexes.append(&mut indexes.clone());
                 }
             }
-            Operand::LessThanOrEqual => {
+            BinaryOperand::LessThanOrEqual => {
                 for (key, indexes) in &self.tree {
                     if key > &value {
                         break;
@@ -161,12 +208,12 @@ impl Index {
                     row_indexes.append(&mut indexes.clone());
                 }
             }
-            Operand::GreaterThan => {
+            BinaryOperand::GreaterThan => {
                 for (_, ref mut indexes) in self.tree.clone().split_off(&value) {
                     row_indexes.append(indexes);
                 }
             }
-            Operand::GreaterThanOrEqual => {
+            BinaryOperand::GreaterThanOrEqual => {
                 if let Some(indexes) = self.tree.get(&value) {
                     row_indexes.append(&mut indexes.clone());
                 }
@@ -209,25 +256,29 @@ impl From<QueryResults<SqlValue>> for Table {
 }
 
 impl Table {
-    #[inline]
-    pub fn evaluate_literal_cell(
-        &self,
+    pub fn evaluate_literal_cell<'a>(
+        &'a self,
         row_index: usize,
-        expression: &Expression,
-    ) -> Result<(SqlValue, &str, SqlType), String> {
+        expression: &'a Expression,
+    ) -> Result<(Thunk, SqlType), String> {
         match expression {
             Expression::Literal(literal_expression) => match &literal_expression {
                 LiteralExpression::Identifier(value) => {
                     for (i, table_col) in self.columns.iter().enumerate() {
                         if table_col == value.as_str() {
+                            let table_col = table_col.clone();
                             let typ = self.column_types.get(i).ok_or("Error accesing column")?;
-                            let val = self
-                                .rows
-                                .get(row_index as usize)
-                                .ok_or("Error accesing row")?
-                                .get(i as usize)
-                                .ok_or("Error accesing row's column")?;
-                            return Ok((val.clone(), table_col, *typ));
+                            let thunk = Box::new(move |_| {
+                                let val = self
+                                    .rows
+                                    .get(row_index as usize)
+                                    .ok_or("Error accesing row")?
+                                    .get(i as usize)
+                                    .ok_or("Error accesing row's column")?;
+
+                                Ok((val.clone(), table_col.clone().into_boxed_str()))
+                            });
+                            return Ok((thunk, *typ));
                         }
                     }
 
@@ -238,37 +289,44 @@ impl Table {
                     let val = SqlValue::Numeric(SqlNumeric::DoublePrecision {
                         value: value.parse::<f64>().map_err(|e| e.to_string())?,
                     });
-                    Ok((val, "", typ))
+                    let thunk: Thunk = Box::new(move |_| Ok((val.clone(), "".into())));
+                    Ok((thunk, typ))
                 }
                 LiteralExpression::String(value) => {
                     let typ = SqlType::Text;
-                    let val = SqlValue::Text(SqlText::Text {
-                        value: value.clone(),
-                    });
-                    Ok((val, "", typ))
+                    let val = SqlValue::Text(SqlText::Text { value: value.clone() });
+
+                    let thunk: Thunk = Box::new(move |_| Ok((val.clone(), "".into())));
+                    Ok((thunk, typ))
                 }
                 LiteralExpression::Bool(value) => {
                     let typ = SqlType::Boolean;
                     let val = SqlValue::Boolean(*value);
-                    Ok((val, "", typ))
+                    let thunk: Thunk = Box::new(move |_| Ok((val.clone(), "".into())));
+                    Ok((thunk, typ))
                 }
                 LiteralExpression::Null => {
                     let typ = SqlType::Null;
                     let val = SqlValue::Null;
-                    Ok((val, "", typ))
+                    let thunk: Thunk = Box::new(move |_| Ok((val.clone(), "".into())));
+                    Ok((thunk, typ))
                 }
             },
             Expression::TableColumn(table_column) => {
-                for (i, table_col) in self.columns.iter().enumerate() {
-                    if table_col == &table_column.col_name {
+                for (i, table_col) in self.columns.iter().cloned().enumerate() {
+                    if table_col == table_column.col_name {
                         let typ = self.column_types.get(i).ok_or("Error accesing column")?;
-                        let val = self
-                            .rows
-                            .get(row_index)
-                            .ok_or("Error accesing row")?
-                            .get(i)
-                            .ok_or("Error accesing row's column")?;
-                        return Ok((val.clone(), table_col, *typ));
+                        let thunk: Thunk = Box::new(move |_| {
+                            let val = self
+                                .rows
+                                .get(row_index)
+                                .ok_or("Error accesing row")?
+                                .get(i)
+                                .ok_or("Error accesing row's column")?;
+
+                            Ok((val.clone(), table_col.clone().into_boxed_str()))
+                        });
+                        return Ok((thunk, *typ));
                     }
                 }
 
@@ -281,196 +339,182 @@ impl Table {
                 let table_col = self
                     .columns
                     .get(table_column.col_idx)
+                    .ok_or(ERR_COLUMN_DOES_NOT_EXIST)?.clone();
+                let typ = self
+                    .column_types
+                    .get(table_column.col_idx)
                     .ok_or(ERR_COLUMN_DOES_NOT_EXIST)?;
+                let thunk = Box::new(move |_| {
                 let val = self
                     .rows
                     .get(row_index)
                     .ok_or("Error accesing row")?
                     .get(table_column.col_idx)
                     .ok_or("Error accesing row's column")?;
-                let typ = self
-                    .column_types
-                    .get(table_column.col_idx)
-                    .ok_or(ERR_COLUMN_DOES_NOT_EXIST)?;
-                Ok((val.clone(), table_col, *typ))
+
+                    Ok((val.clone(), table_col.clone().into_boxed_str()))
+                });
+
+                Ok((thunk, *typ))
             }
             _ => Err(ERR_INVALID_CELL.to_string()),
         }
     }
 
-    #[inline]
-    pub fn evaluate_binary_cell(
-        &self,
+    pub fn evaluate_binary_cell<'a>(
+        &'a self,
         row_index: usize,
-        expression: &Expression,
-    ) -> Result<(SqlValue, &str, SqlType), String> {
+        expression: &'a Expression,
+    ) -> Result<(Thunk, SqlType), String> {
         match expression {
             Expression::Binary(binary_expression) => {
-                let (first_val, _, _) = self.evaluate_cell(row_index, &binary_expression.first)?;
 
-                let (second_val, _, _) =
-                    self.evaluate_cell(row_index, &binary_expression.second)?;
+                macro_rules! bin_thunk {
+                    ($first_thunk:ident, $second_thunk:ident, $func:ident) => {
+                        Box::new(move |ctx| {
+                            let (first_val, _) = $first_thunk(ctx.clone())?;
+                            let (second_val, _) = $second_thunk(ctx)?;
 
-                match binary_expression.operand {
-                    Operand::Equal => {
-                        let result = SqlValue::equals(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::NotEqual => {
-                        let result = SqlValue::not_equal(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::GreaterThan => {
-                        let result = SqlValue::greater_than(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::GreaterThanOrEqual => {
-                        let result = SqlValue::greater_than_or_equals(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::LessThan => {
-                        let result = SqlValue::less_than(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::LessThanOrEqual => {
-                        let result = SqlValue::less_than_or_equals(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Concat => {
-                        let result = SqlValue::concat(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Add => {
-                        let result = SqlValue::add(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Subtract => {
-                        let result = SqlValue::subtract(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Multiply => {
-                        let result = SqlValue::multiply(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Divide => {
-                        let result = SqlValue::divide(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Modulo => {
-                        let result = SqlValue::modulo(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::And => {
-                        let result = SqlValue::and(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Or => {
-                        let result = SqlValue::or(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Exponentiation => {
-                        let result = SqlValue::exponentiation(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::BitwiseAnd => {
-                        let result = SqlValue::bitwise_and(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::BitwiseOr => {
-                        let result = SqlValue::bitwise_or(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::BitwiseXor => {
-                        let result = SqlValue::bitwise_xor(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::BitwiseShiftLeft => {
-                        let result = SqlValue::bitwise_shift_left(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::BitwiseShiftRight => {
-                        let result = SqlValue::bitwise_shift_right(&first_val, &second_val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    _ => Err(ERR_INVALID_CELL.to_string()),
+                            Ok((SqlValue::$func(&first_val, &second_val)?, ANONYMOUS_COL_NAME.into()))
+                        })
+                    };
                 }
+
+                let (first_thunk, typ1) = self.compile_cell(row_index, &binary_expression.first)?;
+
+                let (second_thunk, typ2) = self.compile_cell(row_index, &binary_expression.second)?;
+
+                let thunk: Thunk = match binary_expression.operand {
+                    BinaryOperand::Equal => {
+                        bin_thunk!(first_thunk, second_thunk, equals)
+                    }
+                    BinaryOperand::NotEqual => {
+                        bin_thunk!(first_thunk, second_thunk, not_equal)
+                    }
+                    BinaryOperand::GreaterThan => {
+                        bin_thunk!(first_thunk, second_thunk, greater_than)
+                    }
+                    BinaryOperand::GreaterThanOrEqual => {
+                        bin_thunk!(first_thunk, second_thunk, greater_than_or_equals)
+                    }
+                    BinaryOperand::LessThan => {
+                        bin_thunk!(first_thunk, second_thunk, less_than)
+                    }
+                    BinaryOperand::LessThanOrEqual => {
+                        bin_thunk!(first_thunk, second_thunk, less_than_or_equals)
+                    }
+                    BinaryOperand::Concat => {
+                        bin_thunk!(first_thunk, second_thunk, concat)
+                    }
+                    BinaryOperand::Add => {
+                        bin_thunk!(first_thunk, second_thunk, add)
+                    }
+                    BinaryOperand::Subtract => {
+                        bin_thunk!(first_thunk, second_thunk, subtract)
+                    }
+                    BinaryOperand::Multiply => {
+                        bin_thunk!(first_thunk, second_thunk, multiply)
+                    }
+                    BinaryOperand::Divide => {
+                        bin_thunk!(first_thunk, second_thunk, divide)
+                    }
+                    BinaryOperand::Modulo => {
+                        bin_thunk!(first_thunk, second_thunk, modulo)
+                    }
+                    BinaryOperand::And => {
+                        bin_thunk!(first_thunk, second_thunk, and)
+                    }
+                    BinaryOperand::Or => {
+                        bin_thunk!(first_thunk, second_thunk, or)
+                    }
+                    BinaryOperand::Exponentiation => {
+                        bin_thunk!(first_thunk, second_thunk, exponentiation)
+                    }
+                    BinaryOperand::BitwiseAnd => {
+                        bin_thunk!(first_thunk, second_thunk, bitwise_and)
+                    }
+                    BinaryOperand::BitwiseOr => {
+                        bin_thunk!(first_thunk, second_thunk, bitwise_or)
+                    }
+                    BinaryOperand::BitwiseXor => {
+                        bin_thunk!(first_thunk, second_thunk, bitwise_xor)
+                    }
+                    BinaryOperand::BitwiseShiftLeft => {
+                        bin_thunk!(first_thunk, second_thunk, bitwise_shift_left)
+                    }
+                    BinaryOperand::BitwiseShiftRight => {
+                        bin_thunk!(first_thunk, second_thunk, bitwise_shift_right)
+                    }
+                    BinaryOperand::In => todo!(),
+                    BinaryOperand::NotIn => todo!(),
+                    BinaryOperand::Like => todo!(),
+                    BinaryOperand::NotLike => todo!(),
+                    BinaryOperand::Between => todo!(),
+                    BinaryOperand::NotBetween => todo!(),
+                    BinaryOperand::BitwiseShiftRightZeroFill => todo!(),
+                };
+                
+                let typ = typ1;
+                Ok((thunk, typ))
             }
             Expression::Unary(unary_expression) => {
-                let (val, _, _) = self.evaluate_cell(row_index, &unary_expression.first)?;
-                match unary_expression.operand {
-                    Operand::Subtract => {
-                        let result = SqlValue::minus(&val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::SquareRoot => {
-                        let result = SqlValue::square_root(&val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::CubeRoot => {
-                        let result = SqlValue::cube_root(&val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Factorial | Operand::FactorialPrefix => {
-                        let result = SqlValue::factorial(&val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::Not => {
-                        let result = SqlValue::not(&val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::AbsoluteValue => {
-                        let result = SqlValue::abs(&val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    Operand::BitwiseNot => {
-                        let result = SqlValue::bitwise_not(&val)?;
-                        let typ = result.get_type();
-                        Ok((result, ANONYMOUS_COL_NAME, typ))
-                    }
-                    _ => Err(ERR_INVALID_CELL.to_string()),
+                let (thunk, typ) = self.compile_cell(row_index, &unary_expression.first)?;
+
+                macro_rules! un_thunk {
+                    ($thunk:ident, $func:ident) => {
+                        Box::new(move |ctx| {
+                            let (val, _) = $thunk(ctx)?;
+                            Ok((SqlValue::$func(&val)?, ANONYMOUS_COL_NAME.into()))
+                        })
+                    };
                 }
+
+                let thunk: Thunk = match unary_expression.operand {
+                    UnaryOperand::Minus => {
+                        un_thunk!(thunk, minus)
+                    }
+                    UnaryOperand::SquareRoot => {
+                        un_thunk!(thunk, square_root)
+                    }
+                    UnaryOperand::CubeRoot => {
+                        un_thunk!(thunk, cube_root)
+                    }
+                    UnaryOperand::Factorial | UnaryOperand::FactorialPrefix => {
+                        un_thunk!(thunk, factorial)
+                    }
+                    UnaryOperand::Not => {
+                        un_thunk!(thunk, not)
+                    }
+                    UnaryOperand::AbsoluteValue => {
+                        un_thunk!(thunk, abs)
+                    }
+                    UnaryOperand::BitwiseNot => {
+                        un_thunk!(thunk, bitwise_not)
+                    }
+                    UnaryOperand::Exists => todo!(),
+                    UnaryOperand::NotExists => todo!(),
+                    UnaryOperand::IsNull => todo!(),
+                    UnaryOperand::IsNotNull => todo!(),
+                };
+                Ok((thunk, typ))
             }
             Expression::Cast { data, typ } => {
-                let (val, _, _) = self.evaluate_cell(row_index, data)?;
-                let result = val.explicit_cast_to_type(*typ)?;
-                Ok((result, ANONYMOUS_COL_NAME, *typ))
+                let (thunk, _) = self.compile_cell(row_index, data)?;
+                let thunk = Box::new(move |ctx| {
+                    let (val, _) = thunk(ctx)?;
+                    Ok((val.explicit_cast_to_type(*typ)?, ANONYMOUS_COL_NAME.into()))
+                });
+                Ok((thunk, *typ))
             }
             _ => Err(ERR_INVALID_CELL.to_string()),
         }
     }
 
-    #[inline]
-    pub fn evaluate_cell(
+    pub fn compile_cell(
         &self,
         row_index: usize,
         expression: &Expression,
-    ) -> Result<(SqlValue, &str, SqlType), String> {
+    ) -> Result<(Thunk, SqlType), String> {
         match expression {
             Expression::Literal(_)
             | Expression::TableColumn(_)
@@ -484,21 +528,42 @@ impl Table {
                 if select_statement.items.len() != 1 {
                     return Err("Subquery must return only one column".to_string());
                 }
-                if Expression::Empty != select_statement.where_clause {
-                    if let (SqlValue::Boolean(false), _, SqlType::Boolean) =
-                        self.evaluate_cell(row_index, &select_statement.where_clause)?
-                    {
-                        return Ok((SqlValue::Null, ANONYMOUS_COL_NAME, SqlType::Null));
-                    }
-                }
+
                 if let Some(item) = select_statement.items.get(0) {
-                    let (result, _, typ) = self.evaluate_cell(row_index, &item.expression)?;
+                    let (result, typ) = self.compile_cell(row_index, &item.expression)?;
                     Ok((result, ANONYMOUS_COL_NAME, typ))
+                } else {
+                    Err("Subquery must return only one column".to_string())
+                };
+                let (where_thunk, where_typ): (Thunk, SqlType) = if Expression::Empty != select_statement.where_clause {
+                    self.compile_cell(row_index, &select_statement.where_clause)?
+                } else {
+                    (Box::new(move |ctx| {
+                        Ok((SqlValue::Boolean(true), ANONYMOUS_COL_NAME.into()))
+                    }), SqlType::Boolean)
+                };
+                if where_typ != SqlType::Boolean {
+                    return Err("Subquery WHERE clause must return a boolean".to_string());
+                }
+
+                if let Some(item) = select_statement.items.get(0) {
+                    let (thunk, typ) = self.compile_cell(row_index, &item.expression)?;
+                    let thunk = Box::new(move |ctx: ExecutionContext| {
+                        let (where_val, _) = where_thunk(ctx.clone())?;
+                        if let SqlValue::Boolean(true) = where_val {
+                            thunk(ctx)
+                        } else if let SqlValue::Boolean(true) = where_val {
+                            Ok((SqlValue::Null, ANONYMOUS_COL_NAME.into()))
+                        } else {
+                            Err(ERR_INVALID_CELL.to_string())
+                        }
+                    });
+                    Ok((thunk, typ))
                 } else {
                     Err("Subquery must return only one column".to_string())
                 }
             }
-            _ => Err(ERR_INVALID_CELL.to_string()),
+            Expression::Empty => Err(ERR_INVALID_CELL.to_string()),
         }
     }
 
@@ -522,7 +587,7 @@ impl Table {
     }
 }
 
-#[derive(PartialEq, Default)]
+#[derive(PartialEq, Eq, Default)]
 pub struct MemoryBackend {
     tables: HashMap<String, Table>,
     parser: Parser,
@@ -670,7 +735,9 @@ impl MemoryBackend {
                 }
                 Some(value) => value,
             };
-            let (index_value, _, _) = table.evaluate_cell(row_index, &index.expression)?;
+            let (index_thunk, _) = table.compile_cell(row_index, &index.expression)?;
+
+            let (index_value, _) = index_thunk(ExecutionContext {  })?;
 
             if index_value.is_null() {
                 table.rows.remove(row_index);
@@ -732,14 +799,13 @@ impl MemoryBackend {
                     return Err(ERR_TABLE_DOES_NOT_EXIST.to_string());
                 }
                 Some(table) => {
-                    let mut new_table;
                     let from_name = if let Some(from_name) = as_clause {
                         from_name.clone()
                     } else {
                         from_name.clone()
                     };
 
-                    new_table = TableContainer::Concrete(table);
+                    let mut new_table = TableContainer::Concrete(table);
                     for (index, exp) in
                         table.get_applicable_indexes(Some(&select_statement.where_clause))?
                     {
@@ -788,14 +854,13 @@ impl MemoryBackend {
                         return Err(ERR_TABLE_DOES_NOT_EXIST.to_string());
                     }
                     Some(table) => {
-                        let mut new_table;
                         let from_name = if let Some(from_name) = as_clause {
                             from_name.clone()
                         } else {
                             from_name.clone()
                         };
 
-                        new_table = TableContainer::Concrete(table);
+                        let mut new_table = TableContainer::Concrete(table);
                         for (index, exp) in
                             table.get_applicable_indexes(Some(&select_statement.where_clause))?
                         {
@@ -871,7 +936,8 @@ impl MemoryBackend {
                     let mut new_row = row.clone();
                     new_row.append(&mut source_row.clone());
                     temp_table.rows = vec![new_row.clone()];
-                    let (result, _, _) = temp_table.evaluate_cell(0, on)?;
+                    let (thunk, _) = temp_table.compile_cell(0, on)?;
+                    let (result, _) = thunk(ExecutionContext {  })?;
 
                     if let SqlValue::Boolean(true) = result {
                         used_source_indices.push(source_index);
@@ -1017,8 +1083,10 @@ impl MemoryBackend {
             match &select_statement.where_clause {
                 Expression::Empty => {}
                 _ => {
-                    let (cell_val, _, _) =
-                        table.evaluate_cell(row_index, &select_statement.where_clause)?;
+                    let (cell_thunk, _) =
+                        table.compile_cell(row_index, &select_statement.where_clause)?;
+                    
+                    let (cell_val, _) = cell_thunk(ExecutionContext {  })?;
 
                     if let SqlValue::Boolean(true) = cell_val {
                     } else {
@@ -1034,8 +1102,10 @@ impl MemoryBackend {
             }
 
             for select_item in &final_select_items {
-                let (cell_val, col_name, col_type) =
-                    table.evaluate_cell(row_index, &select_item.expression)?;
+                let (cell_thunk, col_type) =
+                    table.compile_cell(row_index, &select_item.expression)?;
+                
+                let (cell_val, col_name) = cell_thunk(ExecutionContext {  })?;
 
                 if is_first_row {
                     match &select_item.as_clause {
@@ -1062,7 +1132,8 @@ impl MemoryBackend {
             }
 
             if let Some(ref order_by) = select_statement.order_by {
-                let (new_ord_val, _, _) = table.evaluate_cell(row_index, &order_by.exp)?;
+                let (new_ord_thunk, _) = table.compile_cell(row_index, &order_by.exp)?;
+                let (new_ord_val, _) = new_ord_thunk(ExecutionContext {  })?;
 
                 let mut index = results_order.len();
                 for (i, val) in results_order.iter().enumerate() {
@@ -1088,12 +1159,10 @@ impl MemoryBackend {
 
     pub fn drop_table(&mut self, drop_table_statement: DropTableStatement) -> Result<bool, String> {
         match self.tables.get(&drop_table_statement.name) {
-            None => {
-                return Err(format!(
-                    "Table \"{}\" doesn't exist.",
-                    drop_table_statement.name.clone()
-                ));
-            }
+            None => Err(format!(
+                "Table \"{}\" doesn't exist.",
+                drop_table_statement.name.clone()
+            )),
             Some(_) => {
                 self.tables.remove(&drop_table_statement.name);
                 Ok(true)
@@ -1108,7 +1177,7 @@ impl MemoryBackend {
             Err(err) => return Err(err.to_string()),
         };
 
-        let mut eval_results = vec![];
+        let mut eval_results = Vec::new();
 
         for statement in ast.statements {
             match statement {
@@ -1196,10 +1265,10 @@ pub fn linearize_expressions(
         return expressions;
     }
     if let Some(Expression::Binary(ref bin_exp)) = where_clause {
-        if bin_exp.operand == Operand::Or {
+        if bin_exp.operand == BinaryOperand::Or {
             return expressions;
         }
-        if (bin_exp.operand) == Operand::And {
+        if (bin_exp.operand) == BinaryOperand::And {
             let exps = linearize_expressions(Some(*bin_exp.first.clone()), expressions);
             return linearize_expressions(Some(*bin_exp.second.clone()), exps);
         }
@@ -1214,7 +1283,6 @@ pub fn linearize_expressions(
     }
 }
 
-#[inline]
 pub fn literal_to_memory_cell(literal: &LiteralExpression) -> Result<SqlValue, String> {
     match literal {
         LiteralExpression::Numeric(value) => {

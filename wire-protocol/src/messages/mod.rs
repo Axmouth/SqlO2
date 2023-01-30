@@ -127,7 +127,7 @@ impl<'a> DeserializableMessage<'a> for Bind<'a> {
             let mut read_count: i16 = 0;
             while read_count < numparams {
                 let param_len = data_bytes.read_i32::<NetworkEndian>()?;
-                let mut param = Vec::with_capacity(param_len as usize);
+                let mut param = vec![0; param_len as usize];
                 data_bytes.read_exact(&mut param)?;
                 let param_str = Cow::Owned(String::from_utf8_lossy(&param).to_string());
                 params.push(param_str);
@@ -174,7 +174,7 @@ impl<'a> DeserializableMessage<'a> for Bind<'a> {
     }
 }
 
-impl<'a> SerializableMessage for Bind<'_> {
+impl SerializableMessage for Bind<'_> {
     fn serialize(&self) -> Vec<u8> {
         todo!()
     }
@@ -263,7 +263,7 @@ impl<'a> DeserializableMessage<'a> for Describe<'a> {
     }
 }
 
-impl<'a> SerializableMessage for Describe<'_> {
+impl SerializableMessage for Describe<'_> {
     fn serialize(&self) -> Vec<u8> {
         todo!()
     }
@@ -296,7 +296,7 @@ impl<'a> DeserializableMessage<'a> for ErrorResponse<'a> {
     }
 }
 
-impl<'a> SerializableMessage for ErrorResponse<'_> {
+impl SerializableMessage for ErrorResponse<'_> {
     fn serialize(&self) -> Vec<u8> {
         let mut content = vec![b'E', 0, 0, 0, 0];
         for (c, s) in &self.errors {
@@ -339,7 +339,7 @@ impl<'a> DeserializableMessage<'a> for Execute<'a> {
     }
 }
 
-impl<'a> SerializableMessage for Execute<'_> {
+impl SerializableMessage for Execute<'_> {
     fn serialize(&self) -> Vec<u8> {
         todo!()
     }

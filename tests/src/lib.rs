@@ -16,6 +16,7 @@ mod parser_tests {
     }
 
     #[test_case("../tests/unit/parser1")]
+    #[test_case("../tests/unit/parser2")]
     fn parser(test: &str) {
         run_test(test, parser_test_fn, Parser::init());
     }
@@ -24,15 +25,10 @@ mod parser_tests {
         sql: &str,
         backend: &mut MemoryBackend,
     ) -> Result<VecContainer<EvalResult<SqlValue>>, String> {
-        let mut result = backend.eval_query(sql);
-        result
-            .as_mut()
-            .map(|r| r.iter_mut().for_each(|r| r.zero_time()))
-            .ok();
-        result.map(|r| r.into_vec_container())
+        backend.eval_query(sql).map(|r| r.into_vec_container())
     }
 
-    #[test_case("../tests/acceptance/memory1")]
+    #[test_case("../tests/acceptance/memory")]
     fn memory_backend(test: &str) {
         run_test(test, memory_backend_test_fn, MemoryBackend::init());
     }
