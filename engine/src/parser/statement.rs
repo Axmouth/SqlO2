@@ -42,7 +42,7 @@ pub fn parse_statement<'a>(
                                 Ok((create_index, new_cursor)) => {
                                     Ok((Statement::CreateIndexStatement(create_index), new_cursor))
                                 }
-                                Err(err) => (Err(err)),
+                                Err(err) => Err(err),
                             }
                         }
                         Token::Unique => match tokens.get(cursor + 2) {
@@ -56,7 +56,7 @@ pub fn parse_statement<'a>(
                                         Statement::CreateIndexStatement(create_index),
                                         new_cursor,
                                     )),
-                                    Err(err) => (Err(err)),
+                                    Err(err) => Err(err),
                                 }
                             }
                             Some(TokenContainer {
@@ -76,7 +76,7 @@ pub fn parse_statement<'a>(
                                 Ok((create_table, new_cursor)) => {
                                     Ok((Statement::CreateTableStatement(create_table), new_cursor))
                                 }
-                                Err(err) => (Err(err)),
+                                Err(err) => Err(err),
                             }
                         }
                         _ => ret_parse_err!(tokens, cursor, "Invalid Create Statement"),
@@ -89,7 +89,7 @@ pub fn parse_statement<'a>(
                 // Look for an DROP statement
                 match parse_drop_table_statement(tokens, cursor, delimiter) {
                     Ok((drop, new_cursor)) => Ok((Statement::DropTableStatement(drop), new_cursor)),
-                    Err(err) => (Err(err)),
+                    Err(err) => Err(err),
                 }
             }
             _ => ret_parse_err!(tokens, cursor, "Expected a valid Statement"),

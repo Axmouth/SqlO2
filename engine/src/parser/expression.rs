@@ -50,15 +50,19 @@ pub fn parse_expression<'a>(
         } else {
             ret_parse_err!(tokens, cursor, "Expected closing Parenthesis");
         }
-    } else if cursor < tokens.len() && UNARY_OPERATORS.contains(&tokens[cursor].token) {
-        let token = &tokens[cursor];
-        let operand = token.token.clone();
+    } else if let (true, Some(operand)) = (
+        cursor < tokens.len(),
+        UnaryOperand::from_token(&tokens[cursor].token),
+    ) {
         cursor += 1;
         let mut nested_un_ops = vec![operand];
         let mut inner_exp;
         loop {
-            if cursor < tokens.len() && UNARY_OPERATORS.contains(&tokens[cursor].token) {
-                nested_un_ops.push(tokens[cursor].token.clone());
+            if let (true, Some(operand)) = (
+                cursor < tokens.len(),
+                UnaryOperand::from_token(&tokens[cursor].token),
+            ) {
+                nested_un_ops.push(operand);
                 cursor += 1;
             } else {
                 break;
@@ -94,7 +98,7 @@ pub fn parse_expression<'a>(
         if let Some(operand) = nested_un_ops.pop() {
             inner_exp = Expression::Unary(UnaryExpression {
                 first: Box::from(inner_exp),
-                operand: Operand::from_token(&operand, cursor)?,
+                operand,
             });
         } else {
             ret_parse_err!(tokens, cursor, "Expected Unary Operator");
@@ -102,7 +106,7 @@ pub fn parse_expression<'a>(
         while let Some(operand) = nested_un_ops.pop() {
             inner_exp = Expression::Unary(UnaryExpression {
                 first: Box::from(inner_exp),
-                operand: Operand::from_token(&operand, cursor)?,
+                operand,
             });
         }
         expression = inner_exp;
@@ -123,11 +127,14 @@ pub fn parse_expression<'a>(
         }),
     ) = (tokens.get(cursor), tokens.get(cursor + 1))
     {
-        if UNARY_POSTFIX_OPERATORS.contains(token1) && BINARY_OPERATORS.contains(token2) {
+        if let (Some(operand), true) = (
+            UnaryOperand::postfix_from_token(token1),
+            BINARY_OPERATORS.contains(token2),
+        ) {
             cursor += 2;
             expression = Expression::Unary(UnaryExpression {
                 first: Box::from(expression),
-                operand: Operand::from_token(token1, cursor)?,
+                operand,
             });
         }
     }
@@ -139,11 +146,11 @@ pub fn parse_expression<'a>(
         }
 
         // Makes sure that if there are postfix unary ops, they are applied in the current expression before continuing.
-        if UNARY_POSTFIX_OPERATORS.contains(token) {
+        if let Some(operand) = UnaryOperand::postfix_from_token(token) {
             if !expression.is_empty() {
                 expression = Expression::Unary(UnaryExpression {
                     first: Box::from(expression),
-                    operand: Operand::from_token(token, cursor)?,
+                    operand,
                 });
                 cursor += 1;
                 last_cursor = cursor;
@@ -215,15 +222,18 @@ pub fn parse_expression<'a>(
             false,
             takes_as_clause,
         )?;
-        let operand = Operand::from_token(&operand_tok, cursor)?;
+        let operand = BinaryOperand::from_token(&operand_tok).ok_or(ParsingError::Internal {
+            msg: format!("Unrecognized token: {:?}", operand_tok),
+            cursor,
+        })?;
         cursor = new_cursor;
 
         if let Some(TokenContainer { token, loc: _ }) = tokens.get(cursor) {
-            if UNARY_POSTFIX_OPERATORS.contains(token) {
+            if let Some(operand) = UnaryOperand::from_token(token) {
                 cursor += 1;
                 second_expression = Expression::Unary(UnaryExpression {
                     first: Box::from(second_expression),
-                    operand: Operand::from_token(token, cursor)?,
+                    operand,
                 });
             }
         }
@@ -237,11 +247,11 @@ pub fn parse_expression<'a>(
     }
 
     if let Some(TokenContainer { token, loc: _ }) = tokens.get(cursor) {
-        if UNARY_POSTFIX_OPERATORS.contains(token) && is_top_level {
+        if let (Some(operand), true) = (UnaryOperand::postfix_from_token(token), is_top_level) {
             cursor += 1;
             expression = Expression::Unary(UnaryExpression {
                 first: Box::from(expression),
-                operand: Operand::from_token(token, cursor)?,
+                operand,
             });
         }
     }

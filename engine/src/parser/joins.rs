@@ -113,7 +113,7 @@ pub fn parse_joins<'a>(
         let (col2, new_cursor) = parse_table_column(tokens, cursor)?;
         cursor = new_cursor;
 
-        let operand = if let Ok(o) = Operand::from_token(&operand_token, cursor) {
+        let operand = if let Some(o) = BinaryOperand::from_token(&operand_token) {
             o
         } else {
             ret_parse_err!(

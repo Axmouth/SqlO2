@@ -1,141 +1,300 @@
 Select
-   ├──From
    └──Items
-      ├──Item
+      ├─[0]
       |  └──Expression
-      |     └──1
-      └──Item
+      |     └──Literal
+      |        └──Numeric
+      |           └─"1"
+      └─[1]
          └──Expression
-            └──2
+            └──Literal
+               └──Numeric
+                  └─"2"
 
 Select
    ├──From
-   |  └──characters
+   |  └─[0]
+   |     └──Table
+   |        └──TableName
+   |           └─"characters"
    └──Items
-      ├──Item
+      ├─[0]
       |  └──Expression
-      |     └──id
-      └──Item
+      |     └──TableColumn
+      |        └──ColName
+      |           └─"id"
+      └─[1]
          └──Expression
-            └──name
+            └──TableColumn
+               └──ColName
+                  └─"name"
 
 Select
    ├──From
-   |  └──characters
-   ├──Where
-   |  └──NotEqual
-   |     |└─id
-   |     └──2
+   |  └─[0]
+   |     └──Table
+   |        └──TableName
+   |           └─"characters"
+   ├──WhereClause
+   |  └──Binary
+   |     ├──First
+   |     |  └──TableColumn
+   |     |     └──ColName
+   |     |        └─"id"
+   |     ├──Second
+   |     |  └──Literal
+   |     |     └──Numeric
+   |     |        └─"2"
+   |     └──Operand
+   |        └──NotEqual
    └──Items
-      ├──Item
+      ├─[0]
       |  └──Expression
-      |     └──id
-      └──Item
+      |     └──TableColumn
+      |        └──ColName
+      |           └─"id"
+      └─[1]
          └──Expression
-            └──name
+            └──TableColumn
+               └──ColName
+                  └─"name"
 
 Select
    ├──From
-   |  └──characters
-   ├──Where
-   |  └──Equal
-   |     |└─name
-   |     └──"Rachel"
+   |  └─[0]
+   |     └──Table
+   |        └──TableName
+   |           └─"characters"
+   ├──WhereClause
+   |  └──Binary
+   |     ├──First
+   |     |  └──TableColumn
+   |     |     └──ColName
+   |     |        └─"name"
+   |     ├──Second
+   |     |  └──Literal
+   |     |     └──String
+   |     |        └─"Rachel"
+   |     └──Operand
+   |        └──Equal
    └──Items
-      ├──Item
+      ├─[0]
       |  └──Expression
-      |     └──id
-      └──Item
+      |     └──TableColumn
+      |        └──ColName
+      |           └─"id"
+      └─[1]
          └──Expression
-            └──name
+            └──TableColumn
+               └──ColName
+                  └─"name"
 
 Select
    ├──From
-   |  └──characters
-   ├──Where
-   |  └──And
-   |     |└─NotEqual
-   |     |  |└─name
-   |     |  └──"Rachel"
-   |     └──LessThan
-   |        |└─id
-   |        └──5
+   |  └─[0]
+   |     └──Table
+   |        └──TableName
+   |           └─"characters"
+   ├──WhereClause
+   |  └──Binary
+   |     ├──First
+   |     |  └──Binary
+   |     |     ├──First
+   |     |     |  └──TableColumn
+   |     |     |     └──ColName
+   |     |     |        └─"name"
+   |     |     ├──Second
+   |     |     |  └──Literal
+   |     |     |     └──String
+   |     |     |        └─"Rachel"
+   |     |     └──Operand
+   |     |        └──NotEqual
+   |     ├──Second
+   |     |  └──Binary
+   |     |     ├──First
+   |     |     |  └──TableColumn
+   |     |     |     └──ColName
+   |     |     |        └─"id"
+   |     |     ├──Second
+   |     |     |  └──Literal
+   |     |     |     └──Numeric
+   |     |     |        └─"5"
+   |     |     └──Operand
+   |     |        └──LessThan
+   |     └──Operand
+   |        └──And
    └──Items
-      ├──Item
+      ├─[0]
       |  └──Expression
-      |     └──id
-      └──Item
-         ├──As
-         |  └──charName
-         └──Expression
-            └──name
+      |     └──TableColumn
+      |        └──ColName
+      |           └─"id"
+      └─[1]
+         ├──Expression
+         |  └──TableColumn
+         |     └──ColName
+         |        └─"name"
+         └──AsClause
+            └─"charName"
 
 Select
    ├──From
-   |  └──characters
-   ├──Order By
+   |  └─[0]
+   |     └──Table
+   |        └──TableName
+   |           └─"characters"
+   ├──OrderBy
    |  ├──Asc
-   |  └──name
+   |  |  └─true
+   |  └──Exp
+   |     └──TableColumn
+   |        └──ColName
+   |           └─"name"
    └──Items
-      └──Item
+      └─[0]
          └──Expression
-            └──name
+            └──TableColumn
+               └──ColName
+                  └─"name"
 
 Select
    ├──From
-   |  └──characters
+   |  └─[0]
+   |     └──Table
+   |        └──TableName
+   |           └─"characters"
    ├──Distinct
+   |  └─true
    └──Items
-      └──Item
+      └─[0]
          └──Expression
             └──Cast
-               ├──Expression
-               |  └──Divide
-               |     |└─id
-               |     └──2
-               └──Type
+               ├──Data
+               |  └──Binary
+               |     ├──First
+               |     |  └──TableColumn
+               |     |     └──ColName
+               |     |        └─"id"
+               |     ├──Second
+               |     |  └──Literal
+               |     |     └──Numeric
+               |     |        └─"2"
+               |     └──Operand
+               |        └──Divide
+               └──Typ
                   └──Int
 
 Select
    ├──From
-   |  └──characters
-   ├──Where
-   |  └──GreaterThan
-   |     |└─id
-   |     └──1
-   ├──Order By
-   |  ├──Desc
-   |  └──id
+   |  └─[0]
+   |     └──Table
+   |        └──TableName
+   |           └─"characters"
+   ├──WhereClause
+   |  └──Binary
+   |     ├──First
+   |     |  └──TableColumn
+   |     |     └──ColName
+   |     |        └─"id"
+   |     ├──Second
+   |     |  └──Literal
+   |     |     └──Numeric
+   |     |        └─"1"
+   |     └──Operand
+   |        └──GreaterThan
+   ├──OrderBy
+   |  ├──Asc
+   |  |  └─false
+   |  └──Exp
+   |     └──TableColumn
+   |        └──ColName
+   |           └─"id"
    ├──Limit
-   |  └──4
+   |  └─4
    ├──Offset
-   |  └──5
+   |  └─5
    └──Items
-      └──Item
-         ├──As
-         |  └──name_with_id
-         └──Expression
-            └──Concat
-               |└─Cast
-               |  ├──Expression
-               |  |  └──id
-               |  └──Type
-               |     └──Text
-               └──Concat
-                  |└─" "
-                  └──name
+      └─[0]
+         ├──Expression
+         |  └──Binary
+         |     ├──First
+         |     |  └──Cast
+         |     |     ├──Data
+         |     |     |  └──TableColumn
+         |     |     |     └──ColName
+         |     |     |        └─"id"
+         |     |     └──Typ
+         |     |        └──Text
+         |     ├──Second
+         |     |  └──Binary
+         |     |     ├──First
+         |     |     |  └──Literal
+         |     |     |     └──String
+         |     |     |        └─" "
+         |     |     ├──Second
+         |     |     |  └──TableColumn
+         |     |     |     └──ColName
+         |     |     |        └─"name"
+         |     |     └──Operand
+         |     |        └──Concat
+         |     └──Operand
+         |        └──Concat
+         └──AsClause
+            └─"name_with_id"
 
 Select
    ├──From
-   |  └──characters
-   ├──Where
-   |  └──NotEqual
-   |     |└─id
-   |     └──2
-   ├──Order By
+   |  └─[0]
+   |     └──Table
+   |        ├──TableName
+   |        |  └─"characters"
+   |        └──Joins
+   |           └─[0]
+   |              ├──Kind
+   |              |  └──Inner
+   |              ├──Source
+   |              |  └──Table
+   |              |     └──TableName
+   |              |        └─"character_roles"
+   |              └──On
+   |                 └──Binary
+   |                    ├──First
+   |                    |  └──TableColumn
+   |                    |     ├──ColName
+   |                    |     |  └─"id"
+   |                    |     └──TableName
+   |                    |        └─"characters"
+   |                    ├──Second
+   |                    |  └──TableColumn
+   |                    |     ├──ColName
+   |                    |     |  └─"character_id"
+   |                    |     └──TableName
+   |                    |        └─"character_roles"
+   |                    └──Operand
+   |                       └──Equal
+   ├──WhereClause
+   |  └──Binary
+   |     ├──First
+   |     |  └──TableColumn
+   |     |     └──ColName
+   |     |        └─"id"
+   |     ├──Second
+   |     |  └──Literal
+   |     |     └──Numeric
+   |     |        └─"2"
+   |     └──Operand
+   |        └──NotEqual
+   ├──OrderBy
    |  ├──Asc
-   |  └──id
+   |  |  └─true
+   |  └──Exp
+   |     └──TableColumn
+   |        └──ColName
+   |           └─"id"
    └──Items
-      └──Item
+      └─[0]
+         ├──Expression
+         |  └──Empty
          └──Asterisk
+            └─true
 

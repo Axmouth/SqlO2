@@ -1,6 +1,7 @@
 use byteorder::{BigEndian, ReadBytesExt};
 use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
+use std::fmt;
 use std::io::Read;
 
 use crate::lexer::TokenContainer;
@@ -21,12 +22,14 @@ pub enum SqlType {
     BigInt,
     Real,
     DoublePrecision,
+    Numeric,
     Text,
     Char,
     VarChar,
     Boolean,
     Null,
     Type,
+    Record,
 }
 
 impl TryFrom<(&Token<'_>, usize)> for SqlType {
@@ -102,17 +105,42 @@ impl SqlType {
             SqlType::BigInt => 3,
             SqlType::Real => 20,
             SqlType::DoublePrecision => 21,
+            SqlType::Numeric => 22,
             SqlType::Char => 101,
             SqlType::VarChar => 102,
             SqlType::Text => 103,
             SqlType::Boolean => 0,
             SqlType::Null => -1000,
             SqlType::Type => -2000,
+            SqlType::Record => todo!(),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, TreeDisplay)]
+#[derive(
+    Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, TreeDisplay,
+)]
+pub enum InferredSqlType {
+    Numeric,
+    Text,
+    Comparable,
+    Concrete(SqlType),
+    Unspecified,
+}
+
+impl InferredSqlType {
+    pub fn default_type(&self) -> Option<SqlType> {
+        match self {
+            InferredSqlType::Numeric => Some(SqlType::Numeric),
+            InferredSqlType::Text => Some(SqlType::Text),
+            InferredSqlType::Comparable => None,
+            InferredSqlType::Concrete(sql_type) => Some(*sql_type),
+            InferredSqlType::Unspecified => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, TreeDisplay)]
 pub enum SqlTypeError {
     ConversionError(String),
     ParseError(String),
@@ -123,16 +151,16 @@ pub enum SqlTypeError {
     Infallible,
 }
 
-impl ToString for SqlTypeError {
-    fn to_string(&self) -> String {
+impl fmt::Display for SqlTypeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SqlTypeError::ConversionError(msg) => msg.clone(),
-            SqlTypeError::ParseError(msg) => msg.clone(),
-            SqlTypeError::DecodeError(msg) => msg.clone(),
-            SqlTypeError::TypeMismatchError(msg) => msg.clone(),
-            SqlTypeError::OverflowError(msg) => msg.clone(),
-            SqlTypeError::OperationError(msg) => msg.clone(),
-            SqlTypeError::Infallible => "wut".to_string(),
+            SqlTypeError::ConversionError(msg) => write!(f, "ConversionError: {}", msg),
+            SqlTypeError::ParseError(msg) => write!(f, "ParseError: {}", msg),
+            SqlTypeError::DecodeError(msg) => write!(f, "DecodeError: {}", msg),
+            SqlTypeError::TypeMismatchError(msg) => write!(f, "TypeMismatchError: {}", msg),
+            SqlTypeError::OverflowError(msg) => write!(f, "OverflowError: {}", msg),
+            SqlTypeError::OperationError(msg) => write!(f, "OperationError: {}", msg),
+            SqlTypeError::Infallible => write!(f, "This shouldn't happen"),
         }
     }
 }
@@ -144,6 +172,7 @@ pub enum SqlValue {
     Numeric(SqlNumeric),
     Boolean(bool),
     Type(SqlType),
+    Record(Vec<SqlValue>),
 }
 
 impl Default for SqlValue {
@@ -174,9 +203,11 @@ impl Serialize for SqlValue {
                 SqlNumeric::BigInt { value } => serializer.serialize_i64(*value),
                 SqlNumeric::Real { value } => serializer.serialize_f32(*value),
                 SqlNumeric::DoublePrecision { value } => serializer.serialize_f64(*value),
+                SqlNumeric::Numeric { value } => serializer.serialize_f64(*value),
             },
             SqlValue::Boolean(val) => serializer.serialize_bool(*val),
             SqlValue::Type(typ) => serializer.serialize_str(&typ.to_string()),
+            SqlValue::Record(_) => todo!(),
         }
     }
 }
@@ -188,6 +219,7 @@ pub enum SqlNumeric {
     BigInt { value: i64 },
     Real { value: f32 },
     DoublePrecision { value: f64 },
+    Numeric { value: f64 },
 }
 
 impl Eq for SqlNumeric {}
@@ -380,6 +412,17 @@ impl SqlValue {
                     SqlValue::Numeric(*num1),
                     SqlValue::Numeric(SqlNumeric::Int { value: *v2 as i32 }),
                 )),
+                (SqlNumeric::SmallInt { value: v1 }, SqlNumeric::Numeric { value: v2 }) => todo!(),
+                (SqlNumeric::Int { value: v1 }, SqlNumeric::Numeric { value: v2 }) => todo!(),
+                (SqlNumeric::BigInt { value: v1 }, SqlNumeric::Numeric { value: v2 }) => todo!(),
+                (SqlNumeric::Real { value: v1 }, SqlNumeric::Numeric { value: v2 }) => todo!(),
+                (SqlNumeric::DoublePrecision { value: v1 }, SqlNumeric::Numeric { value: v2 }) => todo!(),
+                (SqlNumeric::Numeric { value: v1 }, SqlNumeric::SmallInt { value: v2 }) => todo!(),
+                (SqlNumeric::Numeric { value: v1 }, SqlNumeric::Int { value: v2 }) => todo!(),
+                (SqlNumeric::Numeric { value: v1 }, SqlNumeric::BigInt { value: v2 }) => todo!(),
+                (SqlNumeric::Numeric { value: v1 }, SqlNumeric::Real { value: v2 }) => todo!(),
+                (SqlNumeric::Numeric { value: v1 }, SqlNumeric::DoublePrecision { value: v2 }) => todo!(),
+                (SqlNumeric::Numeric { value: v1 }, SqlNumeric::Numeric { value: v2 }) => todo!(),
             },
             (SqlValue::Text(text1), SqlValue::Text(text2)) => match (&text1, &text2) {
                 (&SqlText::Text { value: _ }, &SqlText::Text { value: _ })
@@ -444,6 +487,8 @@ impl SqlValue {
             SqlType::Boolean => Ok(SqlValue::Boolean(data.as_bool()?)),
             SqlType::Null => Ok(SqlValue::Null),
             SqlType::Type => Ok(SqlValue::Text(SqlText::decode_text(data)?)),
+            SqlType::Record => todo!(),
+            SqlType::Numeric => todo!(),
         }
     }
 
@@ -495,6 +540,7 @@ impl SqlValue {
                 SqlNumeric::DoublePrecision { value } => MemoryCell {
                     bytes: value.to_be_bytes().into(),
                 },
+                SqlNumeric::Numeric { value } => todo!(),
             },
             SqlValue::Boolean(val) => match val {
                 true => MemoryCell { bytes: vec![1] },
@@ -503,6 +549,7 @@ impl SqlValue {
             SqlValue::Type(typ) => MemoryCell {
                 bytes: format!("{:?}", typ).as_bytes().into(),
             },
+            SqlValue::Record(_) => todo!(),
         }
     }
 
@@ -1094,6 +1141,19 @@ impl SqlValue {
                         Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
                     }
                 }
+                SqlNumeric::Numeric { value } => {
+                    if value < &0. {
+                        return Err(SqlTypeError::OperationError(
+                            "Can't find square root of negative number".to_string(),
+                        ));
+                    }
+                    let value = (*value as f64).sqrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::Numeric { value }))
+                    }
+                }
             },
             _ => Err(SqlTypeError::TypeMismatchError(
                 "Type mismatch for square root".to_string(),
@@ -1144,6 +1204,14 @@ impl SqlValue {
                         Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision { value }))
                     }
                 }
+                SqlNumeric::Numeric { value } => {
+                    let value = (*value as f64).cbrt();
+                    if value.is_nan() {
+                        Err(SqlTypeError::OperationError("NaN".to_string()))
+                    } else {
+                        Ok(SqlValue::Numeric(SqlNumeric::Numeric { value }))
+                    }
+                }
             },
             _ => Err(SqlTypeError::TypeMismatchError(
                 "Type mismatch for cube root".to_string(),
@@ -1171,6 +1239,9 @@ impl SqlValue {
                         value: value.abs(),
                     }))
                 }
+                SqlNumeric::Numeric { value } => Ok(SqlValue::Numeric(SqlNumeric::Numeric {
+                    value: value.abs(),
+                })),
             },
             _ => Err(SqlTypeError::TypeMismatchError(
                 "Type mismatch for absolute value".to_string(),
@@ -1197,6 +1268,9 @@ impl SqlValue {
                     Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
                         value: -value,
                     }))
+                }
+                SqlNumeric::Numeric { value } => {
+                    Ok(SqlValue::Numeric(SqlNumeric::Numeric { value: -value }))
                 }
             },
             _ => Err(SqlTypeError::TypeMismatchError(
@@ -1337,6 +1411,7 @@ impl SqlValue {
                 SqlNumeric::BigInt { value: _ } => SqlType::BigInt,
                 SqlNumeric::Real { value: _ } => SqlType::Real,
                 SqlNumeric::DoublePrecision { value: _ } => SqlType::DoublePrecision,
+                SqlNumeric::Numeric { value } => todo!(),
             },
             SqlValue::Text(text) => match &text {
                 SqlText::Text { value: _ } => SqlType::Text,
@@ -1350,6 +1425,7 @@ impl SqlValue {
             SqlValue::Boolean(_) => SqlType::Boolean,
             SqlValue::Type(_) => SqlType::Type,
             SqlValue::Null => SqlType::Null,
+            SqlValue::Record(_) => todo!(),
         }
     }
 
@@ -1377,21 +1453,22 @@ impl SqlValue {
                             value: *value as i64,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
+                        value: *value as i64,
+                    })),
                 },
                 SqlValue::Text(text) => match text {
-                    SqlText::Text { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
-                        value: value.parse()?,
-                    })),
-                    SqlText::VarChar {
+                    SqlText::Text { value }
+                    | SqlText::VarChar {
                         value,
                         len: _,
                         maxlen: _,
-                    } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
-                        value: value.parse()?,
-                    })),
-                    SqlText::Char { value, len: _ } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
-                        value: value.parse()?,
-                    })),
+                    }
+                    | SqlText::Char { value, len: _ } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::BigInt {
+                            value: value.parse()?,
+                        }))
+                    }
                 },
                 SqlValue::Boolean(value) => {
                     if *value {
@@ -1421,19 +1498,18 @@ impl SqlValue {
                             value: *value as i32,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => Ok(SqlValue::Numeric(SqlNumeric::Int {
+                        value: *value as i32,
+                    })),
                 },
                 SqlValue::Text(text) => match text {
-                    SqlText::Text { value } => Ok(SqlValue::Numeric(SqlNumeric::Int {
-                        value: value.parse()?,
-                    })),
-                    SqlText::VarChar {
+                    SqlText::Text { value }
+                    | SqlText::VarChar {
                         value,
                         len: _,
                         maxlen: _,
-                    } => Ok(SqlValue::Numeric(SqlNumeric::Int {
-                        value: value.parse()?,
-                    })),
-                    SqlText::Char { value, len: _ } => Ok(SqlValue::Numeric(SqlNumeric::Int {
+                    }
+                    | SqlText::Char { value, len: _ } => Ok(SqlValue::Numeric(SqlNumeric::Int {
                         value: value.parse()?,
                     })),
                 },
@@ -1465,19 +1541,18 @@ impl SqlValue {
                             value: *value as i16,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
+                        value: *value as i16,
+                    })),
                 },
                 SqlValue::Text(text) => match text {
-                    SqlText::Text { value } => Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
-                        value: value.parse()?,
-                    })),
-                    SqlText::VarChar {
+                    SqlText::Text { value }
+                    | SqlText::VarChar {
                         value,
                         len: _,
                         maxlen: _,
-                    } => Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
-                        value: value.parse()?,
-                    })),
-                    SqlText::Char { value, len: _ } => {
+                    }
+                    | SqlText::Char { value, len: _ } => {
                         Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
                             value: value.parse()?,
                         }))
@@ -1511,6 +1586,9 @@ impl SqlValue {
                             value: *value as f32,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => Ok(SqlValue::Numeric(SqlNumeric::Real {
+                        value: *value as f32,
+                    })),
                 },
                 SqlValue::Text(text) => match text {
                     SqlText::Text { value } => Ok(SqlValue::Numeric(SqlNumeric::Real {
@@ -1556,19 +1634,16 @@ impl SqlValue {
                             value: *value,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
+                            value: *value,
+                        }))
+                    }
                 },
                 SqlValue::Text(text) => match text {
-                    SqlText::Text { value } => Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
-                        value: value.parse()?,
-                    })),
-                    SqlText::VarChar {
-                        value,
-                        len: _,
-                        maxlen: _,
-                    } => Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
-                        value: value.parse()?,
-                    })),
-                    SqlText::Char { value, len: _ } => {
+                    SqlText::Text { value }
+                    | SqlText::VarChar { value, .. }
+                    | SqlText::Char { value, .. } => {
                         Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
                             value: value.parse()?,
                         }))
@@ -1578,17 +1653,9 @@ impl SqlValue {
             },
             SqlType::Text => match self {
                 SqlValue::Text(text) => match text {
-                    SqlText::Text { value } => Ok(SqlValue::Text(SqlText::Text {
-                        value: value.clone(),
-                    })),
-                    SqlText::VarChar {
-                        value,
-                        len: _,
-                        maxlen: _,
-                    } => Ok(SqlValue::Text(SqlText::Text {
-                        value: value.clone(),
-                    })),
-                    SqlText::Char { value, len: _ } => Ok(SqlValue::Text(SqlText::Text {
+                    SqlText::Text { value }
+                    | SqlText::VarChar { value, .. }
+                    | SqlText::Char { value, .. } => Ok(SqlValue::Text(SqlText::Text {
                         value: value.clone(),
                     })),
                 },
@@ -1606,6 +1673,9 @@ impl SqlValue {
                         value: value.to_string(),
                     })),
                     SqlNumeric::DoublePrecision { value } => Ok(SqlValue::Text(SqlText::Text {
+                        value: value.to_string(),
+                    })),
+                    SqlNumeric::Numeric { value } => Ok(SqlValue::Text(SqlText::Text {
                         value: value.to_string(),
                     })),
                 },
@@ -1673,6 +1743,14 @@ impl SqlValue {
                         }))
                     }
                     SqlNumeric::DoublePrecision { value } => {
+                        let value = value.to_string();
+                        Ok(SqlValue::Text(SqlText::VarChar {
+                            len: value.len(),
+                            maxlen: value.len(),
+                            value,
+                        }))
+                    }
+                    SqlNumeric::Numeric { value } => {
                         let value = value.to_string();
                         Ok(SqlValue::Text(SqlText::VarChar {
                             len: value.len(),
@@ -1750,6 +1828,13 @@ impl SqlValue {
                             value,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => {
+                        let value = value.to_string();
+                        Ok(SqlValue::Text(SqlText::Char {
+                            len: value.len(),
+                            value,
+                        }))
+                    }
                 },
                 SqlValue::Boolean(value) => match value {
                     true => Ok(SqlValue::Text(SqlText::Char {
@@ -1805,6 +1890,8 @@ impl SqlValue {
             },
             SqlType::Null => Ok(SqlValue::Null),
             SqlType::Type => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
+            SqlType::Record => todo!(),
+            SqlType::Numeric => todo!(),
         }
     }
 
@@ -1832,6 +1919,9 @@ impl SqlValue {
                             value: *value as i64,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => Ok(SqlValue::Numeric(SqlNumeric::BigInt {
+                        value: *value as i64,
+                    })),
                 },
                 _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
             },
@@ -1854,6 +1944,9 @@ impl SqlValue {
                             value: *value as i32,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => Ok(SqlValue::Numeric(SqlNumeric::Int {
+                        value: *value as i32,
+                    })),
                 },
                 _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
             },
@@ -1876,6 +1969,9 @@ impl SqlValue {
                             value: *value as i16,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => Ok(SqlValue::Numeric(SqlNumeric::SmallInt {
+                        value: *value as i16,
+                    })),
                 },
                 _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
             },
@@ -1898,6 +1994,9 @@ impl SqlValue {
                             value: *value as f32,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => Ok(SqlValue::Numeric(SqlNumeric::Real {
+                        value: *value as f32,
+                    })),
                 },
                 _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
             },
@@ -1928,22 +2027,19 @@ impl SqlValue {
                             value: *value,
                         }))
                     }
+                    SqlNumeric::Numeric { value } => {
+                        Ok(SqlValue::Numeric(SqlNumeric::DoublePrecision {
+                            value: *value,
+                        }))
+                    }
                 },
                 _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
             },
             SqlType::Text => match self {
                 SqlValue::Text(text) => match text {
-                    SqlText::Text { value } => Ok(SqlValue::Text(SqlText::Text {
-                        value: value.clone(),
-                    })),
-                    SqlText::VarChar {
-                        value,
-                        len: _,
-                        maxlen: _,
-                    } => Ok(SqlValue::Text(SqlText::Text {
-                        value: value.clone(),
-                    })),
-                    SqlText::Char { value, len: _ } => Ok(SqlValue::Text(SqlText::Text {
+                    SqlText::Text { value }
+                    | SqlText::VarChar { value, .. }
+                    | SqlText::Char { value, .. } => Ok(SqlValue::Text(SqlText::Text {
                         value: value.clone(),
                     })),
                 },
@@ -2001,6 +2097,8 @@ impl SqlValue {
                 SqlValue::Type(typ) => Ok(SqlValue::Type(*typ)),
                 _ => Err(SqlTypeError::TypeMismatchError("Type mismatch".to_string())),
             },
+            SqlType::Record => todo!(),
+            SqlType::Numeric => todo!(),
         }
     }
 }
@@ -2206,6 +2304,11 @@ impl std::fmt::Display for SqlValue {
                 SqlValue::Boolean(val) => val.to_string(),
                 SqlValue::Null => "NULL".to_string(),
                 SqlValue::Type(typ) => typ.to_string(),
+                SqlValue::Record(val) => val
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
             }
         )
     }
@@ -2240,6 +2343,7 @@ impl std::fmt::Display for SqlNumeric {
                 SqlNumeric::BigInt { value } => value.to_string(),
                 SqlNumeric::Real { value } => value.to_string(),
                 SqlNumeric::DoublePrecision { value } => value.to_string(),
+                SqlNumeric::Numeric { value } => value.to_string(),
             }
         )
     }

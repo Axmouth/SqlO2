@@ -1,42 +1,93 @@
 Create Table
-   ├──Name: character_roles
-   └──Columns
-      ├──Int
-      └──Text
+   ├──Name
+   |  └─"character_roles"
+   └──Cols
+      ├─[0]
+      |  ├──Name
+      |  |  └─"character_id"
+      |  └──DataType
+      |     └──Int
+      └─[1]
+         ├──Name
+         |  └─"role_name"
+         └──DataType
+            └──Text
 
 Insert
-   ├──Name: character_roles
+   ├──Table
+   |  └─"character_roles"
    └──Values
-      ├──1
-      └──"Wave Controller"
+      ├─[0]
+      |  └──Literal
+      |     └──Numeric
+      |        └─"1"
+      └─[1]
+         └──Literal
+            └──String
+               └─"Wave Controller"
 
 Insert
-   ├──Name: character_roles
+   ├──Table
+   |  └─"character_roles"
    └──Values
-      ├──2
-      └──"Light Bearer"
+      ├─[0]
+      |  └──Literal
+      |     └──Numeric
+      |        └─"2"
+      └─[1]
+         └──Literal
+            └──String
+               └─"Light Bearer"
 
 Insert
-   ├──Name: character_roles
+   ├──Table
+   |  └─"character_roles"
    └──Values
-      ├──3
-      └──"Spear Bearer"
+      ├─[0]
+      |  └──Literal
+      |     └──Numeric
+      |        └─"3"
+      └─[1]
+         └──Literal
+            └──String
+               └─"Spear Bearer"
 
 Insert
-   ├──Name: character_roles
+   ├──Table
+   |  └─"character_roles"
    └──Values
-      ├──4
-      └──"Light Bearer"
+      ├─[0]
+      |  └──Literal
+      |     └──Numeric
+      |        └─"4"
+      └─[1]
+         └──Literal
+            └──String
+               └─"Light Bearer"
 
 Insert
-   ├──Name: character_roles
+   ├──Table
+   |  └─"character_roles"
    └──Values
-      ├──1
-      └──"Fisherman"
+      ├─[0]
+      |  └──Literal
+      |     └──Numeric
+      |        └─"1"
+      └─[1]
+         └──Literal
+            └──String
+               └─"Fisherman"
 
 Insert
-   ├──Name: character_roles
+   ├──Table
+   |  └─"character_roles"
    └──Values
-      ├──4
-      └──"Spear Bearer"
+      ├─[0]
+      |  └──Literal
+      |     └──Numeric
+      |        └─"4"
+      └─[1]
+         └──Literal
+            └──String
+               └─"Spear Bearer"
 

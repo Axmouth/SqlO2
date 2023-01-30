@@ -1,0 +1,141 @@
+Select
+   ├──From
+   └──Items
+      ├──Item
+      |  └──Expression
+      |     └──1
+      └──Item
+         └──Expression
+            └──2
+
+Select
+   ├──From
+   |  └──characters
+   └──Items
+      ├──Item
+      |  └──Expression
+      |     └──id
+      └──Item
+         └──Expression
+            └──name
+
+Select
+   ├──From
+   |  └──characters
+   ├──Where
+   |  └──NotEqual
+   |     |└─id
+   |     └──2
+   └──Items
+      ├──Item
+      |  └──Expression
+      |     └──id
+      └──Item
+         └──Expression
+            └──name
+
+Select
+   ├──From
+   |  └──characters
+   ├──Where
+   |  └──Equal
+   |     |└─name
+   |     └──"Rachel"
+   └──Items
+      ├──Item
+      |  └──Expression
+      |     └──id
+      └──Item
+         └──Expression
+            └──name
+
+Select
+   ├──From
+   |  └──characters
+   ├──Where
+   |  └──And
+   |     |└─NotEqual
+   |     |  |└─name
+   |     |  └──"Rachel"
+   |     └──LessThan
+   |        |└─id
+   |        └──5
+   └──Items
+      ├──Item
+      |  └──Expression
+      |     └──id
+      └──Item
+         ├──As
+         |  └──charName
+         └──Expression
+            └──name
+
+Select
+   ├──From
+   |  └──characters
+   ├──Order By
+   |  ├──Asc
+   |  └──name
+   └──Items
+      └──Item
+         └──Expression
+            └──name
+
+Select
+   ├──From
+   |  └──characters
+   ├──Distinct
+   └──Items
+      └──Item
+         └──Expression
+            └──Cast
+               ├──Expression
+               |  └──Divide
+               |     |└─id
+               |     └──2
+               └──Type
+                  └──Int
+
+Select
+   ├──From
+   |  └──characters
+   ├──Where
+   |  └──GreaterThan
+   |     |└─id
+   |     └──1
+   ├──Order By
+   |  ├──Desc
+   |  └──id
+   ├──Limit
+   |  └──4
+   ├──Offset
+   |  └──5
+   └──Items
+      └──Item
+         ├──As
+         |  └──name_with_id
+         └──Expression
+            └──Concat
+               |└─Cast
+               |  ├──Expression
+               |  |  └──id
+               |  └──Type
+               |     └──Text
+               └──Concat
+                  |└─" "
+                  └──name
+
+Select
+   ├──From
+   |  └──characters
+   ├──Where
+   |  └──NotEqual
+   |     |└─id
+   |     └──2
+   ├──Order By
+   |  ├──Asc
+   |  └──id
+   └──Items
+      └──Item
+         └──Asterisk
+

@@ -38,7 +38,7 @@ fn main() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
 
     let mut mb = MemoryBackend::new();
-    let mut rl = Editor::new();
+    let mut rl = Editor::new().expect("Failed to create editor");
 
     if rl.load_history("history.txt").is_ok() {}
 

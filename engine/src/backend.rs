@@ -13,51 +13,29 @@ pub trait Cell {
     fn as_bool(&self) -> Result<bool, &str>;
     fn equals(&self, other: Self) -> bool;
 }
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ResultColumn {
     pub col_type: SqlType,
     pub name: String,
 }
 
-impl From<SqlType> for String {
-    fn from(col_type: SqlType) -> Self {
-        match col_type {
-            SqlType::Char => "Char".to_string(),
-            SqlType::Text => "Text".to_string(),
-            SqlType::VarChar => "Varchar".to_string(),
-            SqlType::SmallInt => "Smallint".to_string(),
-            SqlType::Int => "Int".to_string(),
-            SqlType::BigInt => "Bigint".to_string(),
-            SqlType::Real => "Real".to_string(),
-            SqlType::DoublePrecision => "Double Precision".to_string(),
-            SqlType::Boolean => "Bool".to_string(),
-            SqlType::Null => "Null".to_string(),
-            SqlType::Type => "Type".to_string(),
-        }
-    }
-}
-
-impl From<&SqlType> for String {
-    fn from(col_type: &SqlType) -> Self {
-        match col_type {
-            SqlType::Char => "Char".to_string(),
-            SqlType::Text => "Text".to_string(),
-            SqlType::VarChar => "Varchar".to_string(),
-            SqlType::SmallInt => "Smallint".to_string(),
-            SqlType::Int => "Int".to_string(),
-            SqlType::BigInt => "Bigint".to_string(),
-            SqlType::Real => "Real".to_string(),
-            SqlType::DoublePrecision => "Double Precision".to_string(),
-            SqlType::Boolean => "Bool".to_string(),
-            SqlType::Null => "Null".to_string(),
-            SqlType::Type => "Type".to_string(),
-        }
-    }
-}
-
 impl std::fmt::Display for SqlType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(String::from(self).as_str())
+        match self {
+            SqlType::Char => write!(f, "Char"),
+            SqlType::Text => write!(f, "Text"),
+            SqlType::VarChar => write!(f, "Varchar"),
+            SqlType::SmallInt => write!(f, "Smallint"),
+            SqlType::Int => write!(f, "Int"),
+            SqlType::BigInt => write!(f, "Bigint"),
+            SqlType::Real => write!(f, "Real"),
+            SqlType::DoublePrecision => write!(f, "Double Precision"),
+            SqlType::Boolean => write!(f, "Bool"),
+            SqlType::Null => write!(f, "Null"),
+            SqlType::Type => write!(f, "Type"),
+            SqlType::Record => write!(f, "Record"),
+            SqlType::Numeric => todo!(),
+        }
     }
 }
 
@@ -122,7 +100,7 @@ where
 
 pub type ResultColumns = Vec<ResultColumn>;
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub struct QueryResults<C> {
     pub columns: ResultColumns,
     pub rows: Vec<Vec<C>>,
